@@ -39,11 +39,26 @@ const SEASON_YEAR = "2026";
 const AFC_DEFAULT = ["Kenny", "Grant", "Rob", "Tim", "Ted", "Nikko", "Dan", "Maggie", "Arjun", "Mina", "Mike", "Jaime + Kelsee"];
 const NFC_DEFAULT = ["Alanna", "Kruti", "Mario", "Ahmad", "Melody", "Kris + Mahtab", "David C", "Eric", "Sam", "Jeremy", "Chris", "Melissa"];
 
-const DEFAULT_CHARTER = `Dual-Scoring Architecture
+const DEFAULT_CHARTER = `Standings
 In-Conference Win = 2.0 Standings Pts | Cross-Conference Win = 1.0 Standings Pt | Ties = 50% value.
+Tiebreaker: Points For (PF) -- whoever has scored more total points wins the tiebreak.
 
 Playoff Qualification (Per Conference)
-Each 12-team conference sends 6 teams to the playoffs. Seeds 1-5 are locked by total Standings Points (in-conference + cross-conference). Seed 6 (the Wildcard) goes to whichever of the remaining 7 teams in that same conference has the highest Points For (PF). AFC and NFC seed independently of each other.`;
+Each 12-team conference sends 6 teams to the playoffs. Seeds 1-5 are locked by total Standings Points (in-conference + cross-conference). Seed 6 (the Wildcard) goes to whichever of the remaining 7 teams in that same conference has the highest Points For (PF). AFC and NFC seed independently of each other.
+
+Prizes
+Conference Champion (AFC and NFC): $300 each
+Overall Champion: +$150 on top of their conference prize
+Weekly High Score: $15/week x 14 weeks
+Trophy Budget: $40
+Toilet Bowl: TBD
+
+Season Calendar
+Regular season: Weeks 1-14. Playoffs begin Week 15.
+Trade deadline: Week 11.
+
+Waivers
+FAAB budget: $100 per team for the season.`;
 
 const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD;
 
@@ -874,10 +889,10 @@ export default function App() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <a href={`https://sleeper.com/leagues/${afcLeagueId}`} target="_blank" rel="noreferrer" className={`flex items-center gap-2 ${CONF_STYLES.AFC.button} text-white px-4 py-2 rounded-lg font-semibold text-xs transition-all duration-200`}>
+          <a href={`https://sleeper.com/leagues/${afcLeagueId}/team`} target="_blank" rel="noreferrer" className={`flex items-center gap-2 ${CONF_STYLES.AFC.button} text-white px-4 py-2 rounded-lg font-semibold text-xs transition-all duration-200`}>
             <span>AFC League</span> <ExternalLink className="w-3 h-3" />
           </a>
-          <a href={`https://sleeper.com/leagues/${nfcLeagueId}`} target="_blank" rel="noreferrer" className={`flex items-center gap-2 ${CONF_STYLES.NFC.button} text-white px-4 py-2 rounded-lg font-semibold text-xs transition-all duration-200`}>
+          <a href={`https://sleeper.com/leagues/${nfcLeagueId}/team`} target="_blank" rel="noreferrer" className={`flex items-center gap-2 ${CONF_STYLES.NFC.button} text-white px-4 py-2 rounded-lg font-semibold text-xs transition-all duration-200`}>
             <span>NFC League</span> <ExternalLink className="w-3 h-3" />
           </a>
           <button

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { PositionBadge } from './shared';
+import { PositionBadge, SkeletonRows } from './shared';
 import TeamName from './TeamName';
 import PlayerAvatar from './PlayerAvatar';
 import PlayerNameButton from './PlayerNameButton';
@@ -62,7 +62,7 @@ export default function DraftBoardTab({ afcDraft, nfcDraft, afcRosterIdMap, nfcR
         </div>
       </div>
 
-      {loading && <div className="text-sm text-slate-500 italic">Loading draft results from Sleeper...</div>}
+      {loading && <SkeletonRows rows={4} />}
       {!loading && rounds.length === 0 && (
         <div className="text-sm text-slate-500 italic">No completed {conf} draft found yet.</div>
       )}

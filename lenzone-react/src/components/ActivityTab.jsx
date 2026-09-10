@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { CONF_STYLES } from '../lib/theme';
-import { ConfFilterToggle, PositionBadge, InjuryBadge } from './shared';
+import { ConfFilterToggle, PositionBadge, InjuryBadge, SkeletonRows } from './shared';
 import { playerLabel } from '../lib/players';
 import TeamName from './TeamName';
 import PlayerAvatar from './PlayerAvatar';
@@ -73,7 +73,7 @@ export default function ActivityTab({ afcTransactions, nfcTransactions, afcRoste
         <TypeFilterToggle value={typeFilter} onChange={setTypeFilter} />
       </div>
 
-      {loading && <div className="text-sm text-slate-500 italic">Loading transaction history from Sleeper...</div>}
+      {loading && <SkeletonRows rows={4} />}
       {!loading && combined.length === 0 && <div className="text-sm text-slate-500 italic">{emptyLabel}</div>}
 
       <div className="space-y-3">

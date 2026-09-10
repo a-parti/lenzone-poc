@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { PositionBadge, InjuryBadge } from './shared';
+import { PositionBadge, InjuryBadge, SkeletonRows } from './shared';
 import TeamName from './TeamName';
 import { playerLabel, buildOwnerMap, buildAcquisitionHistory } from '../lib/players';
 import PlayerNameButton from './PlayerNameButton';
@@ -171,7 +171,7 @@ export default function PlayersTab({ afcData, nfcData, afcDraft, nfcDraft, afcTr
         </label>
       </div>
 
-      {playersLoading && <div className="text-sm text-slate-500 italic">Loading player database from Sleeper...</div>}
+      {playersLoading && <SkeletonRows rows={4} />}
 
       <div className="bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-xl overflow-hidden shadow-xl">
         <div className="overflow-x-auto">

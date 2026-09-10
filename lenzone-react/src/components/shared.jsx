@@ -56,6 +56,46 @@ export function GameBadge({ nflTeam, week, byTeamWeek }) {
   return <span className="text-[9px] font-mono text-slate-500 shrink-0 whitespace-nowrap">{label}</span>;
 }
 
+// Shared button styling so ad-hoc buttons across tabs don't drift in size/weight. Padding lives
+// per-variant (icon buttons are square, primary/ghost are label buttons) so a caller's className
+// never has to fight the base classes for the same property.
+const BUTTON_VARIANTS = {
+  primary: "px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white",
+  icon: "p-2 bg-slate-800/80 hover:bg-slate-700 text-slate-300",
+  ghost: "px-4 py-2 bg-slate-900/80 hover:bg-slate-800 text-slate-300 border border-slate-800/80"
+};
+export function Button({ variant = "primary", className = "", children, ...props }) {
+  return (
+    <button
+      className={`inline-flex items-center gap-2 rounded-lg font-semibold text-xs transition-all duration-200 ${BUTTON_VARIANTS[variant]} ${className}`}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
+// Pulsing placeholder block, used instead of italic "Loading..." text while real data is in flight.
+export function Skeleton({ className = "" }) {
+  return <div className={`animate-pulse bg-slate-800/60 rounded ${className}`} />;
+}
+
+export function SkeletonRows({ rows = 3, className = "" }) {
+  return (
+    <div className={`space-y-3 ${className}`}>
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-4 flex items-center gap-3">
+          <Skeleton className="w-9 h-9 rounded-full shrink-0" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-3 w-1/3" />
+            <Skeleton className="h-3 w-1/2" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function ConfFilterToggle({ value, onChange }) {
   return (
     <div className="inline-flex rounded-lg bg-slate-950 p-1 border border-slate-800/80">

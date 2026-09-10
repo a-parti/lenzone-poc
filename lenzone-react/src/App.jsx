@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Trophy, Swords, Megaphone, Scroll, ExternalLink, RefreshCw, Award, Lock, Unlock, X, TrendingDown, Zap, Flame, Activity, ListOrdered, Users, Calendar, ChevronDown, Search, Image, ImageOff } from 'lucide-react';
+import { Trophy, Swords, Megaphone, Scroll, ExternalLink, RefreshCw, Award, Lock, Unlock, X, TrendingDown, Zap, Flame, Activity, ListOrdered, Users, Calendar, ChevronDown, Search, Image, ImageOff, Home } from 'lucide-react';
 import lenzoneLogo from './assets/LENZone-option-H-vertical-bold-no-text.png';
 import { CONF_STYLES } from './lib/theme';
 import { ConfFilterToggle } from './components/shared';
@@ -17,6 +17,7 @@ import PlayersTab from './components/PlayersTab';
 import RosterModal from './components/RosterModal';
 import TeamName from './components/TeamName';
 import ScheduleTab from './components/ScheduleTab';
+import HomeView from './components/HomeView';
 import { RosterModalProvider } from './context/RosterModalContext';
 import { PlayerModalProvider } from './context/PlayerModalContext';
 import PlayerModal from './components/PlayerModal';
@@ -26,7 +27,7 @@ import { TeamLogoProvider } from './context/TeamLogoContext';
 import { PlayerPhotoProvider, usePlayerPhotos } from './context/PlayerPhotoContext';
 import { buildConferenceColorMap, getDraftSlotMap } from './lib/teamColors';
 import { playerLabel, scoringFieldFor, projectedPoints, computeRosterProjection, computeBlendedRosterScore, buildOwnerMap, buildAcquisitionHistory, computeMoveCounts } from './lib/players';
-import { PositionBadge, InjuryBadge, GameBadge } from './components/shared';
+import { PositionBadge, InjuryBadge, GameBadge, Button } from './components/shared';
 import PlayerAvatar from './components/PlayerAvatar';
 
 // LENZONE 2026 is a fixed dual-conference league. These IDs should not change season to season.
@@ -144,13 +145,9 @@ function SortHeader({ label, sortKey, activeKey, dir, onClick }) {
 function PhotoToggleButton() {
   const { enabled, toggle } = usePlayerPhotos();
   return (
-    <button
-      onClick={toggle}
-      title={enabled ? "Hide player photos" : "Show player photos"}
-      className="p-2 bg-slate-800/80 hover:bg-slate-700 rounded-lg text-slate-300 transition-all duration-200"
-    >
+    <Button variant="icon" onClick={toggle} title={enabled ? "Hide player photos" : "Show player photos"}>
       {enabled ? <Image className="w-4 h-4" /> : <ImageOff className="w-4 h-4" />}
-    </button>
+    </Button>
   );
 }
 
@@ -708,7 +705,7 @@ function ManagerMatchupRow({ manager, conf, intra, inter, afcSlots, nfcSlots, pl
 export default function App() {
   const [afcLeagueId, setAfcLeagueId] = useState(() => localStorage.getItem('lenzone_afc_league_id') || AFC_LEAGUE_ID);
   const [nfcLeagueId, setNfcLeagueId] = useState(() => localStorage.getItem('lenzone_nfc_league_id') || NFC_LEAGUE_ID);
-  const [activeTab, setActiveTab] = useState("standings");
+  const [activeTab, setActiveTab] = useState("home");
   const [confFilter, setConfFilter] = useState("ALL");
   const [selectedWeek, setSelectedWeek] = useState(1);
   const [selectedManager, setSelectedManager] = useState("ALL");
@@ -990,6 +987,7 @@ export default function App() {
   const [playersSubTab, setPlayersSubTab] = useState("search");
 
   const tabs = [
+    { id: "home", label: "Home", shortLabel: "Home", icon: Home },
     { id: "standings", label: "Standings", shortLabel: "Standings", icon: Trophy },
     { id: "schedule", label: "Schedule", shortLabel: "Schedule", icon: Calendar },
     { id: "matchups", label: "Weekly Matchups", shortLabel: "Matchups", icon: Swords },
@@ -1023,10 +1021,12 @@ export default function App() {
       <header className="max-w-7xl mx-auto bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-2xl p-6 mb-8 shadow-xl flex flex-col md:flex-row justify-between items-center gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <img src={lenzoneLogo} alt="LENZONE" className="w-10 h-10 rounded-full object-cover" />
-            <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-blue-400 via-indigo-400 to-rose-400 bg-clip-text text-transparent">
-              LENZONE 2026
-            </h1>
+            <button type="button" onClick={() => setActiveTab("home")} className="flex items-center gap-3">
+              <img src={lenzoneLogo} alt="LENZONE" className="w-10 h-10 rounded-full object-cover" />
+              <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-blue-400 via-indigo-400 to-rose-400 bg-clip-text text-transparent">
+                LENZONE 2026
+              </h1>
+            </button>
             {isAdmin && (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase tracking-wider">
                 Admin Mode
@@ -1042,20 +1042,17 @@ export default function App() {
           <a href={`https://sleeper.com/leagues/${nfcLeagueId}/team`} target="_blank" rel="noreferrer" className={`flex items-center gap-2 ${CONF_STYLES.NFC.button} text-white px-4 py-2 rounded-lg font-semibold text-xs transition-all duration-200`}>
             <span>NFC League</span> <ExternalLink className="w-3 h-3" />
           </a>
-          <button
+          <Button
+            variant="icon"
             onClick={() => setActiveTab("charter")}
             title="League Charter"
-            className={`p-2 rounded-lg transition-all duration-200 ${activeTab === "charter" ? "bg-blue-600 text-white" : "bg-slate-800/80 hover:bg-slate-700 text-slate-300"}`}
+            className={activeTab === "charter" ? "bg-blue-600 text-white hover:bg-blue-500" : ""}
           >
             <Scroll className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => isAdmin ? handleLogout() : setShowLoginModal(true)}
-            title={isAdmin ? "Log out of admin mode" : "Admin login"}
-            className="p-2 bg-slate-800/80 hover:bg-slate-700 rounded-lg text-slate-300 transition-all duration-200"
-          >
+          </Button>
+          <Button variant="icon" onClick={() => isAdmin ? handleLogout() : setShowLoginModal(true)} title={isAdmin ? "Log out of admin mode" : "Admin login"}>
             {isAdmin ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
-          </button>
+          </Button>
           <PhotoToggleButton />
         </div>
       </header>
@@ -1079,6 +1076,14 @@ export default function App() {
             );
           })}
         </div>
+
+        {/* TAB: HOME */}
+        {activeTab === "home" && (
+          <HomeView
+            setActiveTab={setActiveTab} selectedWeek={selectedWeek} isWeekFinal={isSelectedWeekFinal}
+            weeklyAwards={weeklyAwards} weekPoints={weekPoints} seasonRecord={seasonRecord} nflGames={nflSchedule.games}
+          />
+        )}
 
         {/* TAB: STANDINGS */}
         {activeTab === "standings" && (
@@ -1105,9 +1110,9 @@ export default function App() {
                     onChange={(e) => handleLeagueIdChange("NFC", e.target.value)}
                     className="bg-slate-950 border border-slate-800/80 text-xs px-3 py-1.5 rounded-lg focus:outline-none focus:border-rose-500 w-full sm:w-44"
                   />
-                  <button onClick={loadData} className="p-2 bg-slate-800/80 hover:bg-slate-700 rounded-lg text-white transition-all duration-200">
+                  <Button variant="icon" onClick={loadData}>
                     <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
@@ -1350,9 +1355,7 @@ Full Standings & Scoreboard: https://lenzone.vercel.app`}
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-bold text-slate-100">Official LENZONE 2026 Charter</h2>
               {isAdmin && (
-                <button onClick={saveCharter} className="text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg transition-all duration-200">
-                  Save
-                </button>
+                <Button onClick={saveCharter}>Save</Button>
               )}
             </div>
 

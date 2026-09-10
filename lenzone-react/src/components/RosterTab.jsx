@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { CONF_STYLES } from '../lib/theme';
-import { ConfFilterToggle } from './shared';
+import { ConfFilterToggle, SkeletonRows } from './shared';
 import RosterList from './RosterList';
 import TeamName from './TeamName';
 import { scoringFieldFor, computeTeamWeeklyTotals } from '../lib/players';
@@ -90,7 +90,7 @@ export default function RosterTab({ afcData, nfcData, afcSeason, nfcSeason, play
         </div>
       </div>
 
-      {playersLoading && <div className="text-sm text-slate-500 italic">Loading player database from Sleeper...</div>}
+      {playersLoading && <SkeletonRows rows={4} />}
       {!playersLoading && pool.length === 0 && (
         <div className="text-sm text-slate-500 italic">Connect a Sleeper League ID (Standings tab, admin mode) to view rosters.</div>
       )}

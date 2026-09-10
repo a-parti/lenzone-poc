@@ -7,6 +7,10 @@ body {
   font-family: system-ui, -apple-system, sans-serif;
 }
 
+.font-display {
+  font-family: 'Fraunces', Georgia, serif;
+}
+
 /* Thin, dark scrollbar for internal scroll containers (weekly scoring table, etc.) instead of the
    default chunky OS scrollbar. */
 .scroll-thin {

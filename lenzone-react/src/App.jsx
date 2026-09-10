@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Trophy, Swords, Megaphone, Scroll, ExternalLink, RefreshCw, Award, Lock, Unlock, X, TrendingDown, Zap, Flame, Activity, ListOrdered, Users, Calendar, ChevronDown, Search, Repeat, Image, ImageOff } from 'lucide-react';
+import { Trophy, Swords, Megaphone, Scroll, ExternalLink, RefreshCw, Award, Lock, Unlock, X, TrendingDown, Zap, Flame, Activity, ListOrdered, Users, Calendar, ChevronDown, Search, Image, ImageOff } from 'lucide-react';
 import lenzoneLogo from './assets/LENZone-option-H-vertical-bold-no-text.png';
 import { CONF_STYLES } from './lib/theme';
 import { ConfFilterToggle } from './components/shared';
 import {
-  fetchSleeperLeague, fetchFullSeasonData, fetchPlayersDB, fetchSeasonTransactions, fetchDraftPicks, fetchWeekProjections
+  fetchSleeperLeague, fetchFullSeasonData, fetchPlayersDB, fetchSeasonTransactions, fetchDraftPicks, fetchAllWeekProjections, fetchNflState, fetchNflSchedule
 } from './lib/sleeperApi';
 import {
   computeStats, buildHistory, simulateCombinedPlayoffOdds, computeCrossRecords, computeCrossWeekRecord,
-  computeWeeklyAwards, buildConferenceList, rankConference, winProbability, roughWinProbability, computePointsAgainst
+  computeWeeklyAwards, buildConferenceList, rankConference, winProbability, roughWinProbability, computePointsAgainst, computeInConfRecord
 } from './lib/statsMath';
 import RosterTab from './components/RosterTab';
 import ActivityTab from './components/ActivityTab';
@@ -25,8 +25,8 @@ import { TeamColorProvider } from './context/TeamColorContext';
 import { TeamLogoProvider } from './context/TeamLogoContext';
 import { PlayerPhotoProvider, usePlayerPhotos } from './context/PlayerPhotoContext';
 import { buildConferenceColorMap, getDraftSlotMap } from './lib/teamColors';
-import { playerLabel, scoringFieldFor, projectedPoints, computeRosterProjection } from './lib/players';
-import { PositionBadge, InjuryBadge } from './components/shared';
+import { playerLabel, scoringFieldFor, projectedPoints, computeRosterProjection, computeBlendedRosterScore, buildOwnerMap, buildAcquisitionHistory, computeMoveCounts } from './lib/players';
+import { PositionBadge, InjuryBadge, GameBadge } from './components/shared';
 import PlayerAvatar from './components/PlayerAvatar';
 
 // LENZONE 2026 is a fixed dual-conference league. These IDs should not change season to season.
@@ -122,7 +122,8 @@ const STANDINGS_SORT_ACCESSORS = {
   pf: item => item.pf,
   pa: item => item.pa,
   playoffPct: item => item.playoffPct ?? -1,
-  faab: item => parseFaab(item.faab)
+  faab: item => parseFaab(item.faab),
+  moves: item => item.moves
 };
 
 function SortHeader({ label, sortKey, activeKey, dir, onClick }) {
@@ -194,6 +195,7 @@ function StandingsTable({ conf, rows }) {
               <SortHeader label="PA" sortKey="pa" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
               <SortHeader label="Playoff %" sortKey="playoffPct" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
               <SortHeader label="FAAB" sortKey="faab" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
+              <SortHeader label="Moves" sortKey="moves" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/60">
@@ -213,6 +215,7 @@ function StandingsTable({ conf, rows }) {
                 <td className="py-3 px-4 font-mono text-slate-400">{item.pa.toFixed(2)}</td>
                 <td className="py-3 px-4 font-mono">{item.playoffPct === null || item.playoffPct === undefined ? "--" : `${item.playoffPct.toFixed(0)}%`}</td>
                 <td className="py-3 px-4 text-emerald-400">{item.faab}</td>
+                <td className="py-3 px-4 font-mono text-slate-400">{item.moves}</td>
               </tr>
             ))}
           </tbody>
@@ -258,6 +261,10 @@ function StandingsTable({ conf, rows }) {
                 <p className="tracking-wider text-[10px] uppercase font-semibold text-slate-500">FAAB</p>
                 <p className="text-emerald-400 font-semibold text-sm">{item.faab}</p>
               </div>
+              <div>
+                <p className="tracking-wider text-[10px] uppercase font-semibold text-slate-500">Moves</p>
+                <p className="text-slate-400 font-mono text-sm">{item.moves}</p>
+              </div>
             </div>
           </div>
         ))}
@@ -266,20 +273,28 @@ function StandingsTable({ conf, rows }) {
   );
 }
 
-function HighlightCard({ icon: Icon, label, name, value, accent }) {
+function HighlightCard({ icon: Icon, label, name, value, accent, onClick }) {
   return (
-    <div className="bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-xl p-4 hover:border-slate-700 hover:scale-[1.01] transition-all duration-200">
+    <button
+      type="button"
+      onClick={onClick}
+      className="text-left bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-xl p-4 hover:border-slate-700 hover:scale-[1.01] transition-all duration-200 w-full"
+    >
       <div className="flex items-center gap-2 mb-2">
         <Icon className={`w-4 h-4 ${accent}`} />
         <span className="tracking-wider text-[10px] uppercase font-semibold text-slate-500">{label}</span>
       </div>
       <p className="font-bold text-slate-100 text-sm truncate">{name}</p>
       <p className={`text-xs font-mono ${accent}`}>{value}</p>
-    </div>
+    </button>
   );
 }
 
-function WeeklyHighlights({ awards, week }) {
+// While the week is still live/in-progress, every card is explicitly labeled "Projected" and driven
+// by the blended projected-final numbers (not a partial leaderboard of whoever's ahead right now) --
+// so it's clear these aren't real trophies yet. Once the week is fully complete, they flip to the
+// real Trophy icon and the actual final numbers. Clicking a card jumps the matchup grid to that manager.
+function WeeklyHighlights({ awards, week, isWeekFinal, onSelectManager }) {
   if (!awards) {
     return (
       <div className="bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-xl p-4 text-sm text-slate-500 italic">
@@ -287,19 +302,49 @@ function WeeklyHighlights({ awards, week }) {
       </div>
     );
   }
+  // Each card's name AND value must come from the SAME record -- previously the name was taken
+  // from the real (mostly-empty pre-kickoff) closest/blowout while the margin was taken from the
+  // separate projected one, so a card could show one matchup's name next to a different matchup's
+  // margin. Swap the whole record together, never just the number.
+  const high = isWeekFinal ? awards.highScore : (awards.projectedHighScore || awards.highScore);
+  const low = isWeekFinal ? awards.lowScore : (awards.projectedLowScore || awards.lowScore);
+  const closest = isWeekFinal ? awards.closest : (awards.projectedClosest || awards.closest);
+  const blowout = isWeekFinal ? awards.blowout : (awards.projectedBlowout || awards.blowout);
+  const prefix = isWeekFinal ? "" : "Projected ";
+  const icon = isWeekFinal ? Trophy : Award;
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-      <HighlightCard icon={Trophy} label="High Score" name={awards.highScore.manager} value={`${awards.highScore.points.toFixed(1)} pts`} accent="text-amber-400" />
-      <HighlightCard icon={TrendingDown} label="Low Score" name={awards.lowScore.manager} value={`${awards.lowScore.points.toFixed(1)} pts`} accent="text-rose-400" />
-      {awards.closest && <HighlightCard icon={Zap} label="Closest Game" name={`${awards.closest.a} vs ${awards.closest.b}`} value={`${awards.closest.margin.toFixed(1)} pt margin`} accent="text-blue-400" />}
-      {awards.blowout && <HighlightCard icon={Flame} label="Biggest Blowout" name={`${awards.blowout.a} vs ${awards.blowout.b}`} value={`${awards.blowout.margin.toFixed(1)} pt margin`} accent="text-orange-400" />}
+      <HighlightCard
+        icon={icon} label={`${prefix}High Score`} name={high.manager} value={`${high.points.toFixed(1)} pts`} accent="text-amber-400"
+        onClick={() => onSelectManager(high.manager)}
+      />
+      <HighlightCard
+        icon={TrendingDown} label={`${prefix}Low Score`} name={low.manager} value={`${low.points.toFixed(1)} pts`} accent="text-rose-400"
+        onClick={() => onSelectManager(low.manager)}
+      />
+      {closest && (
+        <HighlightCard
+          icon={Zap} label={`${prefix}Closest Game`} name={`${closest.a} vs ${closest.b}`}
+          value={`${closest.margin.toFixed(1)} pt margin`} accent="text-blue-400"
+          onClick={() => onSelectManager(closest.a)}
+        />
+      )}
+      {blowout && (
+        <HighlightCard
+          icon={Flame} label={`${prefix}Biggest Blowout`} name={`${blowout.a} vs ${blowout.b}`}
+          value={`${blowout.margin.toFixed(1)} pt margin`} accent="text-orange-400"
+          onClick={() => onSelectManager(blowout.a)}
+        />
+      )}
     </div>
   );
 }
 
-const WEEK_POINTS_STATUS_LABEL = { projected: "Projected", live: "Live", final: "Final" };
+// "Live" here is a blend of real posted points + projections for anyone who hasn't played yet
+// (same blended figure the matchup pills show) -- not a pure real-only sum -- so the badge says so.
+const WEEK_POINTS_STATUS_LABEL = { projected: "Projected", live: "Live (blended w/ projections)", final: "Final" };
 
-function ConferenceWarPanel({ weekRecord, seasonRecord, weekPoints, week }) {
+function ConferenceWarPanel({ weekRecord, seasonRecord, weekPoints, week, isWeekFinal }) {
   return (
     <div className="bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-xl p-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 flex-wrap">
@@ -326,7 +371,9 @@ function ConferenceWarPanel({ weekRecord, seasonRecord, weekPoints, week }) {
         </div>
         <div>
           <p className="tracking-wider text-[10px] uppercase font-semibold text-slate-500 mb-1">Week {week} Matchup Record (Non-Cumulative)</p>
-          {weekRecord.counted > 0 ? (
+          {!isWeekFinal ? (
+            <p className="text-sm text-slate-500 italic">Pending &mdash; finalizes once Week {week} is complete</p>
+          ) : weekRecord.counted > 0 ? (
             <p className="text-lg font-extrabold">
               <span className={CONF_STYLES.AFC.text}>AFC {weekRecord.afcWins}</span>
               <span className="text-slate-600 mx-2">-</span>
@@ -334,7 +381,7 @@ function ConferenceWarPanel({ weekRecord, seasonRecord, weekPoints, week }) {
               {weekRecord.ties > 0 && <span className="text-slate-500 text-xs ml-2">({weekRecord.ties} tie{weekRecord.ties > 1 ? "s" : ""})</span>}
             </p>
           ) : (
-            <p className="text-sm text-slate-500 italic">No live scores yet</p>
+            <p className="text-sm text-slate-500 italic">No scores yet</p>
           )}
         </div>
         <div>
@@ -351,41 +398,89 @@ function ConferenceWarPanel({ weekRecord, seasonRecord, weekPoints, week }) {
   );
 }
 
-function getIntraInfo(manager, season, stats, week, confData, weekProjections) {
-  const pair = (season.scheduleByWeek[week] || []).find(([a, b]) => a === manager || b === manager);
-  if (!pair) return null;
-  const opponent = pair[0] === manager ? pair[1] : pair[0];
-  const weekScores = season.scoreByWeek[week] || {};
-  const realMy = weekScores[manager] || 0;
-  const realOpp = weekScores[opponent] || 0;
-  const isFinal = realMy > 0 && realOpp > 0;
-  const myStats = stats[manager];
-  const oppStats = stats[opponent];
+// Shared logic for both intra/cross-conference matchup info: figures out the Final/Live/Projected
+// state for a matchup and (when live/projected) blends real per-player stats with projections.
+function buildMatchupInfo({
+  manager, opponent, week, latestCompletedWeek,
+  myConfSeason, oppConfSeason, myConfData, oppConfData, myStats, oppStats, weekProjections
+}) {
+  const realMy = myConfSeason.scoreByWeek[week]?.[manager] || 0;
+  const realOpp = oppConfSeason.scoreByWeek[week]?.[opponent] || 0;
+  const isFinal = week <= latestCompletedWeek;
+  const isLive = !isFinal && (realMy > 0 || realOpp > 0);
   const myHasData = !!(myStats && myStats.gamesPlayed > 0);
   const oppHasData = !!(oppStats && oppStats.gamesPlayed > 0);
-  const fallbackField = scoringFieldFor(confData.receptionPoints || 0);
-  const myProjected = computeRosterProjection(confData.rosters.find(r => r.manager === manager), weekProjections, confData.scoringSettings, fallbackField);
-  const oppProjected = computeRosterProjection(confData.rosters.find(r => r.manager === opponent), weekProjections, confData.scoringSettings, fallbackField);
-  const myFinalScore = isFinal ? realMy : (myHasData ? myStats.mean : myProjected);
-  const oppFinalScore = isFinal ? realOpp : (oppHasData ? oppStats.mean : oppProjected);
-  const statsWinPct = (myHasData && oppHasData) ? winProbability(myStats.mean, myStats.std, oppStats.mean, oppStats.std) : null;
-  const roughWinPct = (!isFinal && statsWinPct === null) ? roughWinProbability(myFinalScore, oppFinalScore) : null;
+  const myFallbackField = scoringFieldFor(myConfData.receptionPoints || 0);
+  const oppFallbackField = scoringFieldFor(oppConfData.receptionPoints || 0);
+  const mySnapshot = myConfSeason.rosterSnapshotByWeek[week]?.[manager];
+  const oppSnapshot = oppConfSeason.rosterSnapshotByWeek[week]?.[opponent];
+
+  const myBlended = computeBlendedRosterScore(mySnapshot, weekProjections, myConfData.scoringSettings, myFallbackField);
+  const oppBlended = computeBlendedRosterScore(oppSnapshot, weekProjections, oppConfData.scoringSettings, oppFallbackField);
+  const myProjected = myBlended?.total ?? computeRosterProjection(myConfData.rosters.find(r => r.manager === manager), weekProjections, myConfData.scoringSettings, myFallbackField);
+  const oppProjected = oppBlended?.total ?? computeRosterProjection(oppConfData.rosters.find(r => r.manager === opponent), weekProjections, oppConfData.scoringSettings, oppFallbackField);
+
+  let myFinalScore, oppFinalScore, myWinPct, winPctIsRough;
+  if (isFinal) {
+    myFinalScore = realMy;
+    oppFinalScore = realOpp;
+    myWinPct = null;
+    winPctIsRough = false;
+  } else if (isLive) {
+    // Live: show the blended projected-final, and shrink win-prob variance by how much of each
+    // roster's points are already "locked in" real stats -- our own approximation, not Sleeper's
+    // (undisclosed/unverifiable) formula.
+    myFinalScore = myProjected;
+    oppFinalScore = oppProjected;
+    const myLocked = myBlended?.lockedFraction ?? 0;
+    const oppLocked = oppBlended?.lockedFraction ?? 0;
+    if (myHasData && oppHasData) {
+      const myStd = myStats.std * Math.sqrt(Math.max(1 - myLocked, 0.05));
+      const oppStd = oppStats.std * Math.sqrt(Math.max(1 - oppLocked, 0.05));
+      myWinPct = winProbability(myFinalScore ?? myStats.mean, myStd, oppFinalScore ?? oppStats.mean, oppStd);
+      winPctIsRough = true;
+    } else {
+      myWinPct = roughWinProbability(myFinalScore, oppFinalScore);
+      winPctIsRough = true;
+    }
+  } else {
+    myFinalScore = myHasData ? myStats.mean : myProjected;
+    oppFinalScore = oppHasData ? oppStats.mean : oppProjected;
+    const statsWinPct = (myHasData && oppHasData) ? winProbability(myStats.mean, myStats.std, oppStats.mean, oppStats.std) : null;
+    const roughWinPct = statsWinPct === null ? roughWinProbability(myFinalScore, oppFinalScore) : null;
+    myWinPct = statsWinPct ?? roughWinPct;
+    winPctIsRough = statsWinPct === null && roughWinPct !== null;
+  }
+
   return {
     opponent,
     myScore: myFinalScore,
     oppScore: oppFinalScore,
+    myLiveScore: isLive ? realMy : null,
+    oppLiveScore: isLive ? realOpp : null,
     isFinal,
-    myWinPct: statsWinPct ?? roughWinPct,
-    winPctIsRough: statsWinPct === null && roughWinPct !== null,
-    myHasData: myHasData || myProjected !== null, oppHasData: oppHasData || oppProjected !== null,
-    mySnapshot: season.rosterSnapshotByWeek[week]?.[manager],
-    oppSnapshot: season.rosterSnapshotByWeek[week]?.[opponent],
-    myScoringSettings: confData.scoringSettings, myFallbackField: fallbackField,
-    oppScoringSettings: confData.scoringSettings, oppFallbackField: fallbackField
+    isLive,
+    myWinPct,
+    winPctIsRough,
+    myHasData: myHasData || myProjected != null, oppHasData: oppHasData || oppProjected != null,
+    mySnapshot, oppSnapshot,
+    myScoringSettings: myConfData.scoringSettings, myFallbackField,
+    oppScoringSettings: oppConfData.scoringSettings, oppFallbackField
   };
 }
 
-function getInterInfo(manager, myConf, weekCrossPairs, afcSeason, nfcSeason, allStats, week, afcData, nfcData, weekProjections) {
+function getIntraInfo(manager, season, stats, week, confData, weekProjections, latestCompletedWeek) {
+  const pair = (season.scheduleByWeek[week] || []).find(([a, b]) => a === manager || b === manager);
+  if (!pair) return null;
+  const opponent = pair[0] === manager ? pair[1] : pair[0];
+  return buildMatchupInfo({
+    manager, opponent, week, latestCompletedWeek,
+    myConfSeason: season, oppConfSeason: season, myConfData: confData, oppConfData: confData,
+    myStats: stats[manager], oppStats: stats[opponent], weekProjections
+  });
+}
+
+function getInterInfo(manager, myConf, weekCrossPairs, afcSeason, nfcSeason, allStats, week, afcData, nfcData, weekProjections, latestCompletedWeek) {
   const pair = weekCrossPairs.find(m => m.afcTeam === manager || m.nfcTeam === manager);
   if (!pair) return null;
   const opponent = pair.afcTeam === manager ? pair.nfcTeam : pair.afcTeam;
@@ -394,56 +489,37 @@ function getInterInfo(manager, myConf, weekCrossPairs, afcSeason, nfcSeason, all
   const oppConfSeason = oppConf === "AFC" ? afcSeason : nfcSeason;
   const myConfData = myConf === "AFC" ? afcData : nfcData;
   const oppConfData = oppConf === "AFC" ? afcData : nfcData;
-  const realMy = myConfSeason.scoreByWeek[week]?.[manager] || 0;
-  const realOpp = oppConfSeason.scoreByWeek[week]?.[opponent] || 0;
-  const isFinal = realMy > 0 && realOpp > 0;
-  const myStats = allStats[manager];
-  const oppStats = allStats[opponent];
-  const myHasData = !!(myStats && myStats.gamesPlayed > 0);
-  const oppHasData = !!(oppStats && oppStats.gamesPlayed > 0);
-  const myFallbackField = scoringFieldFor(myConfData.receptionPoints || 0);
-  const oppFallbackField = scoringFieldFor(oppConfData.receptionPoints || 0);
-  const myProjected = computeRosterProjection(myConfData.rosters.find(r => r.manager === manager), weekProjections, myConfData.scoringSettings, myFallbackField);
-  const oppProjected = computeRosterProjection(oppConfData.rosters.find(r => r.manager === opponent), weekProjections, oppConfData.scoringSettings, oppFallbackField);
-
-  const myFinalScore = isFinal ? realMy : (myHasData ? myStats.mean : myProjected);
-  const oppFinalScore = isFinal ? realOpp : (oppHasData ? oppStats.mean : oppProjected);
-  const statsWinPct = (myHasData && oppHasData) ? winProbability(myStats.mean, myStats.std, oppStats.mean, oppStats.std) : null;
-  const roughWinPct = (!isFinal && statsWinPct === null) ? roughWinProbability(myFinalScore, oppFinalScore) : null;
-
   return {
-    opponent,
     oppConf,
-    myScore: myFinalScore,
-    oppScore: oppFinalScore,
-    isFinal,
-    myWinPct: statsWinPct ?? roughWinPct,
-    winPctIsRough: statsWinPct === null && roughWinPct !== null,
-    myHasData: myHasData || myProjected !== null, oppHasData: oppHasData || oppProjected !== null,
-    mySnapshot: myConfSeason.rosterSnapshotByWeek[week]?.[manager],
-    oppSnapshot: oppConfSeason.rosterSnapshotByWeek[week]?.[opponent],
-    myScoringSettings: myConfData.scoringSettings, myFallbackField,
-    oppScoringSettings: oppConfData.scoringSettings, oppFallbackField
+    ...buildMatchupInfo({
+      manager, opponent, week, latestCompletedWeek,
+      myConfSeason, oppConfSeason, myConfData, oppConfData,
+      myStats: allStats[manager], oppStats: allStats[opponent], weekProjections
+    })
   };
 }
 
-// Best known score for a team this week: real (final/live) if posted, else its own season average,
-// else that week's real per-player projection total -- same fallback chain as the matchup pills.
-function estimateTeamScore(manager, confData, season, stats, week, weekProjections) {
-  const real = season.scoreByWeek[week]?.[manager];
-  if (real > 0) return { value: real, isFinal: true };
-  const s = stats[manager];
-  if (s && s.gamesPlayed > 0) return { value: s.mean, isFinal: false };
+// Best known score for a team this week -- uses the SAME per-player blended real+projected total
+// as the matchup pills (computeBlendedRosterScore), so the "Week Total Points" figure here always
+// matches what the individual matchup cards add up to. Real final score once the week is over.
+function estimateTeamScore(manager, confData, season, week, weekProjections, latestCompletedWeek) {
+  const isFinal = week <= latestCompletedWeek;
+  if (isFinal) return { value: season.scoreByWeek[week]?.[manager] || 0, isFinal: true };
   const fallbackField = scoringFieldFor(confData.receptionPoints || 0);
+  const snapshot = season.rosterSnapshotByWeek[week]?.[manager];
+  const blended = computeBlendedRosterScore(snapshot, weekProjections, confData.scoringSettings, fallbackField);
+  if (blended) return { value: blended.total, isFinal: false };
   const proj = computeRosterProjection(confData.rosters.find(r => r.manager === manager), weekProjections, confData.scoringSettings, fallbackField);
   return { value: proj, isFinal: false };
 }
 
-function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, playersDB }) {
+function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, playersDB, byTeamWeek, week }) {
   const my = myId && myId !== '0' ? playerLabel(playersDB, myId) : null;
   const opp = oppId && oppId !== '0' ? playerLabel(playersDB, oppId) : null;
-  const myDisplayPts = myPts > 0 ? myPts : myProj;
-  const oppDisplayPts = oppPts > 0 ? oppPts : oppProj;
+  const myIsActual = myPts > 0;
+  const oppIsActual = oppPts > 0;
+  const myDisplayPts = myIsActual ? myPts : myProj;
+  const oppDisplayPts = oppIsActual ? oppPts : oppProj;
   return (
     <div className="grid grid-cols-2 gap-4 text-xs py-1.5">
       <div className="flex items-center gap-1.5 min-w-0">
@@ -451,10 +527,13 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
         {my ? (
           <>
             <PlayerAvatar playerId={myId} position={my.position} className="w-5 h-5" />
-            <PlayerNameButton playerId={myId} name={my.name} position={my.position} className="text-slate-300 truncate" />
+            <div className="flex flex-col min-w-0">
+              <PlayerNameButton playerId={myId} name={my.name} position={my.position} className="text-slate-300 truncate" />
+              <GameBadge nflTeam={my.team} week={week} byTeamWeek={byTeamWeek} />
+            </div>
             <PositionBadge position={my.position} />
             <InjuryBadge status={my.injuryStatus} />
-            {myDisplayPts != null && <span className="font-mono text-slate-500 shrink-0 ml-auto">{myDisplayPts.toFixed(2)}</span>}
+            {myDisplayPts != null && <span className={`font-mono shrink-0 ml-auto ${myIsActual ? "text-emerald-400" : "text-blue-300"}`}>{myDisplayPts.toFixed(2)}</span>}
           </>
         ) : <span className="text-slate-700 italic">Empty</span>}
       </div>
@@ -463,10 +542,13 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
         {opp ? (
           <>
             <PlayerAvatar playerId={oppId} position={opp.position} className="w-5 h-5" />
-            <PlayerNameButton playerId={oppId} name={opp.name} position={opp.position} className="text-slate-300 truncate" />
+            <div className="flex flex-col min-w-0">
+              <PlayerNameButton playerId={oppId} name={opp.name} position={opp.position} className="text-slate-300 truncate" />
+              <GameBadge nflTeam={opp.team} week={week} byTeamWeek={byTeamWeek} />
+            </div>
             <PositionBadge position={opp.position} />
             <InjuryBadge status={opp.injuryStatus} />
-            {oppDisplayPts != null && <span className="font-mono text-slate-500 shrink-0 ml-auto">{oppDisplayPts.toFixed(2)}</span>}
+            {oppDisplayPts != null && <span className={`font-mono shrink-0 ml-auto ${oppIsActual ? "text-emerald-400" : "text-blue-300"}`}>{oppDisplayPts.toFixed(2)}</span>}
           </>
         ) : <span className="text-slate-700 italic">Empty</span>}
       </div>
@@ -474,7 +556,7 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
   );
 }
 
-function MatchupRosterComparison({ mySlots, oppSlots, mySnapshot, oppSnapshot, playersDB, weekProjections, myScoringSettings, myFallbackField, oppScoringSettings, oppFallbackField }) {
+function MatchupRosterComparison({ mySlots, oppSlots, mySnapshot, oppSnapshot, playersDB, weekProjections, myScoringSettings, myFallbackField, oppScoringSettings, oppFallbackField, byTeamWeek, week }) {
   if (!mySnapshot && !oppSnapshot) {
     return <p className="text-xs text-slate-600 italic mt-2">No roster data available for this matchup yet.</p>;
   }
@@ -494,7 +576,7 @@ function MatchupRosterComparison({ mySlots, oppSlots, mySnapshot, oppSnapshot, p
             oppPts={oppSnapshot?.startersPoints?.[i]}
             myProj={projectedPoints(weekProjections, myId, myScoringSettings, myFallbackField)}
             oppProj={projectedPoints(weekProjections, oppId, oppScoringSettings, oppFallbackField)}
-            playersDB={playersDB}
+            playersDB={playersDB} byTeamWeek={byTeamWeek} week={week}
           />
         );
       })}
@@ -502,7 +584,7 @@ function MatchupRosterComparison({ mySlots, oppSlots, mySnapshot, oppSnapshot, p
   );
 }
 
-function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlots = [], oppSlots = [], playersDB, weekProjections }) {
+function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlots = [], oppSlots = [], playersDB, weekProjections, byTeamWeek, week }) {
   if (!info) {
     return (
       <div className={`flex-1 min-w-[220px] bg-slate-950/60 border ${accentBorder} rounded-lg p-3 flex items-center justify-center`}>
@@ -511,49 +593,54 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
     );
   }
   const {
-    opponent, myScore, oppScore, isFinal, myWinPct, winPctIsRough, myHasData, oppHasData, mySnapshot, oppSnapshot,
+    opponent, myScore, oppScore, myLiveScore, oppLiveScore, isFinal, isLive, myWinPct, winPctIsRough, myHasData, oppHasData, mySnapshot, oppSnapshot,
     myScoringSettings, myFallbackField, oppScoringSettings, oppFallbackField
   } = info;
   const showWinPct = !isFinal && myWinPct !== null;
   const showScores = isFinal || myHasData || oppHasData;
-  const showDiff = !isFinal && showScores && myScore != null && oppScore != null;
-  const diff = showDiff ? myScore - oppScore : null;
+  // Sleeper's own convention: the big number is always the best REAL number available right now
+  // (final score, or the live score while a game is in progress); the projected final is a small
+  // secondary caption underneath, only while there's still uncertainty left (live or pregame).
+  const bigMy = isFinal ? myScore : isLive ? (myLiveScore ?? 0) : myScore;
+  const bigOpp = isFinal ? oppScore : isLive ? (oppLiveScore ?? 0) : oppScore;
+  const bigColor = isFinal ? "text-emerald-400" : isLive ? "text-slate-100" : "text-blue-300";
+  const showCaption = isLive && showScores;
   const [showRosters, setShowRosters] = useState(false);
   return (
     <div className={`bg-slate-950/60 border ${accentBorder} rounded-lg p-3`}>
       <div className="flex items-center justify-between mb-3">
         <span className="tracking-wider text-[10px] uppercase font-semibold text-slate-500">{label}</span>
         {isFinal && <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider">Final</span>}
-        {!isFinal && showScores && <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Projected</span>}
+        {isLive && <span className="text-[9px] font-bold text-amber-400 uppercase tracking-wider">Live</span>}
+        {!isFinal && !isLive && showScores && <span className="text-[9px] font-bold text-blue-300 uppercase tracking-wider">Projected</span>}
       </div>
 
-      <div className="flex items-center gap-2 mb-2">
-        <div className="flex-1 flex flex-col items-end gap-1.5 min-w-0">
+      <div className="flex items-center gap-2 mb-1">
+        <div className="flex-1 flex flex-col items-end gap-1 min-w-0">
           <TeamName manager={myTeam} conf={myConf} className="font-semibold truncate" />
-          <span className={`font-mono text-sm leading-none ${!isFinal && showScores ? "text-slate-100" : "text-slate-300"}`}>
-            {showScores && myScore != null ? myScore.toFixed(2) : "--"}
+          <span className={`font-mono text-lg font-bold leading-none ${showScores ? bigColor : "text-slate-600"}`}>
+            {showScores && bigMy != null ? bigMy.toFixed(1) : "--"}
           </span>
         </div>
         <span className="text-[10px] font-bold text-slate-600 bg-slate-900 px-2 py-1 rounded shrink-0">VS</span>
-        <div className="flex-1 flex flex-col items-start gap-1.5 min-w-0">
-          <TeamName manager={opponent} conf={oppConf} className="truncate" />
-          <span className={`font-mono text-sm leading-none ${!isFinal && showScores ? "text-slate-100" : "text-slate-500"}`}>
-            {showScores && oppScore != null ? oppScore.toFixed(2) : "--"}
+        <div className="flex-1 flex flex-col items-start gap-1 min-w-0">
+          <TeamName manager={opponent} conf={oppConf} className="font-semibold truncate" />
+          <span className={`font-mono text-lg font-bold leading-none ${showScores ? bigColor : "text-slate-600"}`}>
+            {showScores && bigOpp != null ? bigOpp.toFixed(1) : "--"}
           </span>
         </div>
       </div>
-
-      {showDiff && (
-        <div className="text-center text-[10px] font-bold mb-2">
-          <span className={diff >= 0 ? "text-emerald-400" : "text-rose-400"}>
-            {diff >= 0 ? "+" : ""}{diff.toFixed(2)} projected diff
-          </span>
+      {showCaption && (
+        <div className="flex items-center gap-2 mb-2">
+          <span className="flex-1 text-right font-mono text-[10px] text-blue-300">{myScore != null ? `${myScore.toFixed(1)} proj` : ""}</span>
+          <span className="w-7 shrink-0" />
+          <span className="flex-1 text-left font-mono text-[10px] text-blue-300">{oppScore != null ? `${oppScore.toFixed(1)} proj` : ""}</span>
         </div>
       )}
 
       {showWinPct && (
         <>
-          <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden flex">
+          <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden flex mt-2">
             <div className="h-full bg-blue-500" style={{ width: `${(myWinPct * 100).toFixed(0)}%` }} />
           </div>
           <div className="text-right text-[10px] text-slate-500 mt-1">
@@ -583,13 +670,14 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
           playersDB={playersDB} weekProjections={weekProjections}
           myScoringSettings={myScoringSettings} myFallbackField={myFallbackField}
           oppScoringSettings={oppScoringSettings} oppFallbackField={oppFallbackField}
+          byTeamWeek={byTeamWeek} week={week}
         />
       )}
     </div>
   );
 }
 
-function ManagerMatchupRow({ manager, conf, intra, inter, afcSlots, nfcSlots, playersDB, weekProjections }) {
+function ManagerMatchupRow({ manager, conf, intra, inter, afcSlots, nfcSlots, playersDB, weekProjections, byTeamWeek, week }) {
   const style = CONF_STYLES[conf];
   const interAccent = inter ? CONF_STYLES[inter.oppConf].border : style.border;
   const slotsFor = (c) => (c === "AFC" ? afcSlots : nfcSlots);
@@ -601,16 +689,16 @@ function ManagerMatchupRow({ manager, conf, intra, inter, afcSlots, nfcSlots, pl
       </div>
       <div className="flex flex-col gap-3">
         <MatchupPill
-          label="Intra-Conference" myTeam={manager} myConf={conf} oppConf={conf}
+          label="In-Conference" myTeam={manager} myConf={conf} oppConf={conf}
           accentBorder={style.border} info={intra}
           mySlots={slotsFor(conf)} oppSlots={slotsFor(conf)} playersDB={playersDB}
-          weekProjections={weekProjections}
+          weekProjections={weekProjections} byTeamWeek={byTeamWeek} week={week}
         />
         <MatchupPill
-          label="Interconference" myTeam={manager} myConf={conf} oppConf={inter?.oppConf}
+          label="Cross-Conference" myTeam={manager} myConf={conf} oppConf={inter?.oppConf}
           accentBorder={interAccent} info={inter}
           mySlots={slotsFor(conf)} oppSlots={slotsFor(inter?.oppConf)} playersDB={playersDB}
-          weekProjections={weekProjections}
+          weekProjections={weekProjections} byTeamWeek={byTeamWeek} week={week}
         />
       </div>
     </div>
@@ -654,16 +742,23 @@ export default function App() {
   const [nfcDraft, setNfcDraft] = useState({ picks: [], rounds: 0 });
   const [draftLoading, setDraftLoading] = useState(true);
 
-  const [weekProjections, setWeekProjections] = useState({});
+  const [weekProjectionsByWeek, setWeekProjectionsByWeek] = useState({});
+
+  // Sleeper's own current-week signal: it only advances once a week's games are fully done, so
+  // (week - 1) is the latest FULLY COMPLETED week -- the freeze point for standings/records/odds.
+  const [nflState, setNflState] = useState({ week: 1, seasonType: null });
+  const latestCompletedWeek = Math.max(0, Math.min(SEASON_WEEKS, (nflState.week || 1) - 1));
 
   const loadData = async () => {
     setLoading(true);
-    const [afcRes, nfcRes] = await Promise.all([
+    const [afcRes, nfcRes, stateRes] = await Promise.all([
       fetchSleeperLeague(afcLeagueId),
-      fetchSleeperLeague(nfcLeagueId)
+      fetchSleeperLeague(nfcLeagueId),
+      fetchNflState()
     ]);
     if (afcRes) setAfcData(afcRes);
     if (nfcRes) setNfcData(nfcRes);
+    setNflState(stateRes);
     setLoading(false);
   };
 
@@ -711,10 +806,19 @@ export default function App() {
     });
   }, [afcLeagueId, nfcLeagueId]);
 
-  // Real week-specific fantasy projections (RotoWire, via Sleeper) -- not this app's own estimate
+  // Real per-week fantasy projections (RotoWire, via Sleeper) for the WHOLE season, fetched once --
+  // powers the current-week matchup/roster views and the player modal's full-season weekly table.
   useEffect(() => {
-    fetchWeekProjections(SEASON_YEAR, selectedWeek).then(setWeekProjections);
-  }, [selectedWeek]);
+    fetchAllWeekProjections(SEASON_YEAR, SEASON_WEEKS).then(setWeekProjectionsByWeek);
+  }, []);
+  const weekProjections = weekProjectionsByWeek[selectedWeek] || {};
+
+  // Real NFL schedule (which teams play, the date, and real game status) -- powers the "game day"
+  // indicator on rosters/players and the Home tab's This Week's Games panel.
+  const [nflSchedule, setNflSchedule] = useState({ byTeamWeek: {}, games: [] });
+  useEffect(() => {
+    fetchNflSchedule(SEASON_YEAR).then(setNflSchedule);
+  }, []);
 
   const handleLeagueIdChange = (conf, value) => {
     if (conf === "AFC") {
@@ -781,16 +885,17 @@ export default function App() {
   const hasLiveData = afcData.rosters.length > 0 || nfcData.rosters.length > 0;
 
   const { afcStandings, nfcStandings, allStats } = useMemo(() => {
-    const crossRecords = computeCrossRecords(schedule, afcSeason, nfcSeason, SEASON_WEEKS);
-    const afcPA = computePointsAgainst(afcManagers, afcSeason);
-    const nfcPA = computePointsAgainst(nfcManagers, nfcSeason);
-    const afcBaseList = buildConferenceList(afcManagers, afcData, crossRecords, afcPA);
-    const nfcBaseList = buildConferenceList(nfcManagers, nfcData, crossRecords, nfcPA);
+    const crossRecords = computeCrossRecords(schedule, afcSeason, nfcSeason, latestCompletedWeek);
+    const afcPA = computePointsAgainst(afcManagers, afcSeason, latestCompletedWeek);
+    const nfcPA = computePointsAgainst(nfcManagers, nfcSeason, latestCompletedWeek);
+    const afcInConf = computeInConfRecord(afcManagers, afcSeason, latestCompletedWeek);
+    const nfcInConf = computeInConfRecord(nfcManagers, nfcSeason, latestCompletedWeek);
+    const afcBaseList = buildConferenceList(afcManagers, afcData, crossRecords, afcPA, afcInConf);
+    const nfcBaseList = buildConferenceList(nfcManagers, nfcData, crossRecords, nfcPA, nfcInConf);
 
-    const afcStats = computeStats(buildHistory(afcSeason.scoreByWeek), afcManagers);
-    const nfcStats = computeStats(buildHistory(nfcSeason.scoreByWeek), nfcManagers);
+    const afcStats = computeStats(buildHistory(afcSeason.scoreByWeek, latestCompletedWeek), afcManagers);
+    const nfcStats = computeStats(buildHistory(nfcSeason.scoreByWeek, latestCompletedWeek), nfcManagers);
 
-    const latestCompletedWeek = Math.min(afcSeason.latestCompletedWeek, nfcSeason.latestCompletedWeek);
     const { afcOdds, nfcOdds } = hasLiveData
       ? simulateCombinedPlayoffOdds(
           afcManagers, nfcManagers, afcBaseList, nfcBaseList, afcStats, nfcStats,
@@ -798,32 +903,57 @@ export default function App() {
         )
       : { afcOdds: null, nfcOdds: null };
 
+    const afcMoveCounts = computeMoveCounts(afcTransactions, afcData.rosterIdMap);
+    const nfcMoveCounts = computeMoveCounts(nfcTransactions, nfcData.rosterIdMap);
+    const withMoves = (list, moveCounts) => list.map(t => ({ ...t, moves: moveCounts[t.manager] || 0 }));
+
     return {
-      afcStandings: rankConference(afcBaseList, "AFC", afcOdds),
-      nfcStandings: rankConference(nfcBaseList, "NFC", nfcOdds),
+      afcStandings: withMoves(rankConference(afcBaseList, "AFC", afcOdds), afcMoveCounts),
+      nfcStandings: withMoves(rankConference(nfcBaseList, "NFC", nfcOdds), nfcMoveCounts),
       allStats: { ...afcStats, ...nfcStats }
     };
-  }, [afcData, nfcData, afcSeason, nfcSeason, schedule]);
+  }, [afcData, nfcData, afcSeason, nfcSeason, schedule, latestCompletedWeek, afcTransactions, nfcTransactions]);
 
   const showAfc = confFilter !== "NFC";
   const showNfc = confFilter !== "AFC";
 
+  const isSelectedWeekFinal = selectedWeek <= latestCompletedWeek;
   const weekCrossPairs = schedule.filter(m => m.week === selectedWeek);
-  const weeklyAwards = computeWeeklyAwards(afcSeason, nfcSeason, selectedWeek);
-  const weekRecord = computeCrossWeekRecord(weekCrossPairs, afcSeason.scoreByWeek[selectedWeek] || {}, nfcSeason.scoreByWeek[selectedWeek] || {});
 
-  const afcWeekEstimates = afcManagers.map(m => estimateTeamScore(m, afcData, afcSeason, allStats, selectedWeek, weekProjections));
-  const nfcWeekEstimates = nfcManagers.map(m => estimateTeamScore(m, nfcData, nfcSeason, allStats, selectedWeek, weekProjections));
+  // Blended projected-final per manager for this week, used to surface a "projected margin" on
+  // the closest/blowout awards while the week is still live (not yet fully completed).
+  const projectedScoreByManager = {};
+  if (!isSelectedWeekFinal) {
+    afcManagers.forEach(m => {
+      const snap = afcSeason.rosterSnapshotByWeek[selectedWeek]?.[m];
+      const fallbackField = scoringFieldFor(afcData.receptionPoints || 0);
+      const blended = computeBlendedRosterScore(snap, weekProjections, afcData.scoringSettings, fallbackField);
+      if (blended) projectedScoreByManager[m] = blended.total;
+    });
+    nfcManagers.forEach(m => {
+      const snap = nfcSeason.rosterSnapshotByWeek[selectedWeek]?.[m];
+      const fallbackField = scoringFieldFor(nfcData.receptionPoints || 0);
+      const blended = computeBlendedRosterScore(snap, weekProjections, nfcData.scoringSettings, fallbackField);
+      if (blended) projectedScoreByManager[m] = blended.total;
+    });
+  }
+  const weeklyAwards = computeWeeklyAwards(afcSeason, nfcSeason, selectedWeek, isSelectedWeekFinal ? null : projectedScoreByManager);
+  const weekRecord = isSelectedWeekFinal
+    ? computeCrossWeekRecord(weekCrossPairs, afcSeason.scoreByWeek[selectedWeek] || {}, nfcSeason.scoreByWeek[selectedWeek] || {})
+    : { afcWins: 0, nfcWins: 0, ties: 0, counted: 0 };
+
+  const afcWeekEstimates = afcManagers.map(m => estimateTeamScore(m, afcData, afcSeason, selectedWeek, weekProjections, latestCompletedWeek));
+  const nfcWeekEstimates = nfcManagers.map(m => estimateTeamScore(m, nfcData, nfcSeason, selectedWeek, weekProjections, latestCompletedWeek));
   const hasAnyAfcEstimate = afcWeekEstimates.some(e => e.value != null);
   const hasAnyNfcEstimate = nfcWeekEstimates.some(e => e.value != null);
-  const allFinal = afcWeekEstimates.length > 0 && afcWeekEstimates.every(e => e.isFinal) && nfcWeekEstimates.every(e => e.isFinal);
-  const anyFinal = afcWeekEstimates.some(e => e.isFinal) || nfcWeekEstimates.some(e => e.isFinal);
+  const anyRealScorePosted = Object.values(afcSeason.scoreByWeek[selectedWeek] || {}).some(v => v > 0)
+    || Object.values(nfcSeason.scoreByWeek[selectedWeek] || {}).some(v => v > 0);
   const weekPoints = {
     afcTotal: hasAnyAfcEstimate ? afcWeekEstimates.reduce((s, e) => s + (e.value || 0), 0) : null,
     nfcTotal: hasAnyNfcEstimate ? nfcWeekEstimates.reduce((s, e) => s + (e.value || 0), 0) : null,
-    status: (!hasAnyAfcEstimate && !hasAnyNfcEstimate) ? null : (allFinal ? 'final' : (anyFinal ? 'live' : 'projected'))
+    status: (!hasAnyAfcEstimate && !hasAnyNfcEstimate) ? null : (isSelectedWeekFinal ? 'final' : (anyRealScorePosted ? 'live' : 'projected'))
   };
-  const crossRecordsForSeason = computeCrossRecords(schedule, afcSeason, nfcSeason, SEASON_WEEKS);
+  const crossRecordsForSeason = computeCrossRecords(schedule, afcSeason, nfcSeason, latestCompletedWeek);
   const seasonRecord = {
     afcWins: afcManagers.reduce((sum, m) => sum + (crossRecordsForSeason[m]?.wins || 0), 0),
     nfcWins: nfcManagers.reduce((sum, m) => sum + (crossRecordsForSeason[m]?.wins || 0), 0),
@@ -846,17 +976,27 @@ export default function App() {
     [afcData.logoMap, nfcData.logoMap]
   );
 
+  const afcOwners = useMemo(() => buildOwnerMap(afcData.rosters), [afcData.rosters]);
+  const nfcOwners = useMemo(() => buildOwnerMap(nfcData.rosters), [nfcData.rosters]);
+  const afcHistory = useMemo(
+    () => buildAcquisitionHistory(afcDraft, afcTransactions, afcData.rosterIdMap),
+    [afcDraft, afcTransactions, afcData.rosterIdMap]
+  );
+  const nfcHistory = useMemo(
+    () => buildAcquisitionHistory(nfcDraft, nfcTransactions, nfcData.rosterIdMap),
+    [nfcDraft, nfcTransactions, nfcData.rosterIdMap]
+  );
+
+  const [playersSubTab, setPlayersSubTab] = useState("search");
+
   const tabs = [
     { id: "standings", label: "Standings", shortLabel: "Standings", icon: Trophy },
     { id: "schedule", label: "Schedule", shortLabel: "Schedule", icon: Calendar },
     { id: "matchups", label: "Weekly Matchups", shortLabel: "Matchups", icon: Swords },
     { id: "rosters", label: "Rosters", shortLabel: "Rosters", icon: Users },
     { id: "activity", label: "Activity", shortLabel: "Activity", icon: Activity },
-    { id: "trades", label: "Trade Tracker", shortLabel: "Trades", icon: Repeat },
-    { id: "draft", label: "Draft Board", shortLabel: "Draft", icon: ListOrdered },
     { id: "players", label: "Players", shortLabel: "Players", icon: Search },
-    ...(isAdmin ? [{ id: "teams", label: "MS Teams Broadcast", shortLabel: "Broadcast", icon: Megaphone }] : []),
-    { id: "charter", label: "League Charter", shortLabel: "Charter", icon: Scroll }
+    ...(isAdmin ? [{ id: "teams", label: "MS Teams Broadcast", shortLabel: "Broadcast", icon: Megaphone }] : [])
   ];
 
   return (
@@ -869,8 +1009,15 @@ export default function App() {
       {showLoginModal && (
         <AdminLoginModal onClose={() => setShowLoginModal(false)} onSuccess={handleLoginSuccess} />
       )}
-      <RosterModal afcData={afcData} nfcData={nfcData} playersDB={playersDB} />
-      <PlayerModal playersDB={playersDB} />
+      <RosterModal
+        afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason} playersDB={playersDB}
+        weekProjections={weekProjections} selectedWeek={selectedWeek} byTeamWeek={nflSchedule.byTeamWeek}
+      />
+      <PlayerModal
+        playersDB={playersDB} afcOwners={afcOwners} nfcOwners={nfcOwners} afcHistory={afcHistory} nfcHistory={nfcHistory}
+        selectedWeek={selectedWeek} weekProjectionsByWeek={weekProjectionsByWeek} seasonWeeks={SEASON_WEEKS} latestCompletedWeek={latestCompletedWeek}
+        afcSeason={afcSeason} nfcSeason={nfcSeason} afcData={afcData} nfcData={nfcData}
+      />
 
       {/* Header Banner */}
       <header className="max-w-7xl mx-auto bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-2xl p-6 mb-8 shadow-xl flex flex-col md:flex-row justify-between items-center gap-4">
@@ -895,6 +1042,13 @@ export default function App() {
           <a href={`https://sleeper.com/leagues/${nfcLeagueId}/team`} target="_blank" rel="noreferrer" className={`flex items-center gap-2 ${CONF_STYLES.NFC.button} text-white px-4 py-2 rounded-lg font-semibold text-xs transition-all duration-200`}>
             <span>NFC League</span> <ExternalLink className="w-3 h-3" />
           </a>
+          <button
+            onClick={() => setActiveTab("charter")}
+            title="League Charter"
+            className={`p-2 rounded-lg transition-all duration-200 ${activeTab === "charter" ? "bg-blue-600 text-white" : "bg-slate-800/80 hover:bg-slate-700 text-slate-300"}`}
+          >
+            <Scroll className="w-4 h-4" />
+          </button>
           <button
             onClick={() => isAdmin ? handleLogout() : setShowLoginModal(true)}
             title={isAdmin ? "Log out of admin mode" : "Admin login"}
@@ -1017,8 +1171,8 @@ export default function App() {
               </div>
             </div>
 
-            <WeeklyHighlights awards={weeklyAwards} week={selectedWeek} />
-            <ConferenceWarPanel weekRecord={weekRecord} seasonRecord={seasonRecord} weekPoints={weekPoints} week={selectedWeek} />
+            <WeeklyHighlights awards={weeklyAwards} week={selectedWeek} isWeekFinal={isSelectedWeekFinal} onSelectManager={setSelectedManager} />
+            <ConferenceWarPanel weekRecord={weekRecord} seasonRecord={seasonRecord} weekPoints={weekPoints} week={selectedWeek} isWeekFinal={isSelectedWeekFinal} />
 
             {showAfc && (
               <div className="space-y-3">
@@ -1026,18 +1180,19 @@ export default function App() {
                   <Swords className="w-4 h-4 text-slate-400" />
                   <h2 className="tracking-wider text-xs uppercase font-semibold text-slate-400">AFC Matchups &mdash; Week {selectedWeek}</h2>
                 </div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 2xl:grid-cols-2 gap-4">
                   {afcManagerRows.map(m => (
                     <ManagerMatchupRow
                       key={m}
                       manager={m}
                       conf="AFC"
-                      intra={getIntraInfo(m, afcSeason, allStats, selectedWeek, afcData, weekProjections)}
-                      inter={getInterInfo(m, "AFC", weekCrossPairs, afcSeason, nfcSeason, allStats, selectedWeek, afcData, nfcData, weekProjections)}
+                      intra={getIntraInfo(m, afcSeason, allStats, selectedWeek, afcData, weekProjections, latestCompletedWeek)}
+                      inter={getInterInfo(m, "AFC", weekCrossPairs, afcSeason, nfcSeason, allStats, selectedWeek, afcData, nfcData, weekProjections, latestCompletedWeek)}
                       afcSlots={afcData.startingSlots || []}
                       nfcSlots={nfcData.startingSlots || []}
                       playersDB={playersDB}
                       weekProjections={weekProjections}
+                      byTeamWeek={nflSchedule.byTeamWeek} week={selectedWeek}
                     />
                   ))}
                 </div>
@@ -1050,18 +1205,19 @@ export default function App() {
                   <Swords className="w-4 h-4 text-slate-400" />
                   <h2 className="tracking-wider text-xs uppercase font-semibold text-slate-400">NFC Matchups &mdash; Week {selectedWeek}</h2>
                 </div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 2xl:grid-cols-2 gap-4">
                   {nfcManagerRows.map(m => (
                     <ManagerMatchupRow
                       key={m}
                       manager={m}
                       conf="NFC"
-                      intra={getIntraInfo(m, nfcSeason, allStats, selectedWeek, nfcData, weekProjections)}
-                      inter={getInterInfo(m, "NFC", weekCrossPairs, afcSeason, nfcSeason, allStats, selectedWeek, afcData, nfcData, weekProjections)}
+                      intra={getIntraInfo(m, nfcSeason, allStats, selectedWeek, nfcData, weekProjections, latestCompletedWeek)}
+                      inter={getInterInfo(m, "NFC", weekCrossPairs, afcSeason, nfcSeason, allStats, selectedWeek, afcData, nfcData, weekProjections, latestCompletedWeek)}
                       afcSlots={afcData.startingSlots || []}
                       nfcSlots={nfcData.startingSlots || []}
                       playersDB={playersDB}
                       weekProjections={weekProjections}
+                      byTeamWeek={nflSchedule.byTeamWeek} week={selectedWeek}
                     />
                   ))}
                 </div>
@@ -1072,7 +1228,11 @@ export default function App() {
 
         {/* TAB: ROSTERS */}
         {activeTab === "rosters" && (
-          <RosterTab afcData={afcData} nfcData={nfcData} playersDB={playersDB} playersLoading={playersLoading} />
+          <RosterTab
+            afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason} playersDB={playersDB} playersLoading={playersLoading}
+            weekProjections={weekProjections} selectedWeek={selectedWeek} setSelectedWeek={setSelectedWeek} seasonWeeks={SEASON_WEEKS}
+            byTeamWeek={nflSchedule.byTeamWeek}
+          />
         )}
 
         {/* TAB: ACTIVITY */}
@@ -1087,45 +1247,48 @@ export default function App() {
           />
         )}
 
-        {/* TAB: TRADE TRACKER */}
-        {activeTab === "trades" && (
-          <ActivityTab
-            afcTransactions={afcTransactions}
-            nfcTransactions={nfcTransactions}
-            afcRosterIdMap={afcData.rosterIdMap}
-            nfcRosterIdMap={nfcData.rosterIdMap}
-            playersDB={playersDB}
-            loading={transactionsLoading}
-            types={['trade']}
-            emptyLabel="No trades yet this season."
-          />
-        )}
-
-        {/* TAB: DRAFT BOARD */}
-        {activeTab === "draft" && (
-          <DraftBoardTab
-            afcDraft={afcDraft}
-            nfcDraft={nfcDraft}
-            afcRosterIdMap={afcData.rosterIdMap}
-            nfcRosterIdMap={nfcData.rosterIdMap}
-            loading={draftLoading}
-          />
-        )}
-
-        {/* TAB: PLAYERS */}
+        {/* TAB: PLAYERS (with Player Search / Draft Board sub-pages) */}
         {activeTab === "players" && (
-          <PlayersTab
-            afcData={afcData}
-            nfcData={nfcData}
-            afcDraft={afcDraft}
-            nfcDraft={nfcDraft}
-            afcTransactions={afcTransactions}
-            nfcTransactions={nfcTransactions}
-            afcManagers={afcManagers}
-            nfcManagers={nfcManagers}
-            playersDB={playersDB}
-            playersLoading={playersLoading}
-          />
+          <div className="space-y-6">
+            <div className="inline-flex bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-xl p-1 gap-1">
+              {[["search", "Player Search", Search], ["draft", "Draft Board", ListOrdered]].map(([key, label, Icon]) => (
+                <button
+                  key={key}
+                  onClick={() => setPlayersSubTab(key)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 ${
+                    playersSubTab === key ? "bg-blue-600 text-white" : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {playersSubTab === "search" && (
+              <PlayersTab
+                afcData={afcData}
+                nfcData={nfcData}
+                afcDraft={afcDraft}
+                nfcDraft={nfcDraft}
+                afcTransactions={afcTransactions}
+                nfcTransactions={nfcTransactions}
+                afcManagers={afcManagers}
+                nfcManagers={nfcManagers}
+                playersDB={playersDB}
+                playersLoading={playersLoading}
+              />
+            )}
+            {playersSubTab === "draft" && (
+              <DraftBoardTab
+                afcDraft={afcDraft}
+                nfcDraft={nfcDraft}
+                afcRosterIdMap={afcData.rosterIdMap}
+                nfcRosterIdMap={nfcData.rosterIdMap}
+                loading={draftLoading}
+              />
+            )}
+          </div>
         )}
 
         {/* TAB: MS TEAMS RECAP (admin only) */}

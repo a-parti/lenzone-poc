@@ -1,60 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { PositionBadge, InjuryBadge } from './shared';
 import TeamName from './TeamName';
-import { playerLabel } from '../lib/players';
-
-function buildOwnerMap(rosters) {
-  const map = {};
-  rosters.forEach(r => {
-    r.players.forEach(id => { map[id] = r.manager; });
-  });
-  return map;
-}
-
-// Draft record for every drafted player, keyed by player_id
-function buildDraftMap(draft) {
-  const map = {};
-  (draft?.picks || []).forEach(p => {
-    if (p.player_id) map[p.player_id] = { round: p.round, pickInRound: p.pick_no - (p.round - 1) * 12, overall: p.pick_no };
-  });
-  return map;
-}
-
-// Full chronological movement history for every player: draft pick, every subsequent waiver/FA/
-// trade add, and every drop -- all real Sleeper transaction data, not just the latest event.
-function buildAcquisitionHistory(draft, transactions, rosterIdMap) {
-  const history = {};
-  const push = (id, event) => { if (!history[id]) history[id] = []; history[id].push(event); };
-
-  const draftMap = buildDraftMap(draft);
-  Object.entries(draftMap).forEach(([id, d]) => {
-    push(id, { label: `Draft #${d.overall} (${d.round}.${d.pickInRound})`, sortValue: d.overall, timestamp: -1 });
-  });
-
-  const sorted = [...transactions].filter(t => t.status === 'complete').sort((a, b) => (a.created || 0) - (b.created || 0));
-  sorted.forEach(t => {
-    const dateStr = t.created ? new Date(t.created).toLocaleDateString(undefined, { day: '2-digit', month: 'short' }) : '';
-    const sortValue = 1000 + (t.created || 0) / 1e10;
-    if (t.adds) {
-      Object.entries(t.adds).forEach(([playerId, rosterId]) => {
-        if (!rosterIdMap[rosterId]) return;
-        const label = t.type === 'trade' ? `Trade (${dateStr})`
-          : t.type === 'waiver' ? `Waiver (${dateStr}, $${t.settings?.waiver_bid ?? 0})`
-          : `FA Add (${dateStr})`;
-        push(playerId, { label, sortValue, timestamp: t.created || 0 });
-      });
-    }
-    if (t.drops) {
-      Object.entries(t.drops).forEach(([playerId, rosterId]) => {
-        if (!rosterIdMap[rosterId]) return;
-        push(playerId, { label: `Dropped (${dateStr})`, sortValue, timestamp: t.created || 0 });
-      });
-    }
-  });
-
-  Object.values(history).forEach(events => events.sort((a, b) => a.timestamp - b.timestamp));
-  return history;
-}
+import { playerLabel, buildOwnerMap, buildAcquisitionHistory } from '../lib/players';
+import PlayerNameButton from './PlayerNameButton';
 
 const SORT_ACCESSORS = {
   name: r => r.name.toLowerCase(),
@@ -243,7 +191,7 @@ export default function PlayersTab({ afcData, nfcData, afcDraft, nfcDraft, afcTr
                 <tr key={r.id} className="hover:bg-slate-800/30 transition-all duration-200">
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-slate-100">{r.name}</span>
+                      <PlayerNameButton playerId={r.id} name={r.name} position={r.position} className="font-semibold text-slate-100" />
                       <span className="text-xs text-slate-500">{r.nflTeam}</span>
                       <InjuryBadge status={r.injuryStatus} />
                     </div>

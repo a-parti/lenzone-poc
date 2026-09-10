@@ -69,3 +69,132 @@ export function computeRosterProjection(roster, weekProjections, scoringSettings
   });
   return any ? total : null;
 }
+
+// Live-blended team total for a week in progress: per starter, use the real live stat Sleeper has
+// already posted for them if nonzero, else fall back to their pregame projection -- same per-player
+// fallback already used in the roster-compare expander, just summed to a team total. Also returns
+// lockedFraction: the share of the blended total that's already "real" (game started/finished for
+// that player), used to shrink win-probability variance as the week plays out.
+export function computeBlendedRosterScore(snapshot, weekProjections, scoringSettings, fallbackField) {
+  if (!snapshot || !snapshot.starters) return null;
+  let total = 0;
+  let lockedTotal = 0;
+  let any = false;
+  snapshot.starters.forEach((id, i) => {
+    if (!id || id === '0') return;
+    const real = snapshot.startersPoints?.[i];
+    const proj = projectedPoints(weekProjections, id, scoringSettings, fallbackField);
+    if (real > 0) {
+      total += real;
+      lockedTotal += real;
+      any = true;
+    } else if (proj !== null) {
+      total += proj;
+      any = true;
+    }
+  });
+  if (!any) return null;
+  return { total, lockedFraction: total > 0 ? lockedTotal / total : 0 };
+}
+
+// Team-level rollup used by both the Rosters tab card (per-team total) and its sort control:
+// full-squad pregame projected total, plus the real posted total for whichever starters already
+// have one (and that same subset's projection, for a fair posted-vs-projected delta).
+export function computeTeamWeeklyTotals(starters, weekProjections, scoringSettings, fallbackField, playersPoints) {
+  const validStarters = (starters || []).filter(id => id && id !== '0');
+  let projectedAll = 0, anyProj = false;
+  let actualPosted = 0, projectedPosted = 0, anyPosted = false;
+  validStarters.forEach(id => {
+    const proj = weekProjections ? projectedPoints(weekProjections, id, scoringSettings, fallbackField) : null;
+    if (proj !== null) { projectedAll += proj; anyProj = true; }
+    const real = playersPoints?.[id];
+    if (real > 0) {
+      actualPosted += real;
+      if (proj !== null) projectedPosted += proj;
+      anyPosted = true;
+    }
+  });
+  return {
+    projectedAll: anyProj ? projectedAll : null,
+    actualPosted: anyPosted ? actualPosted : null,
+    projectedPosted
+  };
+}
+
+// Real move count per manager: one count per completed transaction they're party to (waiver claim,
+// free-agent add, drop, or trade) -- sourced directly from Sleeper's transaction log, not inferred.
+function computeMoveCounts(transactions, rosterIdMap) {
+  const counts = {};
+  transactions.filter(t => t.status === 'complete').forEach(t => {
+    const rosterIds = new Set([...Object.values(t.adds || {}), ...Object.values(t.drops || {})]);
+    rosterIds.forEach(rosterId => {
+      const manager = rosterIdMap[rosterId];
+      if (!manager) return;
+      counts[manager] = (counts[manager] || 0) + 1;
+    });
+  });
+  return counts;
+}
+
+function buildOwnerMap(rosters) {
+  const map = {};
+  rosters.forEach(r => {
+    r.players.forEach(id => { map[id] = r.manager; });
+  });
+  return map;
+}
+
+// Draft record for every drafted player, keyed by player_id -- includes which manager drafted them.
+function buildDraftMap(draft, rosterIdMap) {
+  const map = {};
+  (draft?.picks || []).forEach(p => {
+    if (p.player_id) map[p.player_id] = {
+      round: p.round, pickInRound: p.pick_no - (p.round - 1) * 12, overall: p.pick_no,
+      manager: rosterIdMap[p.roster_id]
+    };
+  });
+  return map;
+}
+
+// Full chronological movement history for every player: draft pick, every subsequent waiver/FA/
+// trade add, and every drop -- all real Sleeper transaction data, not just the latest event.
+// Each event names the manager who made that specific move (the CURRENT owner is tracked
+// separately via buildOwnerMap -- this is the move log, not a claim about who owns them now).
+function buildAcquisitionHistory(draft, transactions, rosterIdMap) {
+  const history = {};
+  const push = (id, event) => { if (!history[id]) history[id] = []; history[id].push(event); };
+
+  const draftMap = buildDraftMap(draft, rosterIdMap);
+  Object.entries(draftMap).forEach(([id, d]) => {
+    const who = d.manager ? ` — ${d.manager}` : '';
+    push(id, { label: `Draft #${d.overall} (${d.round}.${d.pickInRound})${who}`, sortValue: d.overall, timestamp: -1 });
+  });
+
+  const sorted = [...transactions].filter(t => t.status === 'complete').sort((a, b) => (a.created || 0) - (b.created || 0));
+  sorted.forEach(t => {
+    const dateStr = t.created ? new Date(t.created).toLocaleDateString(undefined, { day: '2-digit', month: 'short' }) : '';
+    const sortValue = 1000 + (t.created || 0) / 1e10;
+    if (t.adds) {
+      Object.entries(t.adds).forEach(([playerId, rosterId]) => {
+        const manager = rosterIdMap[rosterId];
+        if (!manager) return;
+        const label = t.type === 'trade' ? `Trade (${dateStr}) — ${manager}`
+          : t.type === 'waiver' ? `Waiver (${dateStr}, $${t.settings?.waiver_bid ?? 0}) — ${manager}`
+          : `FA Add (${dateStr}, $${t.settings?.waiver_bid ?? 0}) — ${manager}`;
+        push(playerId, { label, sortValue, timestamp: t.created || 0 });
+      });
+    }
+    if (t.drops) {
+      Object.entries(t.drops).forEach(([playerId, rosterId]) => {
+        const manager = rosterIdMap[rosterId];
+        if (!manager) return;
+        push(playerId, { label: `Dropped (${dateStr}) — ${manager}`, sortValue, timestamp: t.created || 0 });
+      });
+    }
+  });
+
+  Object.values(history).forEach(events => events.sort((a, b) => a.timestamp - b.timestamp));
+  return history;
+}
+
+export { buildOwnerMap, buildAcquisitionHistory, computeMoveCounts };

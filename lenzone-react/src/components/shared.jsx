@@ -44,6 +44,18 @@ export function StatusBadge({ type }) {
   );
 }
 
+// Real NFL schedule data (date + status) for this player's team that week -- Sleeper's schedule
+// feed gives a date but no kickoff time-of-day, so that's all we show; never invent a specific time.
+export function GameBadge({ nflTeam, week, byTeamWeek }) {
+  const g = byTeamWeek?.[nflTeam]?.[week];
+  if (!g) return null;
+  const dateLabel = g.date
+    ? new Date(`${g.date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'numeric', day: 'numeric' })
+    : '';
+  const label = g.status === 'complete' ? `Final vs ${g.opponent}` : g.status === 'canceled' ? 'Canceled' : `${g.isHome ? 'vs' : '@'} ${g.opponent} ${dateLabel}`;
+  return <span className="text-[9px] font-mono text-slate-500 shrink-0 whitespace-nowrap">{label}</span>;
+}
+
 export function ConfFilterToggle({ value, onChange }) {
   return (
     <div className="inline-flex rounded-lg bg-slate-950 p-1 border border-slate-800/80">

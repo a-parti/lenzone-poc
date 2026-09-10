@@ -30,8 +30,35 @@ function normalize(txns, rosterIdMap, confLabel, types) {
     .filter(t => t.teams.length > 0);
 }
 
-export default function ActivityTab({ afcTransactions, nfcTransactions, afcRosterIdMap, nfcRosterIdMap, playersDB, loading, types = ['waiver', 'free_agent', 'trade'], emptyLabel = "No add/drop activity found yet." }) {
+const TYPE_FILTERS = {
+  ALL: ['waiver', 'free_agent', 'trade'],
+  TRADES: ['trade']
+};
+
+function TypeFilterToggle({ value, onChange }) {
+  return (
+    <div className="inline-flex bg-slate-950 border border-slate-800/80 rounded-lg p-0.5">
+      {[['ALL', 'All Activity'], ['TRADES', 'Trades Only']].map(([key, label]) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => onChange(key)}
+          className={`px-3 py-1 text-xs font-semibold rounded-md transition-all duration-150 ${
+            value === key ? "bg-blue-600 text-white" : "text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export default function ActivityTab({ afcTransactions, nfcTransactions, afcRosterIdMap, nfcRosterIdMap, playersDB, loading }) {
   const [conf, setConf] = useState('ALL');
+  const [typeFilter, setTypeFilter] = useState('ALL');
+  const types = TYPE_FILTERS[typeFilter];
+  const emptyLabel = typeFilter === 'TRADES' ? "No trades yet this season." : "No add/drop activity found yet.";
 
   const combined = [
     ...(conf !== 'NFC' ? normalize(afcTransactions, afcRosterIdMap, 'AFC', types) : []),
@@ -40,9 +67,10 @@ export default function ActivityTab({ afcTransactions, nfcTransactions, afcRoste
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4 bg-slate-900/60 backdrop-blur-md border border-slate-800/80 p-4 rounded-xl">
+      <div className="flex flex-wrap items-center gap-4 bg-slate-900/60 backdrop-blur-md border border-slate-800/80 p-4 rounded-xl">
         <span className="tracking-wider text-xs uppercase font-semibold text-slate-400">Conference</span>
         <ConfFilterToggle value={conf} onChange={setConf} />
+        <TypeFilterToggle value={typeFilter} onChange={setTypeFilter} />
       </div>
 
       {loading && <div className="text-sm text-slate-500 italic">Loading transaction history from Sleeper...</div>}

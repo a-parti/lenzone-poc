@@ -76,7 +76,10 @@ export async function fetchWeekMatchups(leagueId, week, rosterIdMap) {
         manager: rosterIdMap[m.roster_id] || `Roster ${m.roster_id}`,
         points: m.points || 0,
         starters: m.starters || [],
-        startersPoints: m.starters_points || []
+        startersPoints: m.starters_points || [],
+        // Real per-player points for the WHOLE roster (not just starters) -- Sleeper's own
+        // live-updating per-player stat total, keyed by player_id.
+        playersPoints: m.players_points || {}
       });
     });
     return Object.values(grouped).filter(teams => teams.length === 2);
@@ -104,8 +107,8 @@ export async function fetchFullSeasonData(leagueId, rosterIdMap, seasonWeeks) {
       scoreByWeek[week][a.manager] = a.points;
       scoreByWeek[week][b.manager] = b.points;
       scheduleByWeek[week].push([a.manager, b.manager]);
-      rosterSnapshotByWeek[week][a.manager] = { starters: a.starters, startersPoints: a.startersPoints };
-      rosterSnapshotByWeek[week][b.manager] = { starters: b.starters, startersPoints: b.startersPoints };
+      rosterSnapshotByWeek[week][a.manager] = { starters: a.starters, startersPoints: a.startersPoints, playersPoints: a.playersPoints };
+      rosterSnapshotByWeek[week][b.manager] = { starters: b.starters, startersPoints: b.startersPoints, playersPoints: b.playersPoints };
       if (a.points > 0 || b.points > 0) anyScore = true;
     });
     if (anyScore) latestCompletedWeek = Math.max(latestCompletedWeek, week);
@@ -130,6 +133,16 @@ export async function fetchWeekProjections(season, week) {
     console.error("Failed to fetch weekly projections:", err);
     return {};
   }
+}
+
+// All weeks' projections in one shot, keyed by week -- powers the player modal's full-season
+// projected/actual table (fetched once per session rather than refetched per player click).
+export async function fetchAllWeekProjections(season, seasonWeeks) {
+  const weeks = Array.from({ length: seasonWeeks }, (_, i) => i + 1);
+  const results = await Promise.all(weeks.map(async w => ({ week: w, data: await fetchWeekProjections(season, w) })));
+  const byWeek = {};
+  results.forEach(({ week, data }) => { byWeek[week] = data; });
+  return byWeek;
 }
 
 // Full NFL player dictionary (multi-MB). Fetched once per session, kept in memory only.
@@ -159,6 +172,42 @@ export async function fetchSeasonTransactions(leagueId, weeksToCheck) {
   const weeks = Array.from({ length: weeksToCheck }, (_, i) => i + 1);
   const results = await Promise.all(weeks.map(w => fetchWeekTransactions(leagueId, w)));
   return results.flat();
+}
+
+// Sleeper's own notion of "current NFL week" -- it only advances once a week's games are done
+// (typically early Tuesday), so it's the most reliable real signal we have for "is this week over."
+export async function fetchNflState() {
+  try {
+    const res = await fetch(`https://api.sleeper.app/v1/state/nfl`).then(r => r.json());
+    return { week: res?.week ?? 1, seasonType: res?.season_type ?? null };
+  } catch (err) {
+    console.error("Failed to fetch NFL state:", err);
+    return { week: 1, seasonType: null };
+  }
+}
+
+// Real NFL schedule for the season: which two teams play each week, the game date, and its real
+// status (pre_game/complete/canceled). No kickoff time-of-day is available from this endpoint --
+// only the date -- so that's all we show; never fabricate a specific kickoff time.
+export async function fetchNflSchedule(season) {
+  try {
+    const res = await fetch(`https://api.sleeper.app/schedule/nfl/regular/${season}`).then(r => r.json());
+    if (!Array.isArray(res)) return { byTeamWeek: {}, games: [] };
+    const byTeamWeek = {};
+    res.forEach(g => {
+      if (!g.home || !g.away) return;
+      const set = (team, opponent, isHome) => {
+        if (!byTeamWeek[team]) byTeamWeek[team] = {};
+        byTeamWeek[team][g.week] = { opponent, isHome, date: g.date, status: g.status };
+      };
+      set(g.home, g.away, true);
+      set(g.away, g.home, false);
+    });
+    return { byTeamWeek, games: res };
+  } catch (err) {
+    console.error("Failed to fetch NFL schedule:", err);
+    return { byTeamWeek: {}, games: [] };
+  }
 }
 
 export async function fetchDraftPicks(leagueId) {

@@ -36,17 +36,33 @@ export function roughWinProbability(myProjected, oppProjected) {
   return winProbability(myProjected, myStd, oppProjected, oppStd);
 }
 
-function gaussianRandom(mean, std) {
+// Seeded PRNG (mulberry32) so a given seed always reproduces the same simulated sequence --
+// needed so playoff % is identical for every viewer and only changes when the seed (completed week) does.
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function gaussianRandom(mean, std, rng = Math.random) {
   let u = 0, v = 0;
-  while (u === 0) u = Math.random();
-  while (v === 0) v = Math.random();
+  while (u === 0) u = rng();
+  while (v === 0) v = rng();
   const z = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
   return Math.max(0, mean + z * std);
 }
 
-export function buildHistory(scoreByWeek) {
+// maxWeek must be the latest FULLY COMPLETED week -- otherwise a manager's in-progress live score
+// this week gets counted as a "finished game" whose mean equals that partial score, badly skewing
+// every downstream stat (win %, Monte Carlo playoff odds baseline) toward whoever's ahead right now.
+export function buildHistory(scoreByWeek, maxWeek) {
   const history = {};
-  Object.values(scoreByWeek).forEach(weekMap => {
+  Object.entries(scoreByWeek).forEach(([week, weekMap]) => {
+    if (Number(week) > maxWeek) return;
     Object.entries(weekMap).forEach(([mgr, pts]) => {
       if (pts > 0) {
         if (!history[mgr]) history[mgr] = [];
@@ -92,6 +108,8 @@ export function simulateCombinedPlayoffOdds(
   afcManagers, nfcManagers, afcBaseList, nfcBaseList, afcStats, nfcStats,
   afcScheduleByWeek, nfcScheduleByWeek, crossSchedule, latestCompletedWeek, seasonWeeks, simulations = 1500
 ) {
+  // Seeded on latestCompletedWeek alone -- identical for every viewer, and only moves when a week finishes.
+  const rng = mulberry32(latestCompletedWeek + 1);
   const remainingWeeks = [];
   for (let w = latestCompletedWeek + 1; w <= seasonWeeks; w++) {
     remainingWeeks.push({
@@ -116,8 +134,8 @@ export function simulateCombinedPlayoffOdds(
           if (!state[mA] || !state[mB]) return;
           const sA = stats[mA] || { mean: 100, std: 20 };
           const sB = stats[mB] || { mean: 100, std: 20 };
-          const scoreA = gaussianRandom(sA.mean, sA.std);
-          const scoreB = gaussianRandom(sB.mean, sB.std);
+          const scoreA = gaussianRandom(sA.mean, sA.std, rng);
+          const scoreB = gaussianRandom(sB.mean, sB.std, rng);
           weekScores[mA] = scoreA;
           weekScores[mB] = scoreB;
           state[mA].pf += scoreA;
@@ -149,11 +167,13 @@ export function simulateCombinedPlayoffOdds(
   return { afcOdds, nfcOdds };
 }
 
-// Real cross-conference results: compares each pairing's actual weekly Sleeper scores
-export function computeCrossRecords(schedule, afcSeason, nfcSeason, seasonWeeks) {
+// Real cross-conference results: compares each pairing's actual weekly Sleeper scores.
+// `maxWeek` should be the latest FULLY COMPLETED week (not seasonWeeks) wherever this feeds
+// standings/records that must not move mid-week from live in-progress scores.
+export function computeCrossRecords(schedule, afcSeason, nfcSeason, maxWeek) {
   const records = {};
   const bump = (m) => { if (!records[m]) records[m] = { wins: 0, losses: 0, ties: 0, pts: 0 }; return records[m]; };
-  for (let w = 1; w <= seasonWeeks; w++) {
+  for (let w = 1; w <= maxWeek; w++) {
     const afcWeek = afcSeason.scoreByWeek[w] || {};
     const nfcWeek = nfcSeason.scoreByWeek[w] || {};
     schedule.filter(m => m.week === w).forEach(m => {
@@ -172,11 +192,12 @@ export function computeCrossRecords(schedule, afcSeason, nfcSeason, seasonWeeks)
 
 // Points Against: for each real intra-conference week played, sum the opponent's actual score.
 // Sleeper's own roster settings don't reliably expose this field, so it's computed directly from
-// the same real weekly matchup data used everywhere else.
-export function computePointsAgainst(managers, season) {
+// the same real weekly matchup data used everywhere else. `maxWeek` caps this to fully-completed weeks.
+export function computePointsAgainst(managers, season, maxWeek) {
   const pa = {};
   managers.forEach(m => pa[m] = 0);
   Object.entries(season.scheduleByWeek).forEach(([week, pairs]) => {
+    if (Number(week) > maxWeek) return;
     pairs.forEach(([a, b]) => {
       const scoreA = season.scoreByWeek[week]?.[a] || 0;
       const scoreB = season.scoreByWeek[week]?.[b] || 0;
@@ -185,6 +206,27 @@ export function computePointsAgainst(managers, season) {
     });
   });
   return pa;
+}
+
+// In-conference record/points/PF computed purely from real posted scores through maxWeek --
+// replaces trusting Sleeper's live roster.settings.wins/losses/ties/fpts, which Sleeper updates
+// live all week (the same live-mid-week problem this fix targets).
+export function computeInConfRecord(managers, season, maxWeek) {
+  const records = {};
+  managers.forEach(m => { records[m] = { wins: 0, losses: 0, ties: 0, pf: 0 }; });
+  for (let w = 1; w <= maxWeek; w++) {
+    (season.scheduleByWeek[w] || []).forEach(([a, b]) => {
+      const scoreA = season.scoreByWeek[w]?.[a] || 0;
+      const scoreB = season.scoreByWeek[w]?.[b] || 0;
+      if (!(scoreA > 0 && scoreB > 0)) return;
+      if (records[a]) records[a].pf += scoreA;
+      if (records[b]) records[b].pf += scoreB;
+      if (scoreA > scoreB) { if (records[a]) records[a].wins++; if (records[b]) records[b].losses++; }
+      else if (scoreB > scoreA) { if (records[b]) records[b].wins++; if (records[a]) records[a].losses++; }
+      else { if (records[a]) records[a].ties++; if (records[b]) records[b].ties++; }
+    });
+  }
+  return records;
 }
 
 export function computeCrossWeekRecord(pairsForWeek, afcWeek, nfcWeek) {
@@ -202,7 +244,9 @@ export function computeCrossWeekRecord(pairsForWeek, afcWeek, nfcWeek) {
   return { afcWins, nfcWins, ties, counted };
 }
 
-export function computeWeeklyAwards(afcSeason, nfcSeason, week) {
+// projectedScoreByManager (optional): { manager: blendedProjectedFinalTotal }, used to also surface
+// a projected-final closest/blowout margin while the week is still live (not yet fully completed).
+export function computeWeeklyAwards(afcSeason, nfcSeason, week, projectedScoreByManager = null) {
   const afcWeek = afcSeason.scoreByWeek[week] || {};
   const nfcWeek = nfcSeason.scoreByWeek[week] || {};
   const entries = [
@@ -222,20 +266,49 @@ export function computeWeeklyAwards(afcSeason, nfcSeason, week) {
   const closest = games.length ? [...games].sort((a, b) => a.margin - b.margin)[0] : null;
   const blowout = games.length ? [...games].sort((a, b) => b.margin - a.margin)[0] : null;
 
-  return { highScore, lowScore, closest, blowout };
+  let projectedClosest = null;
+  let projectedBlowout = null;
+  let projectedHighScore = null;
+  let projectedLowScore = null;
+  if (projectedScoreByManager) {
+    const projGames = [
+      ...(afcSeason.scheduleByWeek[week] || []),
+      ...(nfcSeason.scheduleByWeek[week] || [])
+    ]
+      .map(([a, b]) => ({ a, b, sa: projectedScoreByManager[a], sb: projectedScoreByManager[b] }))
+      .filter(g => g.sa != null && g.sb != null)
+      .map(g => ({ ...g, margin: Math.abs(g.sa - g.sb) }));
+    projectedClosest = projGames.length ? [...projGames].sort((a, b) => a.margin - b.margin)[0] : null;
+    projectedBlowout = projGames.length ? [...projGames].sort((a, b) => b.margin - a.margin)[0] : null;
+
+    const projEntries = [
+      ...(afcSeason.scheduleByWeek[week] || []).flat(),
+      ...(nfcSeason.scheduleByWeek[week] || []).flat()
+    ]
+      .filter((m, i, arr) => arr.indexOf(m) === i)
+      .map(manager => ({ manager, points: projectedScoreByManager[manager] }))
+      .filter(e => e.points != null);
+    projectedHighScore = projEntries.length ? [...projEntries].sort((a, b) => b.points - a.points)[0] : null;
+    projectedLowScore = projEntries.length ? [...projEntries].sort((a, b) => a.points - b.points)[0] : null;
+  }
+
+  return { highScore, lowScore, closest, blowout, projectedClosest, projectedBlowout, projectedHighScore, projectedLowScore };
 }
 
-export function buildConferenceList(managers, confData, crossRecordByManager, pointsAgainstByManager = {}) {
+// inConfRecordByManager: output of computeInConfRecord (real, frozen-to-completed-weeks record/PF) --
+// replaces reading confData.rosters' live Sleeper wins/losses/ties/fpts.
+export function buildConferenceList(managers, confData, crossRecordByManager, pointsAgainstByManager = {}, inConfRecordByManager = {}) {
   return managers.map(mgr => {
     const r = confData.rosters.find(ros => ros.manager === mgr);
     const cross = crossRecordByManager[mgr] || { wins: 0, losses: 0, ties: 0, pts: 0 };
-    const inConfPts = r ? r.inConfPts : 0;
+    const inConf = inConfRecordByManager[mgr] || { wins: 0, losses: 0, ties: 0, pf: 0 };
+    const inConfPts = (inConf.wins * 2.0) + (inConf.ties * 1.0);
     return {
       manager: mgr,
-      inConfRecord: r ? r.inConfRecord : "0-0-0",
+      inConfRecord: `${inConf.wins}-${inConf.losses}-${inConf.ties}`,
       interConfRecord: `${cross.wins}-${cross.losses}-${cross.ties}`,
       totalPts: inConfPts + cross.pts,
-      pf: r ? r.pf : 0,
+      pf: inConf.pf,
       pa: pointsAgainstByManager[mgr] || 0,
       faab: r ? `$${r.faabLeft}` : "$100"
     };

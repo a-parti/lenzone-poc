@@ -246,23 +246,29 @@ export function TeamPicker({ afcManagers, nfcManagers, value, onChange, prefix =
           {prefix}
         </span>
       )}
-      <select
-        value={value || ""}
-        onChange={(e) => onChange?.(e.target.value || null)}
-        className={
-          isBlend
-            ? "bg-transparent border-0 border-b-2 border-[var(--border2)] rounded-none px-1 py-0.5 font-display font-bold text-[var(--accent)] text-base sm:text-lg focus:outline-none focus:border-[var(--accent)] hover:border-[var(--accent)] transition-colors duration-200 max-w-[calc(100vw-140px)] sm:max-w-none"
-            : "bg-[var(--surface2)] border border-[var(--border)] rounded-lg px-3 py-1.5 font-semibold text-[var(--text)] text-sm focus:outline-none focus:border-[var(--accent)] w-full max-w-[22rem]"
-        }
-      >
-        <option value="" style={optionStyle}>choose your team&hellip;</option>
-        <optgroup label="AFC" style={optionStyle}>
-          {(afcManagers || []).map(m => <option key={m} value={m} style={optionStyle}>{m}</option>)}
-        </optgroup>
-        <optgroup label="NFC" style={optionStyle}>
-          {(nfcManagers || []).map(m => <option key={m} value={m} style={optionStyle}>{m}</option>)}
-        </optgroup>
-      </select>
+      <div className={isBlend ? "relative inline-block" : "contents"}>
+        <select
+          value={value || ""}
+          onChange={(e) => onChange?.(e.target.value || null)}
+          className={
+            isBlend
+              ? "bg-transparent border-0 border-b-2 border-transparent rounded-none px-1 py-0.5 font-display font-bold text-[var(--accent)] text-base sm:text-lg focus:outline-none max-w-[calc(100vw-140px)] sm:max-w-none"
+              : "bg-[var(--surface2)] border border-[var(--border)] rounded-lg px-3 py-1.5 font-semibold text-[var(--text)] text-sm focus:outline-none focus:border-[var(--accent)] w-full max-w-[22rem]"
+          }
+        >
+          <option value="" style={optionStyle}>choose your team&hellip;</option>
+          <optgroup label="AFC" style={optionStyle}>
+            {(afcManagers || []).map(m => <option key={m} value={m} style={optionStyle}>{m}</option>)}
+          </optgroup>
+          <optgroup label="NFC" style={optionStyle}>
+            {(nfcManagers || []).map(m => <option key={m} value={m} style={optionStyle}>{m}</option>)}
+          </optgroup>
+        </select>
+        {/* A continuously looping shimmer underline instead of a static border -- reliable
+            cross-browser, unlike trying to gradient-fill the text of a native <select>. Runs
+            before AND after picking a team, not just on hover, so it draws the eye either way. */}
+        {isBlend && <span className="picker-glow-bar" aria-hidden="true" />}
+      </div>
     </div>
   );
 }

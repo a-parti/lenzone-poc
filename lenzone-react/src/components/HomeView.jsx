@@ -88,7 +88,7 @@ export default function HomeView({ setActiveTab, selectedWeek, afcManagers, nfcM
   const sections = navSections(selectedWeek);
 
   return (
-    <div className="relative min-h-[70vh] flex flex-col items-center gap-8 text-center pt-16 sm:pt-24">
+    <div className="relative min-h-[80vh] flex flex-col items-center gap-8 text-center">
       {/* The header (with its own mute button) is hidden on Home, so this is the ONLY way to mute
           before ever picking a team for the first time -- without it, muting is only reachable
           after the header appears, i.e. after a sound has already had the chance to play once. */}
@@ -104,7 +104,12 @@ export default function HomeView({ setActiveTab, selectedWeek, afcManagers, nfcM
         </button>
       )}
       <ConfettiBurst burst={teamBurst} />
-      <TeamPicker afcManagers={afcManagers} nfcManagers={nfcManagers} value={myTeamManager} onChange={onChooseMyTeam} variant="blend" />
+      {/* Roughly centered in the viewport before a pick (nothing else on the page yet to balance
+          against); once the nav list is about to appear below it, the picker eases upward to make
+          room instead of the list just abruptly appearing under a still-centered picker. */}
+      <div className={`transition-[margin-top] duration-500 ease-out ${myTeamManager ? "mt-16 sm:mt-20" : "mt-[26vh] sm:mt-[30vh]"}`}>
+        <TeamPicker afcManagers={afcManagers} nfcManagers={nfcManagers} value={myTeamManager} onChange={onChooseMyTeam} variant="blend" />
+      </div>
 
       {myTeamManager && (
         <NavListNumbered sections={sections} onSelect={setActiveTab} />

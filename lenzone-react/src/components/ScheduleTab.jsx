@@ -60,14 +60,14 @@ function ScheduleWeekRow({ week, intraOpponent, myConf, interOpponent, interOppC
         )}
       </div>
       <div className="space-y-2">
-        <div className="flex items-center gap-2 text-sm">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider bg-[var(--surface2)] text-[var(--text)] border border-[var(--border2)] shrink-0 w-16 text-center">Intra</span>
           <span className="text-[10px] font-bold text-[var(--muted)] bg-[var(--bg)] px-2 py-1 rounded shrink-0">VS</span>
           {intraOpponent ? (
             <>
-              <TeamName manager={intraOpponent} conf={myConf} className="font-semibold" />
+              <TeamName manager={intraOpponent} conf={myConf} className="font-semibold min-w-0 truncate max-w-[55%] sm:max-w-none" />
               {(intraMyScore || intraOppScore) && (
-                <span className="ml-auto flex items-center gap-1.5">
+                <span className="ml-auto flex items-center gap-1.5 shrink-0">
                   <ScoreTag score={intraMyScore} />
                   <span className="text-[var(--muted)] text-xs">-</span>
                   <ScoreTag score={intraOppScore} />
@@ -79,14 +79,14 @@ function ScheduleWeekRow({ week, intraOpponent, myConf, interOpponent, interOppC
           )}
         </div>
 
-        <div className="flex items-center gap-2 text-sm pt-2 border-t border-[var(--border)]/60">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm pt-2 border-t border-[var(--border)]/60">
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider bg-[var(--surface2)] text-[var(--text)] border border-[var(--border2)] shrink-0 w-16 text-center">Inter</span>
           <span className="text-[10px] font-bold text-[var(--muted)] bg-[var(--bg)] px-2 py-1 rounded shrink-0">VS</span>
           {interOpponent ? (
             <>
-              <TeamName manager={interOpponent} conf={interOppConf} className="font-semibold" />
+              <TeamName manager={interOpponent} conf={interOppConf} className="font-semibold min-w-0 truncate max-w-[55%] sm:max-w-none" />
               {(interMyScore || interOppScore) && (
-                <span className="ml-auto flex items-center gap-1.5">
+                <span className="ml-auto flex items-center gap-1.5 shrink-0">
                   <ScoreTag score={interMyScore} />
                   <span className="text-[var(--muted)] text-xs">-</span>
                   <ScoreTag score={interOppScore} />

@@ -224,7 +224,10 @@ export function computePlayerHighlights(afcData, nfcData, afcSeason, nfcSeason, 
   ingest(afcData, afcSeason);
   ingest(nfcData, nfcSeason);
 
-  const entries = [...seen.values()];
+  return summarizePlayerEntries([...seen.values()]);
+}
+
+function summarizePlayerEntries(entries) {
   const withProj = entries.filter(e => e.projected != null);
   const withActual = entries.filter(e => e.actual != null);
   const withBoth = entries.filter(e => e.actual != null && e.projected != null);
@@ -237,4 +240,17 @@ export function computePlayerHighlights(afcData, nfcData, afcSeason, nfcSeason, 
     biggestRiser: maxBy(withBoth, e => e.actual - e.projected),
     biggestBust: minBy(withBoth, e => e.actual - e.projected)
   };
+}
+
+// Same "trophies" as computePlayerHighlights, but scoped to just ONE roster's own starters --
+// the "I am" team's own riser/bust/highest-projected, not a league-wide comparison.
+export function computeMyPlayerHighlights(roster, playersPoints, weekProjections, scoringSettings, fallbackField) {
+  const entries = (roster?.starters || [])
+    .filter(id => id && id !== '0')
+    .map(id => {
+      const real = playersPoints?.[id];
+      const projected = projectedPoints(weekProjections, id, scoringSettings, fallbackField);
+      return { id, actual: real > 0 ? real : null, projected };
+    });
+  return summarizePlayerEntries(entries);
 }

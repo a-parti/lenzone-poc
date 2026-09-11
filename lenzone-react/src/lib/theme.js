@@ -38,11 +38,13 @@ export function positionStyle(pos) {
 // a settled result yet); or final, which itself reads as green (beat the pregame projection) or
 // red (fell short of it) rather than a flat "it's over" color -- "final" alone doesn't say whether
 // that was good news, and beat/missed projection is the number people actually care about once a
-// game is done. Falls back to a flat green when no projection is available to compare against.
+// game is done. When there's no projection to compare against (Sleeper's own projections feed is
+// sparse for kickers/defenses especially), falls back to a neutral color rather than green --
+// green there would silently assert "beat projection" with no data behind it.
 export const SCORE_COLOR = {
   proj: "text-[var(--proj)]",
   live: "text-[var(--live)]",
-  final: "text-[var(--pos)]",
+  final: "text-[var(--text)]",
   "final-pos": "text-[var(--pos)]",
   "final-neg": "text-[var(--neg)]"
 };

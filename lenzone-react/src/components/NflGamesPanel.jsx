@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useEffect } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { InjuryBadge, NflTeamLogo } from './shared';
 import { SCORE_COLOR, scoreState } from '../lib/theme';
 import PlayerNameButton from './PlayerNameButton';
@@ -32,26 +32,6 @@ function MyPlayersLine({ team, players, isLive }) {
   );
 }
 
-// How many STARTING lineup spots (both conferences combined, bench excluded) belong to each real
-// NFL team this week -- a bench-inclusive count was confusing (a number with no visible meaning
-// next to a team logo); "how many starters are in this game" is the number that's actually
-// actionable -- it tells you how many fantasy lineups this game can swing right now.
-function countStartersByTeam(playersDB, afcData, nfcData) {
-  const counts = {};
-  if (!playersDB) return counts;
-  const starterIds = [
-    ...(afcData?.rosters || []).flatMap(r => r.starters || []),
-    ...(nfcData?.rosters || []).flatMap(r => r.starters || [])
-  ];
-  starterIds.forEach(pid => {
-    if (!pid || pid === '0') return;
-    const team = playersDB[pid]?.team;
-    if (!team) return;
-    counts[team] = (counts[team] || 0) + 1;
-  });
-  return counts;
-}
-
 // All real NFL games for the selected week, including ones already final -- a played game can
 // still be clicked to highlight its players (e.g. reviewing who's in a Thursday-night game after
 // the fact), so hiding it once it's over would remove exactly the games someone might want to
@@ -59,8 +39,7 @@ function countStartersByTeam(playersDB, afcData, nfcData) {
 // own schedule feed only has a date); otherwise falls back to the date, never a fabricated time.
 // Shared by the Home "This Week" landing page and the Matchups tab's own "This Week" view so the
 // two never drift into showing different things for the same week.
-export default function NflGamesPanel({ games, week, myTeamNflTeams, myPlayersByNflTeam, playersDB, afcData, nfcData, selectedGames, onToggleGame, onClearGames }) {
-  const starterCounts = useMemo(() => countStartersByTeam(playersDB, afcData, nfcData), [playersDB, afcData, nfcData]);
+export default function NflGamesPanel({ games, week, myTeamNflTeams, myPlayersByNflTeam, selectedGames, onToggleGame, onClearGames }) {
   const weekGames = (games || [])
     .filter(g => g.week === week && g.home && g.away)
     .sort((a, b) => (a.kickoff || a.date || "").localeCompare(b.kickoff || b.date || ""));
@@ -92,8 +71,7 @@ export default function NflGamesPanel({ games, week, myTeamNflTeams, myPlayersBy
           </button>
         )}
       </div>
-      <p className="text-[10px] text-[var(--muted)] mb-3">Small numbers = fantasy starters league-wide on that team this week.</p>
-      <div ref={scrollRef} className="space-y-2 max-h-[28rem] overflow-y-auto scroll-thin pr-1">
+      <div ref={scrollRef} className="space-y-2 max-h-[28rem] overflow-y-auto scroll-thin pr-1 mt-3">
         {weekGames.map((g, idx) => {
           const involvesMyTeam = myTeamNflTeams?.has(g.home) || myTeamNflTeams?.has(g.away);
           const isLive = g.state === 'in';
@@ -106,8 +84,8 @@ export default function NflGamesPanel({ games, week, myTeamNflTeams, myPlayersBy
               : '';
           const awayPlayers = myPlayersByNflTeam?.get(g.away);
           const homePlayers = myPlayersByNflTeam?.get(g.home);
-          const awayCount = starterCounts[g.away] || 0;
-          const homeCount = starterCounts[g.home] || 0;
+          const awayCount = awayPlayers?.length || 0;
+          const homeCount = homePlayers?.length || 0;
           return (
             <div
               key={g.game_id}
@@ -133,12 +111,20 @@ export default function NflGamesPanel({ games, week, myTeamNflTeams, myPlayersBy
               }`}
             >
               <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-sm">
-                <div className="flex items-center gap-1 min-w-0 flex-wrap" onClick={(e) => e.stopPropagation()} title="Fantasy starters league-wide on this team this week">
+                <div className="flex items-center gap-1 min-w-0 flex-wrap" onClick={(e) => e.stopPropagation()}>
                   <NflTeamLogo team={g.away} />
-                  {awayCount > 0 && <span className="text-[9px] font-mono text-[var(--muted)] bg-[var(--surface2)]/70 rounded-full px-1.5 shrink-0">{awayCount}</span>}
+                  {awayCount > 0 && (
+                    <span className="text-xs font-semibold text-[var(--accent)] shrink-0" title={`${awayCount} of your players are on ${g.away}`}>
+                      ({awayCount} of yours)
+                    </span>
+                  )}
                   <span className="text-[var(--muted)] shrink-0 text-xs">@</span>
                   <NflTeamLogo team={g.home} />
-                  {homeCount > 0 && <span className="text-[9px] font-mono text-[var(--muted)] bg-[var(--surface2)]/70 rounded-full px-1.5 shrink-0">{homeCount}</span>}
+                  {homeCount > 0 && (
+                    <span className="text-xs font-semibold text-[var(--accent)] shrink-0" title={`${homeCount} of your players are on ${g.home}`}>
+                      ({homeCount} of yours)
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 shrink-0 ml-auto">
                   {(isLive || isFinal) && g.awayScore != null && g.homeScore != null && (

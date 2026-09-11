@@ -84,8 +84,9 @@ export function GameBadge({ nflTeam, week, byTeamWeek }) {
 }
 
 // Small colored 3-letter NFL team tag (real team brand colors from nflTeams.js), meant to sit next
-// to a PositionBadge -- e.g. "QB" + "MIA" in Miami's teal.
-export function NflTeamTag({ team }) {
+// to a PositionBadge -- e.g. "QB" + "MIA" in Miami's teal. An optional jersey number folds into the
+// same tag ("MIA #2") for rows tight on columns, instead of giving the number its own column.
+export function NflTeamTag({ team, number }) {
   const { openTeamDepthChart } = useTeamDepthChart();
   if (!team) return null;
   const c = nflTeamColor(team);
@@ -94,10 +95,10 @@ export function NflTeamTag({ team }) {
       type="button"
       onClick={() => openTeamDepthChart(team)}
       title={`View ${team} depth chart`}
-      className="text-[10px] font-bold px-1.5 py-0.5 rounded border hover:brightness-110 transition-all duration-150"
+      className="text-[10px] font-bold px-1.5 py-0.5 rounded border hover:brightness-110 transition-all duration-150 whitespace-nowrap"
       style={c ? { color: readableTextOn(c.primary), backgroundColor: c.primary, borderColor: c.secondary } : undefined}
     >
-      {team}
+      {team}{number != null ? ` #${number}` : ""}
     </button>
   );
 }

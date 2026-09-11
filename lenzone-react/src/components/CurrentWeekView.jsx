@@ -4,6 +4,7 @@ import { useTeamLogo } from '../context/TeamLogoContext';
 import { Zoomable } from '../context/ImageLightboxContext';
 import WeeklyHighlights from './WeeklyHighlights';
 import PlayerHighlights from './PlayerHighlights';
+import MyPlayerHighlights from './MyPlayerHighlights';
 import ManagerMatchupRow from './ManagerMatchupRow';
 import NflGamesPanel from './NflGamesPanel';
 
@@ -82,12 +83,17 @@ export default function CurrentWeekView({
             weekProjections={weekProjections} byTeamWeek={byTeamWeek} week={selectedWeek}
             hideHeader highlightTeams={highlightTeams}
           />
+          <MyPlayerHighlights
+            myTeamRoster={myTeamRoster} myTeamPlayersPoints={myTeamPlayersPoints} weekProjections={weekProjections}
+            myTeamConfData={myTeamConfData} myTeamFallbackField={myTeamFallbackField} playersDB={playersDB}
+            nflGames={nflGames} week={selectedWeek} myPlayersByNflTeam={myPlayersByNflTeam}
+            onSelectGame={toggleGame}
+          />
         </div>
       )}
 
       <NflGamesPanel
         games={nflGames} week={selectedWeek} myTeamNflTeams={myTeamNflTeams} myPlayersByNflTeam={myPlayersByNflTeam}
-        playersDB={playersDB} afcData={afcData} nfcData={nfcData}
         selectedGames={selectedGames} onToggleGame={toggleGame} onClearGames={() => setSelectedGames([])}
       />
     </div>

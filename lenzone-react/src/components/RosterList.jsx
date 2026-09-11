@@ -8,9 +8,12 @@ import PlayerNameButton from './PlayerNameButton';
 // Once a player has a real posted score for the week, show it alongside their pregame projection
 // and a clear +/- delta (beat/missed projection) -- both numbers captured, not just one or the other.
 // Before that, just the projection (blue).
-function ProjectedPts({ id, weekProjections, scoringSettings, fallbackField, playersPoints, isLive }) {
+function ProjectedPts({ id, weekProjections, scoringSettings, fallbackField, playersPoints, isLive, gameFinal }) {
   const real = playersPoints?.[id];
-  const hasReal = real > 0;
+  // A real 0 is indistinguishable from "hasn't played yet" by the number alone (Sleeper's live
+  // points default to 0 before kickoff too) -- but once the game is confirmed final, any 0 on the
+  // board IS the real final score, not a placeholder.
+  const hasReal = real > 0 || (gameFinal && real != null);
   const proj = weekProjections ? projectedPoints(weekProjections, id, scoringSettings, fallbackField) : null;
 
   if (hasReal) {
@@ -77,12 +80,13 @@ function isLiveGame(byTeamWeek, team, week) {
 // at a glance, not blend into the same tint.
 const LIVE_ROW_CLASS = "bg-amber-400/10 -mx-1.5 px-1.5 rounded border-l-2 border-amber-400";
 
-// Fixed-width columns (avatar / # / name+health / score / position / team) so every row lines up
+// Fixed-width columns (avatar / position / name+health / score / team+number) so every row lines up
 // vertically regardless of name length -- a plain flex row only pins the LAST item to the edge, not
 // the ones before it. Health status sits right next to the name itself (not off in its own column
 // at the far end of the row) since it's a fact about that specific player, not a roster-wide stat
-// like the columns after it.
-const ROW_GRID = "grid grid-cols-[20px_26px_minmax(0,1fr)_76px_34px_40px] items-center gap-1.5";
+// like the columns after it. Jersey number folds into the team tag ("MIA #2") instead of its own
+// column, freeing width for the name.
+const ROW_GRID = "grid grid-cols-[20px_34px_minmax(0,1fr)_76px_56px] items-center gap-1.5";
 
 export default function RosterList({ roster, startingSlots, irSlotCount = 0, playersDB, weekProjections, scoringSettings, fallbackField, playersPoints, byTeamWeek, week }) {
   const reserve = roster.reserve || [];
@@ -111,10 +115,11 @@ export default function RosterList({ roster, startingSlots, irSlotCount = 0, pla
           }
           const { name, position, injuryStatus, team, number } = playerLabel(playersDB, id);
           const live = isLiveGame(byTeamWeek, team, week);
+          const final = byTeamWeek?.[team]?.[week]?.state === 'post';
           return (
             <div key={i} className={`${ROW_GRID} text-sm py-0.5 ${live ? LIVE_ROW_CLASS : ""}`}>
               <PlayerAvatar playerId={id} position={position} />
-              <span className="text-[10px] font-mono text-[var(--muted)] text-center">{number != null ? `#${number}` : ""}</span>
+              <div className="flex justify-center"><PositionBadge position={position} /></div>
               <div className="flex flex-col min-w-0">
                 <div className="flex items-center gap-1 min-w-0">
                   <PlayerNameButton playerId={id} name={name} position={position} className="text-[var(--text)] truncate" />
@@ -122,9 +127,8 @@ export default function RosterList({ roster, startingSlots, irSlotCount = 0, pla
                 </div>
                 <GameBadge nflTeam={team} week={week} byTeamWeek={byTeamWeek} />
               </div>
-              <ProjectedPts id={id} weekProjections={weekProjections} scoringSettings={scoringSettings} fallbackField={fallbackField} playersPoints={playersPoints} isLive={live} />
-              <div className="flex justify-center"><PositionBadge position={position} /></div>
-              <div className="flex justify-center"><NflTeamTag team={team} /></div>
+              <ProjectedPts id={id} weekProjections={weekProjections} scoringSettings={scoringSettings} fallbackField={fallbackField} playersPoints={playersPoints} isLive={live} gameFinal={final} />
+              <div className="flex justify-center"><NflTeamTag team={team} number={number} /></div>
             </div>
           );
         })}
@@ -141,10 +145,11 @@ export default function RosterList({ roster, startingSlots, irSlotCount = 0, pla
               }
               const { name, position, injuryStatus, team, number } = playerLabel(playersDB, id);
               const live = isLiveGame(byTeamWeek, team, week);
+              const final = byTeamWeek?.[team]?.[week]?.state === 'post';
               return (
                 <div key={id} className={`${ROW_GRID} text-sm py-0.5 ${live ? LIVE_ROW_CLASS : ""}`}>
                   <PlayerAvatar playerId={id} position={position} />
-                  <span className="text-[10px] font-mono text-[var(--muted)] text-center">{number != null ? `#${number}` : ""}</span>
+                  <div className="flex justify-center"><PositionBadge position={position} /></div>
                   <div className="flex flex-col min-w-0">
                     <div className="flex items-center gap-1 min-w-0">
                       <PlayerNameButton playerId={id} name={name} position={position} className="text-[var(--text2)] truncate" />
@@ -152,9 +157,8 @@ export default function RosterList({ roster, startingSlots, irSlotCount = 0, pla
                     </div>
                     <GameBadge nflTeam={team} week={week} byTeamWeek={byTeamWeek} />
                   </div>
-                  <ProjectedPts id={id} weekProjections={weekProjections} scoringSettings={scoringSettings} fallbackField={fallbackField} playersPoints={playersPoints} isLive={live} />
-                  <div className="flex justify-center"><PositionBadge position={position} /></div>
-                  <div className="flex justify-center"><NflTeamTag team={team} /></div>
+                  <ProjectedPts id={id} weekProjections={weekProjections} scoringSettings={scoringSettings} fallbackField={fallbackField} playersPoints={playersPoints} isLive={live} gameFinal={final} />
+                  <div className="flex justify-center"><NflTeamTag team={team} number={number} /></div>
                 </div>
               );
             })}

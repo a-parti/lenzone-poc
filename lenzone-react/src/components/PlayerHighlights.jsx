@@ -4,7 +4,7 @@ import { computePlayerHighlights, playerLabel } from '../lib/players';
 import { usePlayerModal } from '../context/PlayerModalContext';
 import { PositionBadge, NflTeamTag } from './shared';
 
-function PlayerCard({ icon: Icon, label, entry, playersDB, value, accent, onClick }) {
+export function PlayerCard({ icon: Icon, label, entry, playersDB, value, accent, onClick }) {
   if (!entry) return null;
   const { name, position, team } = playerLabel(playersDB, entry.id);
   return (

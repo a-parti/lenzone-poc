@@ -17,13 +17,19 @@ import TeamName from './TeamName';
 // as a normal right-aligned column rather than a random gap mid-row. Also drops the old plain-text
 // slot label ("QB") that duplicated the colored position tag sitting right next to it.
 const ROSTER_ROW_FLEX = "flex items-center gap-1.5";
-const ROSTER_NAME_WIDTH = "w-[100px] shrink-0";
+const ROSTER_NAME_WIDTH = "w-[128px] shrink-0";
 
 function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, playersDB, byTeamWeek, week, highlightTeams }) {
   const my = myId && myId !== '0' ? playerLabel(playersDB, myId) : null;
   const opp = oppId && oppId !== '0' ? playerLabel(playersDB, oppId) : null;
-  const myIsActual = myPts > 0;
-  const oppIsActual = oppPts > 0;
+  // A real 0 is indistinguishable from "hasn't played yet" by the number alone (Sleeper's live
+  // points default to 0 before kickoff too) -- but once that player's own game is confirmed final,
+  // any 0 on the board IS their real final score, not a placeholder. Without this, a player who
+  // legitimately scored zero in an already-final game showed as if still projected.
+  const myGameFinal = my && byTeamWeek?.[my.team]?.[week]?.state === 'post';
+  const oppGameFinal = opp && byTeamWeek?.[opp.team]?.[week]?.state === 'post';
+  const myIsActual = myPts > 0 || (myGameFinal && myPts != null);
+  const oppIsActual = oppPts > 0 || (oppGameFinal && oppPts != null);
   const myDisplayPts = myIsActual ? myPts : myProj;
   const oppDisplayPts = oppIsActual ? oppPts : oppProj;
   const myLive = my && byTeamWeek?.[my.team]?.[week]?.state === 'in';
@@ -38,7 +44,7 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
         {my ? (
           <>
             <PlayerAvatar playerId={myId} position={my.position} className="w-5 h-5 shrink-0" />
-            <span className="text-[9px] font-mono text-[var(--muted)] w-5 text-center shrink-0">{my.number != null ? `#${my.number}` : ""}</span>
+            <div className="shrink-0"><PositionBadge position={my.position} /></div>
             <div className={`flex flex-col ${ROSTER_NAME_WIDTH}`}>
               <div className="flex items-center gap-1 min-w-0">
                 <PlayerNameButton playerId={myId} name={my.name} position={my.position} className="text-[var(--text2)] truncate" />
@@ -46,8 +52,7 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
               </div>
               <GameBadge nflTeam={my.team} week={week} byTeamWeek={byTeamWeek} />
             </div>
-            <PositionBadge position={my.position} />
-            <NflTeamTag team={my.team} />
+            <NflTeamTag team={my.team} number={my.number} />
             {myDisplayPts != null && (
               <span className="font-mono text-right ml-auto shrink-0 whitespace-nowrap">
                 <span className={`font-bold text-sm ${myColor}`}>{myDisplayPts.toFixed(2)}</span>
@@ -61,7 +66,7 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
         {opp ? (
           <>
             <PlayerAvatar playerId={oppId} position={opp.position} className="w-5 h-5 shrink-0" />
-            <span className="text-[9px] font-mono text-[var(--muted)] w-5 text-center shrink-0">{opp.number != null ? `#${opp.number}` : ""}</span>
+            <div className="shrink-0"><PositionBadge position={opp.position} /></div>
             <div className={`flex flex-col ${ROSTER_NAME_WIDTH}`}>
               <div className="flex items-center gap-1 min-w-0">
                 <PlayerNameButton playerId={oppId} name={opp.name} position={opp.position} className="text-[var(--text2)] truncate" />
@@ -69,9 +74,13 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
               </div>
               <GameBadge nflTeam={opp.team} week={week} byTeamWeek={byTeamWeek} />
             </div>
-            <PositionBadge position={opp.position} />
-            <NflTeamTag team={opp.team} />
-            {oppDisplayPts != null && <span className={`font-mono font-bold text-sm text-right ml-auto shrink-0 ${oppColor}`}>{oppDisplayPts.toFixed(2)}</span>}
+            <NflTeamTag team={opp.team} number={opp.number} />
+            {oppDisplayPts != null && (
+              <span className="font-mono text-right ml-auto shrink-0 whitespace-nowrap">
+                <span className={`font-bold text-sm ${oppColor}`}>{oppDisplayPts.toFixed(2)}</span>
+                {oppIsActual && oppProj != null && <span className="text-[10px] text-[var(--proj)] ml-1">({oppProj.toFixed(2)})</span>}
+              </span>
+            )}
           </>
         ) : <span className="text-[var(--muted)] italic">Empty</span>}
       </div>

@@ -1212,6 +1212,7 @@ export default function App() {
                 afcTradeDeadlineWeek={afcData.tradeDeadlineWeek} nfcTradeDeadlineWeek={nfcData.tradeDeadlineWeek}
                 focusManager={myTeamManager} focusConf={myTeamConf} currentWeek={nflState.week}
                 latestCompletedWeek={latestCompletedWeek}
+                playersDB={playersDB} byTeamWeek={enrichedByTeamWeek}
                 onGoToMatchup={(week, manager) => goToMatchup(manager, week)}
               />
             )}
@@ -1314,7 +1315,6 @@ export default function App() {
             <div className="lg:sticky lg:top-4">
               <NflGamesPanel
                 games={enrichedNflGames} week={selectedWeek} myTeamNflTeams={myTeamNflTeams}
-                playersDB={playersDB} afcData={afcData} nfcData={nfcData}
                 selectedGames={matchupsHighlightGames} onToggleGame={toggleMatchupsHighlightGame}
                 onClearGames={() => setMatchupsHighlightGames([])}
               />

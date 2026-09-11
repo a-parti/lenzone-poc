@@ -1040,14 +1040,17 @@ export default function App() {
               <Button variant="icon" onClick={() => setCommandPaletteOpen(true)} title="Search pages, teams, and players (Ctrl+K)">
                 <Search className="w-4 h-4" />
               </Button>
-              <Button variant="icon" onClick={toggleSoundMuted} title={soundMuted ? "Unmute team easter-egg sounds" : "Mute team easter-egg sounds"}>
-                {soundMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-              </Button>
             </div>
 
             <div className="flex flex-wrap items-center gap-3 ml-auto">
               <TeamPicker afcManagers={afcManagers} nfcManagers={nfcManagers} value={myTeamManager} onChange={chooseMyTeam} />
+              {/* Mode toggle (inside ThemeToggle, its last button) sits immediately left of mute,
+                  which is now the far-right-most control -- same pairing/order as the Home page's
+                  mute + mode buttons, instead of mute living off with the other utility icons. */}
               <ThemeToggle />
+              <Button variant="icon" onClick={toggleSoundMuted} title={soundMuted ? "Unmute team easter-egg sounds" : "Mute team easter-egg sounds"}>
+                {soundMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+              </Button>
             </div>
           </div>
         </header>

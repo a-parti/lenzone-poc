@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { Volume2, VolumeX } from 'lucide-react';
+import { Volume2, VolumeX, Sun, Moon } from 'lucide-react';
 import { TeamPicker } from './shared';
+import { useTheme } from '../context/ThemeContext';
 
 // Easter egg: a short confetti burst in a team's real brand color, fired only for managers with an
 // admin-configured default (lib/teamDefaults.js) -- everyone else gets the normal picker with no
@@ -86,23 +87,35 @@ function NavListNumbered({ sections, onSelect }) {
 // underneath. No stats, no cards, no banners -- that content now lives on the "Week N" tab.
 export default function HomeView({ setActiveTab, selectedWeek, afcManagers, nfcManagers, myTeamManager, onChooseMyTeam, teamBurst, soundMuted, onToggleSoundMuted }) {
   const sections = navSections(selectedWeek);
+  const { mode, setMode } = useTheme();
 
   return (
     <div className="relative min-h-[80vh] flex flex-col items-center gap-8 text-center">
-      {/* The header (with its own mute button) is hidden on Home, so this is the ONLY way to mute
-          before ever picking a team for the first time -- without it, muting is only reachable
-          after the header appears, i.e. after a sound has already had the chance to play once. */}
-      {onToggleSoundMuted && (
+      {/* The header (with its own mute + mode buttons) is hidden on Home, so this is the ONLY way to
+          mute or switch light/dark before ever picking a team for the first time. Same left-to-right
+          order as the header: mode toggle, then mute as the far-right-most control. */}
+      <div className="absolute top-4 right-4 sm:top-6 sm:right-6 flex items-center gap-2">
         <button
           type="button"
-          onClick={onToggleSoundMuted}
-          title={soundMuted ? "Unmute team easter-egg sounds" : "Mute team easter-egg sounds"}
-          aria-label={soundMuted ? "Unmute team easter-egg sounds" : "Mute team easter-egg sounds"}
-          className="absolute top-4 right-4 sm:top-6 sm:right-6 p-2 rounded-full bg-[var(--surface2)] border border-[var(--border)] text-[var(--text2)] hover:text-[var(--text)] transition-colors duration-200"
+          onClick={() => setMode(m => m === 'dark' ? 'light' : 'dark')}
+          title={mode === 'dark' ? "Switch to light mode" : "Switch to dark mode"}
+          aria-label={mode === 'dark' ? "Switch to light mode" : "Switch to dark mode"}
+          className="p-2 rounded-full bg-[var(--surface2)] border border-[var(--border)] text-[var(--text2)] hover:text-[var(--text)] transition-colors duration-200"
         >
-          {soundMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+          {mode === 'dark' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
         </button>
-      )}
+        {onToggleSoundMuted && (
+          <button
+            type="button"
+            onClick={onToggleSoundMuted}
+            title={soundMuted ? "Unmute team easter-egg sounds" : "Mute team easter-egg sounds"}
+            aria-label={soundMuted ? "Unmute team easter-egg sounds" : "Mute team easter-egg sounds"}
+            className="p-2 rounded-full bg-[var(--surface2)] border border-[var(--border)] text-[var(--text2)] hover:text-[var(--text)] transition-colors duration-200"
+          >
+            {soundMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+          </button>
+        )}
+      </div>
       <ConfettiBurst burst={teamBurst} />
       {/* Roughly centered in the viewport before a pick (nothing else on the page yet to balance
           against); once the nav list is about to appear below it, the picker eases upward to make

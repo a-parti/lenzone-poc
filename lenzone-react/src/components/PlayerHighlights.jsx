@@ -4,6 +4,12 @@ import { computePlayerHighlights, playerLabel } from '../lib/players';
 import { usePlayerModal } from '../context/PlayerModalContext';
 import { PositionBadge, NflTeamTag } from './shared';
 
+// Explicit sign rather than a hardcoded "+" prefix -- a hardcoded prefix reads as "+-2.97" for a
+// negative value, which is exactly the kind of value this shows for a miss.
+export function signed(n) {
+  return `${n >= 0 ? "+" : ""}${n.toFixed(2)}`;
+}
+
 export function PlayerCard({ icon: Icon, label, entry, playersDB, value, accent, onClick }) {
   if (!entry) return null;
   const { name, position, team } = playerLabel(playersDB, entry.id);
@@ -59,12 +65,12 @@ export default function PlayerHighlights({ afcData, nfcData, afcSeason, nfcSeaso
       />
       <PlayerCard
         icon={Rocket} label="Biggest Riser" entry={biggestRiser} playersDB={playersDB}
-        value={biggestRiser ? `+${(biggestRiser.actual - biggestRiser.projected).toFixed(2)} vs proj` : ""}
+        value={biggestRiser ? `${signed(biggestRiser.actual - biggestRiser.projected)} vs proj` : ""}
         accent="text-[var(--pos)]" onClick={() => openFor(biggestRiser)}
       />
       <PlayerCard
         icon={Skull} label="Biggest Bust" entry={biggestBust} playersDB={playersDB}
-        value={biggestBust ? `${(biggestBust.actual - biggestBust.projected).toFixed(2)} vs proj` : ""}
+        value={biggestBust ? `${signed(biggestBust.actual - biggestBust.projected)} vs proj` : ""}
         accent="text-[var(--neg)]" onClick={() => openFor(biggestBust)}
       />
     </div>

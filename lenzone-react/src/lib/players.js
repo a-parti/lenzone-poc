@@ -228,17 +228,25 @@ export function computePlayerHighlights(afcData, nfcData, afcSeason, nfcSeason, 
 }
 
 function summarizePlayerEntries(entries) {
-  const withProj = entries.filter(e => e.projected != null);
+  // "Highest Projected" is a pregame forecast prize -- once a player has actually posted a real
+  // stat, their projection is stale/moot (and they're already eligible for Top Actual Score
+  // instead), so only players who genuinely haven't played yet compete for it.
+  const withProjOnly = entries.filter(e => e.projected != null && e.actual == null);
   const withActual = entries.filter(e => e.actual != null);
   const withBoth = entries.filter(e => e.actual != null && e.projected != null);
+  // A "riser" beat its projection and a "bust" missed it -- if literally everyone who's posted a
+  // stat came in under projection, the least-bad one isn't a riser, it just looks like one if you
+  // pick the max diff without checking its sign. Same the other way for busts.
+  const risers = withBoth.filter(e => e.actual > e.projected);
+  const busts = withBoth.filter(e => e.actual < e.projected);
   const maxBy = (list, fn) => list.length ? list.reduce((a, b) => (fn(b) > fn(a) ? b : a)) : null;
   const minBy = (list, fn) => list.length ? list.reduce((a, b) => (fn(b) < fn(a) ? b : a)) : null;
 
   return {
-    highestProjected: maxBy(withProj, e => e.projected),
+    highestProjected: maxBy(withProjOnly, e => e.projected),
     highestActual: maxBy(withActual, e => e.actual),
-    biggestRiser: maxBy(withBoth, e => e.actual - e.projected),
-    biggestBust: minBy(withBoth, e => e.actual - e.projected)
+    biggestRiser: maxBy(risers, e => e.actual - e.projected),
+    biggestBust: minBy(busts, e => e.actual - e.projected)
   };
 }
 

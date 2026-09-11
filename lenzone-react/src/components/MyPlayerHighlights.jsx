@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { TrendingUp, Rocket, Skull, Target, Users } from 'lucide-react';
 import { computeMyPlayerHighlights, playerLabel } from '../lib/players';
 import { usePlayerModal } from '../context/PlayerModalContext';
-import { PlayerCard } from './PlayerHighlights';
+import { PlayerCard, signed } from './PlayerHighlights';
 
 // Which single real NFL game has the most of the viewer's own starters in it -- e.g. two of your
 // starters both playing in the same SEA @ ARI game. Uses the same myPlayersByNflTeam map the NFL
@@ -57,12 +57,12 @@ export default function MyPlayerHighlights({ myTeamRoster, myTeamPlayersPoints, 
         />
         <PlayerCard
           icon={Rocket} label="Biggest Riser" entry={biggestRiser} playersDB={playersDB}
-          value={biggestRiser ? `+${(biggestRiser.actual - biggestRiser.projected).toFixed(2)} vs proj` : ""}
+          value={biggestRiser ? `${signed(biggestRiser.actual - biggestRiser.projected)} vs proj` : ""}
           accent="text-[var(--pos)]" onClick={() => openFor(biggestRiser)}
         />
         <PlayerCard
           icon={Skull} label="Biggest Bust" entry={biggestBust} playersDB={playersDB}
-          value={biggestBust ? `${(biggestBust.actual - biggestBust.projected).toFixed(2)} vs proj` : ""}
+          value={biggestBust ? `${signed(biggestBust.actual - biggestBust.projected)} vs proj` : ""}
           accent="text-[var(--neg)]" onClick={() => openFor(biggestBust)}
         />
         {busiest && (

@@ -614,10 +614,19 @@ export default function App() {
   // Edge) tells us whether that's already happened; where it's unsupported (Firefox/Safari) we just
   // assume it hasn't and wait for one, which costs at most one extra click before the sound is
   // heard rather than being silently swallowed forever like a bare on-mount call was.
+  // Keyed on activeTab ONLY (myTeamManager read from a ref, not a dependency) -- actively picking a
+  // team already plays its own sound via chooseMyTeam/triggerTeamEasterEgg, and that pick updates
+  // myTeamManager; if this effect also depended on myTeamManager it would re-fire a SECOND sound for
+  // that same click (the gesture-check branch fires immediately since a gesture just happened),
+  // doubling up. Landing on Home is the only thing that should trigger this one.
+  const myTeamManagerRef = useRef(myTeamManager);
+  useEffect(() => { myTeamManagerRef.current = myTeamManager; }, [myTeamManager]);
   useEffect(() => {
-    if (activeTab !== "home" || !myTeamManager) return;
+    if (activeTab !== "home") return;
+    const manager = myTeamManagerRef.current;
+    if (!manager) return;
     if (typeof navigator !== 'undefined' && navigator.userActivation?.hasBeenActive) {
-      playTeamSound(myTeamManager);
+      playTeamSound(manager);
       return;
     }
     const events = ['pointerdown', 'keydown', 'touchstart'];
@@ -625,13 +634,13 @@ export default function App() {
     const fire = () => {
       if (fired) return;
       fired = true;
-      playTeamSound(myTeamManager);
+      playTeamSound(myTeamManagerRef.current);
       events.forEach(e => window.removeEventListener(e, fire, true));
     };
     events.forEach(e => window.addEventListener(e, fire, true));
     return () => events.forEach(e => window.removeEventListener(e, fire, true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, myTeamManager]);
+  }, [activeTab]);
 
   const [afcSeason, setAfcSeason] = useState({ scoreByWeek: {}, scheduleByWeek: {}, rosterSnapshotByWeek: {}, latestCompletedWeek: 0 });
   const [nfcSeason, setNfcSeason] = useState({ scoreByWeek: {}, scheduleByWeek: {}, rosterSnapshotByWeek: {}, latestCompletedWeek: 0 });

@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { usePlayerModal } from '../context/PlayerModalContext';
+import { useTeamDepthChart } from '../context/TeamDepthChartContext';
 import { playerLabel, projectedPoints, scoringFieldFor } from '../lib/players';
 import { nflTeamName, nflTeamLogoUrl } from '../lib/nflTeams';
 import { PositionBadge, InjuryBadge, GameBadge, NflTeamTag, useEscapeKey } from './shared';
 import { Zoomable } from '../context/ImageLightboxContext';
-import { CONF_STYLES } from '../lib/theme';
+import { CONF_STYLES, SCORE_COLOR, scoreState } from '../lib/theme';
 import TeamName from './TeamName';
 import { nextModalZ } from '../lib/modalStack';
 
@@ -55,12 +56,14 @@ function WeeklyScoringTable({ afcOwner, nfcOwner, afcSeason, nfcSeason, confData
               const hasActual = actual > 0;
               const projected = projectedPoints(weekProjectionsByWeek?.[w], playerId, confData?.scoringSettings, fallbackField);
               const game = team ? byTeamWeek?.[team]?.[w] : null;
+              const isLive = game?.state === 'in';
+              const actualColor = hasActual ? SCORE_COLOR[scoreState({ hasActual: true, isLive })] : "text-[var(--muted)]";
               return (
                 <tr key={w} className="border-t border-[var(--border)]/40">
                   <td className="py-1 text-[var(--muted)] font-mono">{w}</td>
                   <td className="py-1 text-[var(--muted)] font-mono">{game ? `${game.isHome ? "vs" : "@"} ${game.opponent}` : "--"}</td>
                   <td className="py-1 text-right font-mono font-semibold text-[var(--proj)]">{projected != null ? projected.toFixed(1) : "--"}</td>
-                  <td className={`py-1 text-right font-mono font-semibold ${hasActual ? "text-[var(--pos)]" : "text-[var(--muted)]"}`}>{hasActual ? actual.toFixed(1) : "--"}</td>
+                  <td className={`py-1 text-right font-mono font-semibold ${actualColor}`}>{hasActual ? actual.toFixed(1) : "--"}</td>
                 </tr>
               );
             })}
@@ -76,6 +79,7 @@ export default function PlayerModal({
   selectedWeek, weekProjectionsByWeek, seasonWeeks, latestCompletedWeek, afcSeason, nfcSeason, afcData, nfcData, byTeamWeek
 }) {
   const { target, closePlayer } = usePlayerModal();
+  const { openTeamDepthChart } = useTeamDepthChart();
   useEscapeKey(closePlayer);
   // Claims a fresh top-of-stack z-index each time this opens, so it renders above whatever else
   // was already open (e.g. opened from inside a depth chart or roster card) instead of the two
@@ -129,10 +133,15 @@ export default function PlayerModal({
           {team && <GameBadge nflTeam={team} week={selectedWeek} byTeamWeek={byTeamWeek} />}
 
           {team && (
-            <div className="flex items-center gap-2 bg-[var(--bg)]/60 border border-[var(--border)]/60 rounded-lg px-3 py-2 mb-4">
-              <Zoomable src={nflTeamLogoUrl(team)} alt={team} className="w-6 h-6 object-contain" onError={(e) => { e.target.style.display = 'none'; }} />
-              <span className="text-sm font-semibold text-[var(--text)]">{nflTeamName(team)}</span>
-            </div>
+            <button
+              type="button"
+              onClick={() => openTeamDepthChart(team)}
+              title={`View ${team} depth chart`}
+              className="group flex items-center gap-2 bg-[var(--bg)]/60 hover:bg-[var(--surface2)]/80 border border-[var(--border)]/60 rounded-lg px-3 py-2 mb-4 transition-colors duration-150"
+            >
+              <img src={nflTeamLogoUrl(team)} alt={team} className="w-6 h-6 object-contain" onError={(e) => { e.target.style.display = 'none'; }} />
+              <span className="text-sm font-semibold text-[var(--text)] group-hover:text-[var(--accent)] group-hover:underline">{nflTeamName(team)}</span>
+            </button>
           )}
 
           {(afcOwners || nfcOwners) && (

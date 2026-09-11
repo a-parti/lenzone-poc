@@ -3,12 +3,13 @@ import { Volume2, VolumeX, Sun, Moon } from 'lucide-react';
 import { TeamPicker } from './shared';
 import { useTheme } from '../context/ThemeContext';
 
-// Easter egg: a short burst in a team's real brand color, fired only for managers with an
-// admin-configured default (lib/teamDefaults.js) -- everyone else gets the normal picker with no
-// extra flourish. One of a few different animation STYLES is picked at random each time so it's
-// not the exact same confetti burst every single pick. Pure CSS transforms/opacity (see the
-// matching keyframes in index.css), no animation library needed for a couple dozen particles.
-const BURST_STYLES = ["confetti", "sparkle", "rings", "streamers"];
+// Easter egg: a short burst in the just-picked team's color, fired for EVERY manager selection
+// (whichever color they landed on -- an admin-configured default, or this pick's fresh random
+// roll) -- not just the handful with an admin-configured default. One of several animation STYLES
+// is picked at random each time so it's not the exact same burst every single pick. Pure CSS
+// transforms/opacity (see the matching keyframes in index.css), no animation library needed for a
+// couple dozen particles.
+const BURST_STYLES = ["confetti", "sparkle", "rings", "streamers", "starburst", "spiral", "fireworks"];
 
 function ConfettiBurst({ burst }) {
   const style = useMemo(() => BURST_STYLES[Math.floor(Math.random() * BURST_STYLES.length)], [burst?.nonce]);
@@ -20,18 +21,25 @@ function ConfettiBurst({ burst }) {
       // others, so it's generated separately below with its own count/shape.
       return Array.from({ length: 3 }, (_, i) => ({ id: i, delay: i * 0.15 }));
     }
-    const count = style === "streamers" ? 16 : 24;
+    const count = style === "streamers" ? 16 : style === "starburst" ? 20 : style === "fireworks" ? 28 : 24;
     return Array.from({ length: count }, (_, i) => {
       const angle = (i / count) * 2 * Math.PI + Math.random() * 0.4;
-      const distance = style === "sparkle" ? 40 + Math.random() * 50 : 90 + Math.random() * 90;
+      const distance = style === "sparkle" ? 40 + Math.random() * 50 : style === "starburst" ? 120 + Math.random() * 60 : 90 + Math.random() * 90;
       const fallBias = style === "streamers" ? 60 + Math.random() * 40 : 0; // streamers drift downward, not just outward
+      // Fireworks shoot up first (negative dy), then arc back down past their starting height --
+      // needs its own up/down pair since every other style is a single one-way translate.
+      const upDist = 50 + Math.random() * 50;
+      const downDist = upDist + 60 + Math.random() * 50;
       return {
         id: i,
         dx: Math.cos(angle) * distance,
         dy: Math.sin(angle) * distance - 40 + fallBias,
+        dyUp: -upDist,
+        dyDown: downDist,
         rotate: Math.random() * 720 - 360,
-        delay: Math.random() * (style === "streamers" ? 0.2 : 0.12),
-        size: style === "sparkle" ? 4 + Math.random() * 5 : 6 + Math.random() * 6
+        angleDeg: (angle * 180) / Math.PI,
+        delay: Math.random() * (style === "streamers" ? 0.2 : style === "fireworks" ? 0.15 : 0.12),
+        size: style === "sparkle" ? 4 + Math.random() * 5 : style === "fireworks" ? 3 + Math.random() * 4 : 6 + Math.random() * 6
       };
     });
   }, [burst?.nonce, style]);
@@ -40,7 +48,7 @@ function ConfettiBurst({ burst }) {
   useEffect(() => {
     if (!burst) return;
     setVisible(true);
-    const duration = style === "streamers" ? 1500 : style === "rings" ? 1000 : 1100;
+    const duration = style === "streamers" ? 1500 : style === "rings" ? 1000 : style === "fireworks" ? 1300 : style === "spiral" ? 1100 : 1100;
     const t = setTimeout(() => setVisible(false), duration);
     return () => clearTimeout(t);
   }, [burst?.nonce, style]);
@@ -61,7 +69,46 @@ function ConfettiBurst({ burst }) {
     );
   }
 
-  const pieceClass = style === "sparkle" ? "sparkle-piece rounded-full" : style === "streamers" ? "streamer-piece rounded-sm" : "confetti-piece rounded-sm";
+  if (style === "starburst") {
+    return (
+      <div className="pointer-events-none absolute inset-0 flex items-start justify-center overflow-visible" aria-hidden="true">
+        {pieces.map(p => (
+          <span
+            key={p.id}
+            className="ray-piece absolute rounded-full"
+            style={{
+              top: 40, left: 0, width: 5, height: 2.5,
+              backgroundColor: burst.color,
+              animationDelay: `${p.delay}s`,
+              transformOrigin: 'left center',
+              '--dx': `${p.dx}px`, '--dy': `${p.dy}px`, '--rot': `${p.angleDeg}deg`
+            }}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  if (style === "fireworks") {
+    return (
+      <div className="pointer-events-none absolute inset-0 flex items-start justify-center overflow-visible" aria-hidden="true">
+        {pieces.map(p => (
+          <span
+            key={p.id}
+            className="firework-piece absolute rounded-full"
+            style={{
+              top: 40, width: p.size, height: p.size,
+              backgroundColor: burst.color,
+              animationDelay: `${p.delay}s`,
+              '--dx': `${p.dx}px`, '--dyUp': `${p.dyUp}px`, '--dyDown': `${p.dyDown}px`
+            }}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  const pieceClass = style === "sparkle" ? "sparkle-piece rounded-full" : style === "streamers" ? "streamer-piece rounded-sm" : style === "spiral" ? "spiral-piece rounded-full" : "confetti-piece rounded-sm";
   return (
     <div className="pointer-events-none absolute inset-0 flex items-start justify-center overflow-visible" aria-hidden="true">
       {pieces.map(p => (

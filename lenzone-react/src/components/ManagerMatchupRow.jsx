@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { CONF_STYLES } from '../lib/theme';
+import { CONF_STYLES, SCORE_COLOR, scoreState } from '../lib/theme';
 import { projectedPoints } from '../lib/players';
 import { PositionBadge, InjuryBadge, GameBadge, NflTeamTag } from './shared';
 import { playerLabel } from '../lib/players';
@@ -15,6 +15,10 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
   const oppIsActual = oppPts > 0;
   const myDisplayPts = myIsActual ? myPts : myProj;
   const oppDisplayPts = oppIsActual ? oppPts : oppProj;
+  const myLive = my && byTeamWeek?.[my.team]?.[week]?.state === 'in';
+  const oppLive = opp && byTeamWeek?.[opp.team]?.[week]?.state === 'in';
+  const myColor = SCORE_COLOR[scoreState({ hasActual: myIsActual, isLive: myLive })];
+  const oppColor = SCORE_COLOR[scoreState({ hasActual: oppIsActual, isLive: oppLive })];
   return (
     <div className="grid grid-cols-2 gap-4 text-xs py-1.5">
       <div className="flex items-center gap-1.5 min-w-0">
@@ -29,7 +33,7 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
             <PositionBadge position={my.position} />
             <NflTeamTag team={my.team} />
             <InjuryBadge status={my.injuryStatus} />
-            {myDisplayPts != null && <span className={`font-mono font-bold text-sm shrink-0 ml-auto ${myIsActual ? "text-[var(--pos)]" : "text-[var(--proj)]"}`}>{myDisplayPts.toFixed(2)}</span>}
+            {myDisplayPts != null && <span className={`font-mono font-bold text-sm shrink-0 ml-auto ${myColor}`}>{myDisplayPts.toFixed(2)}</span>}
           </>
         ) : <span className="text-[var(--muted)] italic">Empty</span>}
       </div>
@@ -45,7 +49,7 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
             <PositionBadge position={opp.position} />
             <NflTeamTag team={opp.team} />
             <InjuryBadge status={opp.injuryStatus} />
-            {oppDisplayPts != null && <span className={`font-mono font-bold text-sm shrink-0 ml-auto ${oppIsActual ? "text-[var(--pos)]" : "text-[var(--proj)]"}`}>{oppDisplayPts.toFixed(2)}</span>}
+            {oppDisplayPts != null && <span className={`font-mono font-bold text-sm shrink-0 ml-auto ${oppColor}`}>{oppDisplayPts.toFixed(2)}</span>}
           </>
         ) : <span className="text-[var(--muted)] italic">Empty</span>}
       </div>
@@ -100,7 +104,7 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
   // secondary caption underneath, only while there's still uncertainty left (live or pregame).
   const bigMy = isFinal ? myScore : isLive ? (myLiveScore ?? 0) : myScore;
   const bigOpp = isFinal ? oppScore : isLive ? (oppLiveScore ?? 0) : oppScore;
-  const bigColor = isFinal ? "text-[var(--pos)]" : isLive ? "text-[var(--text)]" : "text-[var(--proj)]";
+  const bigColor = SCORE_COLOR[scoreState({ hasActual: isFinal || isLive, isLive })];
   const showCaption = isLive && showScores;
   const [showRosters, setShowRosters] = useState(false);
   return (

@@ -562,13 +562,8 @@ export default function App() {
     const level = n > 0 ? BASE_SOUND_VOLUME / n : BASE_SOUND_VOLUME;
     activeAudiosRef.current.forEach(a => { a.volume = level; });
   };
-  const triggerTeamEasterEgg = (manager) => {
-    const key = managerSchemeKey(afcData, nfcData, manager);
-    if (key) {
-      const override = getEffectiveOverrides()[key];
-      const schemeEntry = override?.scheme && ALL_SCHEMES.find(s => s.id === override.scheme);
-      if (schemeEntry) setTeamBurst({ nonce: Date.now(), color: schemeEntry.swatch });
-    }
+  const triggerTeamEasterEgg = (manager, swatch) => {
+    if (swatch) setTeamBurst({ nonce: Date.now(), color: swatch });
     if (soundMuted) return;
     // Resolving is async (a HEAD check for that manager's exclusive file) -- fine here since nothing
     // else is waiting on it, it just plays whenever the check resolves a moment later.
@@ -739,14 +734,22 @@ export default function App() {
     if (manager) localStorage.setItem('lenzone_my_team', manager);
     else localStorage.removeItem('lenzone_my_team');
     if (manager) {
-      triggerTeamEasterEgg(manager);
       // Picking a team always lands on a fresh random color -- UNLESS that specific manager has an
       // admin-configured default (the effect above applies that one instead once myTeamManager
       // updates). This intentionally overrides even a previously self-picked scheme, so choosing
       // "who you are" always feels like a new roll rather than keeping whatever was showing before.
       const key = managerSchemeKey(afcData, nfcData, manager);
-      const hasOverride = key && getEffectiveOverrides()[key]?.scheme;
-      if (!hasOverride) pickRandomScheme();
+      const override = key && getEffectiveOverrides()[key];
+      // The burst plays for every manager now (not just the ones with an admin-configured
+      // default), colored by whichever scheme they actually end up with this pick.
+      let swatch;
+      if (override?.scheme) {
+        swatch = ALL_SCHEMES.find(s => s.id === override.scheme)?.swatch;
+      } else {
+        const pickedId = pickRandomScheme();
+        swatch = ALL_SCHEMES.find(s => s.id === pickedId)?.swatch;
+      }
+      triggerTeamEasterEgg(manager, swatch);
     }
     const conf = afcManagers.includes(manager) ? "AFC" : nfcManagers.includes(manager) ? "NFC" : null;
     // Only the conference filter focuses on your own side -- the Matchups "Filter Manager" dropdown

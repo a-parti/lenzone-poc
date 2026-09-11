@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Sun, Moon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { positionStyle } from '../lib/theme';
-import { nflTeamColor, readableTextOn } from '../lib/nflTeams';
+import { nflTeamColor, readableTextOn, nflTeamLogoUrl } from '../lib/nflTeams';
 import { ALL_SCHEMES, useTheme } from '../context/ThemeContext';
 import { useTeamDepthChart } from '../context/TeamDepthChartContext';
 
@@ -98,6 +98,31 @@ export function NflTeamTag({ team }) {
       style={c ? { color: readableTextOn(c.primary), backgroundColor: c.primary, borderColor: c.secondary } : undefined}
     >
       {team}
+    </button>
+  );
+}
+
+// Same click-through-to-depth-chart behavior as NflTeamTag, but for the logo+name presentation
+// used where a team is shown as a bigger identity block rather than an inline badge -- the whole
+// thing is one button so it's obvious (hover underline/highlight) that clicking it does something,
+// not just decorative.
+export function NflTeamLogo({ team, logoSize = "w-9 h-9", textClassName = "text-[var(--text)] font-semibold", onError }) {
+  const { openTeamDepthChart } = useTeamDepthChart();
+  if (!team) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => openTeamDepthChart(team)}
+      title={`View ${team} depth chart`}
+      className="group flex items-center gap-2 min-w-0 rounded-lg px-1 -mx-1 py-0.5 hover:bg-[var(--surface2)]/80 transition-colors duration-150"
+    >
+      <img
+        src={nflTeamLogoUrl(team)}
+        alt={team}
+        className={`${logoSize} object-contain shrink-0`}
+        onError={onError || ((e) => { e.target.style.display = 'none'; })}
+      />
+      <span className={`${textClassName} group-hover:text-[var(--accent)] group-hover:underline truncate`}>{team}</span>
     </button>
   );
 }

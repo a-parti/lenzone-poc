@@ -32,3 +32,18 @@ export const POSITION_STYLES = {
 export function positionStyle(pos) {
   return POSITION_STYLES[pos] || POSITION_STYLES.BN;
 }
+
+// The three states a point total can be in: still projected (game hasn't started), live (a real
+// number that's still accumulating mid-game), or final (the game is over, the number won't move
+// again). Kept as one shared mapping so "green means final/locked-in" reads consistently everywhere
+// points are shown, instead of live and final both showing as the same green.
+export const SCORE_COLOR = {
+  proj: "text-[var(--proj)]",
+  live: "text-[var(--live)]",
+  final: "text-[var(--pos)]"
+};
+
+export function scoreState({ hasActual, isLive }) {
+  if (!hasActual) return "proj";
+  return isLive ? "live" : "final";
+}

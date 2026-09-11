@@ -86,7 +86,9 @@ export function ThemeProvider({ children }) {
   // picking a manager with no admin-configured color default, so choosing "who you are" always
   // feels like a fresh roll of the dice, the same way it did before anyone had picked anything yet.
   const pickRandomScheme = () => {
-    setScheme(randomTeamSchemeId());
+    const picked = randomTeamSchemeId();
+    setScheme(picked);
+    return picked;
   };
 
   useEffect(() => {

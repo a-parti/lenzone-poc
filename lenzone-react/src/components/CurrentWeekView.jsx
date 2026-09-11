@@ -1,32 +1,36 @@
 import React, { useMemo } from 'react';
-import { Zoomable } from '../context/ImageLightboxContext';
-import { nflTeamLogoUrl } from '../lib/nflTeams';
 import { playerLabel, projectedPoints } from '../lib/players';
-import { InjuryBadge } from './shared';
+import { InjuryBadge, NflTeamLogo } from './shared';
+import { SCORE_COLOR, scoreState } from '../lib/theme';
 import WeeklyHighlights from './WeeklyHighlights';
 import PlayerNameButton from './PlayerNameButton';
 import ManagerMatchupRow from './ManagerMatchupRow';
 
-function MyPlayersLine({ team, players }) {
+function MyPlayersLine({ team, players, isLive }) {
   return (
     <div className="text-xs flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
       <span className="font-bold text-[var(--text2)]">{team}:</span>
-      {players.map((p, i) => (
-        <React.Fragment key={p.playerId}>
-          <span className={`inline-flex items-center gap-1 ${p.isBench ? "opacity-60" : ""}`}>
-            {p.isBench && (
-              <span className="text-[9px] font-bold uppercase px-1 rounded bg-[var(--surface2)] text-[var(--muted)] border border-[var(--border)]">Bench</span>
-            )}
-            <PlayerNameButton playerId={p.playerId} name={p.name} position={p.position} className={`font-medium ${p.isBench ? "text-[var(--text2)]" : "text-[var(--accent)]"}`} />
-            <span className="text-[var(--muted)]">
-              ({p.position}{p.number != null ? ` - #${p.number}` : ""}
-              {p.realPts != null ? ` - ${p.realPts.toFixed(1)} pts` : p.projPts != null ? ` - ${p.projPts.toFixed(1)} proj` : ""})
+      {players.map((p, i) => {
+        const hasActual = p.realPts != null;
+        const ptsColor = hasActual ? SCORE_COLOR[scoreState({ hasActual: true, isLive })] : "text-[var(--proj)]";
+        return (
+          <React.Fragment key={p.playerId}>
+            <span className={`inline-flex items-center gap-1 ${p.isBench ? "opacity-60" : ""}`}>
+              {p.isBench && (
+                <span className="text-[9px] font-bold uppercase px-1 rounded bg-[var(--surface2)] text-[var(--muted)] border border-[var(--border)]">Bench</span>
+              )}
+              <PlayerNameButton playerId={p.playerId} name={p.name} position={p.position} className={`font-medium ${p.isBench ? "text-[var(--text2)]" : "text-[var(--accent)]"}`} />
+              <span className="text-[var(--muted)]">({p.position}{p.number != null ? ` - #${p.number}` : ""} - </span>
+              {(hasActual || p.projPts != null) && (
+                <span className={`font-semibold ${ptsColor}`}>{hasActual ? p.realPts.toFixed(1) : `${p.projPts.toFixed(1)} proj`}</span>
+              )}
+              <span className="text-[var(--muted)]">)</span>
+              <InjuryBadge status={p.injuryStatus} />
             </span>
-            <InjuryBadge status={p.injuryStatus} />
-          </span>
-          {i < players.length - 1 && <span className="text-[var(--muted)]">&middot;</span>}
-        </React.Fragment>
-      ))}
+            {i < players.length - 1 && <span className="text-[var(--muted)]">&middot;</span>}
+          </React.Fragment>
+        );
+      })}
     </div>
   );
 }
@@ -92,12 +96,10 @@ function GamesThisWeek({ games, week, myTeamNflTeams, myPlayersByNflTeam }) {
               }`}
             >
               <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-sm">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <Zoomable src={nflTeamLogoUrl(g.away)} alt={g.away} className="w-9 h-9 object-contain shrink-0" onError={(e) => { e.target.style.display = 'none'; }} />
-                  <span className="text-[var(--text)] font-semibold">{g.away}</span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <NflTeamLogo team={g.away} />
                   <span className="text-[var(--muted)] shrink-0 text-xs">@</span>
-                  <Zoomable src={nflTeamLogoUrl(g.home)} alt={g.home} className="w-9 h-9 object-contain shrink-0" onError={(e) => { e.target.style.display = 'none'; }} />
-                  <span className="text-[var(--text)] font-semibold">{g.home}</span>
+                  <NflTeamLogo team={g.home} />
                 </div>
                 <div className="flex items-center gap-2 shrink-0 ml-auto">
                   {(isLive || isFinal) && g.awayScore != null && g.homeScore != null && (
@@ -119,8 +121,8 @@ function GamesThisWeek({ games, week, myTeamNflTeams, myPlayersByNflTeam }) {
               </div>
               {(awayPlayers?.length > 0 || homePlayers?.length > 0) && (
                 <div className="mt-1.5 pl-11 space-y-0.5">
-                  {awayPlayers?.length > 0 && <MyPlayersLine team={g.away} players={awayPlayers} />}
-                  {homePlayers?.length > 0 && <MyPlayersLine team={g.home} players={homePlayers} />}
+                  {awayPlayers?.length > 0 && <MyPlayersLine team={g.away} players={awayPlayers} isLive={isLive} />}
+                  {homePlayers?.length > 0 && <MyPlayersLine team={g.home} players={homePlayers} isLive={isLive} />}
                 </div>
               )}
             </div>

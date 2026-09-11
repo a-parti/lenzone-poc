@@ -1,22 +1,24 @@
 import React from 'react';
 import { playerLabel, projectedPoints, computeTeamWeeklyTotals } from '../lib/players';
 import { PositionBadge, InjuryBadge, GameBadge, NflTeamTag } from './shared';
+import { SCORE_COLOR, scoreState } from '../lib/theme';
 import PlayerAvatar from './PlayerAvatar';
 import PlayerNameButton from './PlayerNameButton';
 
 // Once a player has a real posted score for the week, show it alongside their pregame projection
 // and a clear +/- delta (beat/missed projection) -- both numbers captured, not just one or the other.
 // Before that, just the projection (blue).
-function ProjectedPts({ id, weekProjections, scoringSettings, fallbackField, playersPoints }) {
+function ProjectedPts({ id, weekProjections, scoringSettings, fallbackField, playersPoints, isLive }) {
   const real = playersPoints?.[id];
   const hasReal = real > 0;
   const proj = weekProjections ? projectedPoints(weekProjections, id, scoringSettings, fallbackField) : null;
 
   if (hasReal) {
     const diff = proj != null ? real - proj : null;
+    const color = SCORE_COLOR[scoreState({ hasActual: true, isLive })];
     return (
       <div className="flex flex-col items-end shrink-0 leading-none gap-1">
-        <span className="font-mono font-bold text-sm text-[var(--pos)]">{real.toFixed(1)}</span>
+        <span className={`font-mono font-bold text-sm ${color}`}>{real.toFixed(1)}</span>
         {diff != null && (
           <span className={`font-mono text-xs font-semibold ${diff >= 0 ? "text-[var(--pos)]" : "text-[var(--neg)]"}`}>
             {diff >= 0 ? "+" : ""}{diff.toFixed(1)} ({proj.toFixed(1)})
@@ -32,12 +34,16 @@ function ProjectedPts({ id, weekProjections, scoringSettings, fallbackField, pla
 // Team-level rollup of the same actual/projected/delta treatment as each player row: full squad
 // projected total, actual total for whichever starters have posted a real score so far, and the
 // +/- delta against just those same starters' projections (a fair, apples-to-apples comparison).
-function TeamTotal({ starters, weekProjections, scoringSettings, fallbackField, playersPoints }) {
+function TeamTotal({ starters, weekProjections, scoringSettings, fallbackField, playersPoints, playersDB, byTeamWeek, week }) {
   const { projectedAll, actualPosted, projectedPosted } = computeTeamWeeklyTotals(starters, weekProjections, scoringSettings, fallbackField, playersPoints);
   const anyProj = projectedAll != null;
   const anyPosted = actualPosted != null;
   if (!anyProj && !anyPosted) return null;
   const diff = anyPosted ? actualPosted - projectedPosted : null;
+  // The total is still "live" (moving) as long as any starter who's posted points is mid-game --
+  // only once every one of those games is final does the total stop changing.
+  const anyStarterLive = (starters || []).some(id => id && id !== '0' && isLiveGame(byTeamWeek, playerLabel(playersDB, id)?.team, week));
+  const postedColor = SCORE_COLOR[scoreState({ hasActual: anyPosted, isLive: anyStarterLive })];
   return (
     <div className="bg-[var(--bg)]/60 border border-[var(--border)]/60 rounded-lg px-3 py-2 mb-3 text-sm space-y-1.5">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
@@ -48,7 +54,7 @@ function TeamTotal({ starters, weekProjections, scoringSettings, fallbackField, 
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
           <span className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)] shrink-0">Posted So Far</span>
           <span className="font-mono text-right">
-            <span className="text-[var(--pos)] font-bold text-base">{actualPosted.toFixed(1)}</span>
+            <span className={`font-bold text-base ${postedColor}`}>{actualPosted.toFixed(1)}</span>
             {diff != null && (
               <span className={`ml-1.5 text-xs font-semibold block sm:inline ${diff >= 0 ? "text-[var(--pos)]" : "text-[var(--neg)]"}`}>
                 ({diff >= 0 ? "+" : ""}{diff.toFixed(1)} vs {projectedPosted.toFixed(1)} proj)
@@ -77,11 +83,11 @@ export default function RosterList({ roster, startingSlots, irSlotCount = 0, pla
 
   return (
     <>
-      <TeamTotal starters={roster.starters} weekProjections={weekProjections} scoringSettings={scoringSettings} fallbackField={fallbackField} playersPoints={playersPoints} />
+      <TeamTotal starters={roster.starters} weekProjections={weekProjections} scoringSettings={scoringSettings} fallbackField={fallbackField} playersPoints={playersPoints} playersDB={playersDB} byTeamWeek={byTeamWeek} week={week} />
       <div className="flex items-center justify-between mb-1">
         <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">Starters</p>
         <p className="text-[10px] text-[var(--muted)]">
-          <span className="text-[var(--proj)] font-semibold">proj</span> &middot; <span className="text-[var(--pos)] font-semibold">actual</span>
+          <span className="text-[var(--proj)] font-semibold">proj</span> &middot; <span className="text-[var(--live)] font-semibold">live</span> &middot; <span className="text-[var(--pos)] font-semibold">final</span>
         </p>
       </div>
       <div className="space-y-1 mb-3">
@@ -109,7 +115,7 @@ export default function RosterList({ roster, startingSlots, irSlotCount = 0, pla
                 </div>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
-                <ProjectedPts id={id} weekProjections={weekProjections} scoringSettings={scoringSettings} fallbackField={fallbackField} playersPoints={playersPoints} />
+                <ProjectedPts id={id} weekProjections={weekProjections} scoringSettings={scoringSettings} fallbackField={fallbackField} playersPoints={playersPoints} isLive={live} />
                 <PositionBadge position={position} />
                 <NflTeamTag team={team} />
                 <InjuryBadge status={injuryStatus} />
@@ -140,7 +146,7 @@ export default function RosterList({ roster, startingSlots, irSlotCount = 0, pla
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
-                    <ProjectedPts id={id} weekProjections={weekProjections} scoringSettings={scoringSettings} fallbackField={fallbackField} playersPoints={playersPoints} />
+                    <ProjectedPts id={id} weekProjections={weekProjections} scoringSettings={scoringSettings} fallbackField={fallbackField} playersPoints={playersPoints} isLive={live} />
                     <PositionBadge position={position} />
                 <NflTeamTag team={team} />
                     <InjuryBadge status={injuryStatus} />
@@ -168,7 +174,7 @@ export default function RosterList({ roster, startingSlots, irSlotCount = 0, pla
                 </div>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
-                <ProjectedPts id={id} weekProjections={weekProjections} scoringSettings={scoringSettings} fallbackField={fallbackField} playersPoints={playersPoints} />
+                <ProjectedPts id={id} weekProjections={weekProjections} scoringSettings={scoringSettings} fallbackField={fallbackField} playersPoints={playersPoints} isLive={live} />
                 <PositionBadge position={position} />
                 <NflTeamTag team={team} />
                 <InjuryBadge status={injuryStatus} />

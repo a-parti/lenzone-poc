@@ -5,11 +5,25 @@ import { usePlayerModal } from '../context/PlayerModalContext';
 import { useRosterModal } from '../context/RosterModalContext';
 import { nflTeamName, nflTeamLogoUrl } from '../lib/nflTeams';
 import { projectedPoints } from '../lib/players';
+import { CONF_STYLES } from '../lib/theme';
 import { PositionBadge, InjuryBadge, useEscapeKey } from './shared';
 import { Zoomable } from '../context/ImageLightboxContext';
 import { nextModalZ } from '../lib/modalStack';
 
-const POSITION_ORDER = ["QB", "RB", "WR", "TE", "K", "DEF", "OL", "DL", "LB", "DB", "CB", "S"];
+const POSITION_ORDER = ["QB", "RB", "WR", "TE", "K", "DEF"];
+
+// Only positions this league can actually draft/roster (verified against the real Sleeper league
+// settings: roster_positions is QB/RB/RB/WR/WR/TE/FLEX/FLEX/K/DEF/BN -- FLEX is RB/WR/TE
+// eligibility, not its own position) -- individual O-line/defensive players aren't rosterable
+// here, so they're just noise in this view.
+const DRAFTABLE_POSITIONS = new Set(POSITION_ORDER);
+
+// Sleeper's real depth_chart_position values split WRs by formation side (LWR/RWR/SWR) instead of
+// a plain "WR" -- left as three separate groups they'd all sort to the bottom (alphabetically
+// after QB/RB/WR/TE/K), pushing every WR out of view. They're still all just "WR" for fantasy
+// purposes, so fold them into one WR group and let depth_chart_order (which is independent per
+// side) interleave the starters from all three sides ahead of the backups.
+const NORMALIZE_POSITION = { LWR: "WR", RWR: "WR", SWR: "WR" };
 
 // Groups this team's roster by Sleeper's own depth_chart_position field (falling back to their
 // listed position when that's missing) and sorts each group by depth_chart_order. That field is
@@ -21,7 +35,9 @@ function buildDepthChart(playersDB, abbr) {
   for (const id in playersDB) {
     const p = playersDB[id];
     if (p.team !== abbr || !p.position) continue;
-    const posKey = p.depth_chart_position || p.position;
+    const rawPosKey = p.depth_chart_position || p.position;
+    const posKey = NORMALIZE_POSITION[rawPosKey] || rawPosKey;
+    if (!DRAFTABLE_POSITIONS.has(posKey)) continue;
     if (!groups[posKey]) groups[posKey] = [];
     groups[posKey].push({ id, ...p });
   }
@@ -81,7 +97,7 @@ export default function TeamDepthChartModal({ playersDB, afcOwners, nfcOwners, w
         </div>
 
         <p className="text-[10px] text-[var(--muted)] italic mb-3">
-          Depth order comes straight from Sleeper -- some positions (especially O-line/defense) don't have one on file, so those are just listed alphabetically instead of a guessed order.
+          Only positions this league actually drafts (QB/RB/WR/TE/K/DEF). Depth order comes straight from Sleeper -- some players don't have one on file, so those are just listed alphabetically instead of a guessed order.
         </p>
 
         <div className="space-y-4">
@@ -91,11 +107,11 @@ export default function TeamDepthChartModal({ playersDB, afcOwners, nfcOwners, w
               <div className="space-y-1">
                 {players.map((p, i) => {
                   const name = `${p.first_name || ''} ${p.last_name || ''}`.trim() || p.id;
-                  const ownerManager = afcOwners?.[p.id] || nfcOwners?.[p.id] || null;
-                  const ownerConf = afcOwners?.[p.id] ? 'AFC' : nfcOwners?.[p.id] ? 'NFC' : null;
+                  const afcOwner = afcOwners?.[p.id] || null;
+                  const nfcOwner = nfcOwners?.[p.id] || null;
                   const proj = projectedPoints(weekProjections, p.id, null, null);
                   return (
-                    <div key={p.id} className="flex items-center gap-2 text-sm py-1 border-b border-[var(--border)]/40 last:border-0">
+                    <div key={p.id} className="flex items-center gap-2 text-sm py-1.5 border-b border-[var(--border)]/40 last:border-0">
                       <span className="text-[10px] font-mono text-[var(--muted)] w-4 shrink-0">{p.depth_chart_order || i + 1}</span>
                       <button
                         type="button"
@@ -106,18 +122,32 @@ export default function TeamDepthChartModal({ playersDB, afcOwners, nfcOwners, w
                       </button>
                       <PositionBadge position={p.position} />
                       <InjuryBadge status={p.injury_status} />
-                      {ownerManager ? (
-                        <button
-                          type="button"
-                          onClick={() => openRoster(ownerManager, ownerConf)}
-                          className="ml-auto text-xs text-[var(--text2)] hover:text-[var(--accent)] truncate max-w-[40%] shrink-0"
-                          title={`${ownerManager} (${ownerConf})`}
-                        >
-                          {ownerManager}
-                        </button>
-                      ) : (
-                        <span className="ml-auto text-xs text-[var(--muted)] italic shrink-0">Unowned</span>
-                      )}
+                      <div className="ml-auto flex flex-col items-end gap-0.5 shrink-0 max-w-[45%]">
+                        {afcOwner ? (
+                          <button
+                            type="button"
+                            onClick={() => openRoster(afcOwner, 'AFC')}
+                            className={`text-[10px] font-semibold truncate max-w-full hover:brightness-125 ${CONF_STYLES.AFC.text}`}
+                            title={`${afcOwner} (AFC)`}
+                          >
+                            AFC &middot; {afcOwner}
+                          </button>
+                        ) : (
+                          <span className="text-[10px] text-[var(--muted)] italic">AFC &middot; Unowned</span>
+                        )}
+                        {nfcOwner ? (
+                          <button
+                            type="button"
+                            onClick={() => openRoster(nfcOwner, 'NFC')}
+                            className={`text-[10px] font-semibold truncate max-w-full hover:brightness-125 ${CONF_STYLES.NFC.text}`}
+                            title={`${nfcOwner} (NFC)`}
+                          >
+                            NFC &middot; {nfcOwner}
+                          </button>
+                        ) : (
+                          <span className="text-[10px] text-[var(--muted)] italic">NFC &middot; Unowned</span>
+                        )}
+                      </div>
                       <span className="text-xs font-mono text-[var(--proj)] shrink-0 w-12 text-right">
                         {proj != null ? `${proj.toFixed(1)}` : "--"}
                       </span>

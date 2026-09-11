@@ -154,11 +154,13 @@
   --pos: #34d399;
   --neg: #fb7185;
   --proj: #60a5fa;
+  --live: #fbbf24;
 }
 [data-mode="light"] {
   --pos: #047857;
   --neg: #be123c;
   --proj: #1d4ed8;
+  --live: #b45309;
 }
 
 html {
@@ -209,6 +211,41 @@ html {
 }
 .streamer-piece {
   animation: streamer-fall 1.4s cubic-bezier(0.3, 0.6, 0.4, 1) forwards;
+}
+
+/* Thin rays that shoot straight outward from the pick point and grow along their own axis (via
+   transform-origin: left center + scaleX), like a camera-flash starburst -- distinct from confetti
+   in that they don't tumble/rotate, just extend and fade. */
+@keyframes ray-shoot {
+  0% { transform: translate(0, 0) rotate(var(--rot)) scaleX(0.3); opacity: 1; }
+  55% { transform: translate(calc(var(--dx) * 0.75), calc(var(--dy) * 0.75)) rotate(var(--rot)) scaleX(1); opacity: 1; }
+  100% { transform: translate(var(--dx), var(--dy)) rotate(var(--rot)) scaleX(0.6); opacity: 0; }
+}
+.ray-piece {
+  animation: ray-shoot 0.7s ease-out forwards;
+}
+
+/* A big spin layered on top of the usual outward translate, so pieces swirl outward instead of
+   flying in a straight line. */
+@keyframes spiral-swirl {
+  0% { transform: translate(0, 0) rotate(0deg) scale(0.6); opacity: 1; }
+  30% { transform: translate(calc(var(--dx) * 0.3), calc(var(--dy) * 0.3)) rotate(200deg) scale(1); opacity: 1; }
+  70% { transform: translate(calc(var(--dx) * 0.75), calc(var(--dy) * 0.75)) rotate(560deg) scale(0.85); opacity: 0.8; }
+  100% { transform: translate(var(--dx), var(--dy)) rotate(900deg) scale(0.3); opacity: 0; }
+}
+.spiral-piece {
+  animation: spiral-swirl 1.1s ease-in-out forwards;
+}
+
+/* Shoots up first (negative dyUp), then arcs back down past the starting point (positive dyDown)
+   -- an actual up-then-down arc rather than every other style's single one-way translate. */
+@keyframes firework-arc {
+  0% { transform: translate(0, 0) scale(0.4); opacity: 1; }
+  40% { transform: translate(calc(var(--dx) * 0.5), var(--dyUp)) scale(1); opacity: 1; }
+  100% { transform: translate(var(--dx), var(--dyDown)) scale(0.4); opacity: 0; }
+}
+.firework-piece {
+  animation: firework-arc 1.1s cubic-bezier(0.3, 0.6, 0.3, 1) forwards;
 }
 
 /* The SAME wide gradient/background-size is applied at rest and on hover -- only whether the

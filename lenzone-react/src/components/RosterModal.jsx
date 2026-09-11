@@ -8,6 +8,7 @@ import RosterList from './RosterList';
 import { scoringFieldFor } from '../lib/players';
 import { useEscapeKey } from './shared';
 import { nextModalZ } from '../lib/modalStack';
+import { getRealName } from '../lib/realNames';
 
 export default function RosterModal({ afcData, nfcData, afcSeason, nfcSeason, playersDB, weekProjections, selectedWeek, byTeamWeek }) {
   const { target, closeRoster } = useRosterModal();
@@ -17,6 +18,11 @@ export default function RosterModal({ afcData, nfcData, afcSeason, nfcSeason, pl
   // fighting over a shared fixed z-index by DOM order alone.
   const [z, setZ] = useState(60);
   useEffect(() => { if (target) setZ(nextModalZ()); }, [target]);
+  // useTeamLogo must run on every render, target or not -- a hook called only on the renders
+  // where target happens to be set (i.e. after an early return like the one below) changes how
+  // many hooks this component calls from one render to the next, which breaks React's hook order
+  // and throws in dev. Passing it undefined when there's no target yet is harmless.
+  const logoUrl = useTeamLogo(target?.manager);
   if (!target) return null;
 
   const confData = target.conf === 'AFC' ? afcData : nfcData;
@@ -24,7 +30,7 @@ export default function RosterModal({ afcData, nfcData, afcSeason, nfcSeason, pl
   const roster = confData.rosters.find(r => r.manager === target.manager);
   const fallbackField = scoringFieldFor(confData.receptionPoints || 0);
   const playersPoints = season?.rosterSnapshotByWeek?.[selectedWeek]?.[target.manager]?.playersPoints;
-  const logoUrl = useTeamLogo(target.manager);
+  const realName = getRealName(afcData, nfcData, target.manager);
 
   return (
     <div className="fixed inset-0 bg-[var(--bg)]/80 backdrop-blur-sm flex items-center justify-center p-4" style={{ zIndex: z }} onClick={closeRoster}>
@@ -39,9 +45,21 @@ export default function RosterModal({ afcData, nfcData, afcSeason, nfcSeason, pl
           <X className="w-4 h-4" />
         </button>
         <div className="flex items-center gap-3 mb-4">
-          {logoUrl && (
-            <Zoomable src={logoUrl} alt={target.manager} className="w-16 h-16 rounded-full object-cover shrink-0 border-2 border-[var(--border)]" />
-          )}
+          <div className="relative shrink-0">
+            {logoUrl && (
+              <Zoomable src={logoUrl} alt={target.manager} className="w-16 h-16 rounded-full object-cover border-2 border-[var(--border)]" />
+            )}
+            {/* A little speech bubble pointing at the logo, not just plain caption text underneath
+                -- "who's actually behind this team" reads more like an introduction that way. */}
+            {realName && (
+              <div className="absolute -top-2 left-[85%] z-10 whitespace-nowrap pointer-events-none">
+                <div className="relative bg-[var(--surface)] border border-[var(--border)] rounded-xl px-2.5 py-1 shadow-md">
+                  <span className="text-xs font-semibold text-[var(--text)]">I'm {realName}</span>
+                  <div className="absolute top-1/2 -left-[5px] -translate-y-1/2 w-2.5 h-2.5 bg-[var(--surface)] border-l border-b border-[var(--border)] rotate-45" />
+                </div>
+              </div>
+            )}
+          </div>
           <div className="min-w-0">
             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${CONF_STYLES[target.conf].badge}`}>{target.conf}</span>
             <h2 className="font-display text-xl font-bold text-[var(--text)] truncate">{target.manager}</h2>

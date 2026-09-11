@@ -56,14 +56,19 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
   const myHighlighted = my && highlightTeams?.has(my.team);
   const oppHighlighted = opp && highlightTeams?.has(opp.team);
   return (
-    <div className="grid grid-cols-2 gap-4 text-xs py-1.5">
+    // Below sm, each side gets the FULL card width stacked on its own row instead of squeezing
+    // into a half-width column next to the other team -- that's what was cramming avatar, badge,
+    // name, team tag and score all on top of each other on a phone. gap-1.5 (not gap-4) between
+    // the stacked rows on mobile, a border on "my" row to separate the pair visually without a
+    // whole extra divider element.
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 sm:gap-4 text-xs py-1.5">
       <div
-        className={`${ROSTER_ROW_FLEX} min-w-0 rounded ${onSelectGame && my ? "cursor-pointer" : ""} ${myHighlighted ? "bg-violet-400/20 ring-2 ring-violet-400/70" : ""}`}
+        className={`${ROSTER_ROW_FLEX} min-w-0 rounded pb-1.5 border-b border-[var(--border)]/40 sm:border-b-0 sm:pb-0 ${onSelectGame && my ? "cursor-pointer" : ""} ${myHighlighted ? "bg-violet-400/20 ring-2 ring-violet-400/70" : ""}`}
         onClick={my ? handleRowClick(my.team) : undefined}
       >
         {my ? (
           <>
-            <PlayerAvatar playerId={myId} position={my.position} className="w-10 h-10 shrink-0" />
+            <PlayerAvatar playerId={myId} position={my.position} className="w-7 h-7 sm:w-10 sm:h-10 shrink-0" />
             <div className="w-9 shrink-0 flex justify-center"><PositionBadge position={my.position} /></div>
             <div className={`flex flex-col ${ROSTER_NAME_WIDTH}`}>
               <div className="flex items-center gap-1 min-w-0">
@@ -84,22 +89,21 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
           </>
         ) : <span className="text-[var(--muted)] italic">Empty</span>}
       </div>
-      {/* Mirrored (flex-row-reverse) so this side reads right-to-left: avatar/position hug the
-          outer edge, score sits closest to the VS divider -- both teams' scores end up converging
-          toward the middle instead of my score at center and the opponent's way out at the far
-          right. Same fixed-width elements as the "my" side in the same DOM order, just reversed
-          visually, so the columns still line up row to row. mr-auto (not ml-auto) on the score
-          because it's now visually first (leftmost) -- its free space collects on ITS right,
-          pushing the packed team/name/position/avatar group to the outer edge instead. */}
+      {/* Mirrored (sm:flex-row-reverse) so on desktop this side reads right-to-left: avatar/
+          position hug the outer edge, score sits closest to the VS divider -- both teams' scores
+          converge toward the middle. Below sm it's stacked under "my" row instead (see the outer
+          grid above), so it drops the mirroring entirely and matches "my" row's own left-to-right
+          layout -- a right-aligned row floating alone under a full-width stack reads as a mistake,
+          not a deliberate mirror, once there's no second column for it to mirror against. */}
       <div
-        className={`${ROSTER_ROW_FLEX} flex-row-reverse min-w-0 rounded ${onSelectGame && opp ? "cursor-pointer" : ""} ${oppHighlighted ? "bg-violet-400/20 ring-2 ring-violet-400/70" : ""}`}
+        className={`${ROSTER_ROW_FLEX} sm:flex-row-reverse min-w-0 rounded ${onSelectGame && opp ? "cursor-pointer" : ""} ${oppHighlighted ? "bg-violet-400/20 ring-2 ring-violet-400/70" : ""}`}
         onClick={opp ? handleRowClick(opp.team) : undefined}
       >
         {opp ? (
           <>
-            <PlayerAvatar playerId={oppId} position={opp.position} className="w-10 h-10 shrink-0" />
+            <PlayerAvatar playerId={oppId} position={opp.position} className="w-7 h-7 sm:w-10 sm:h-10 shrink-0" />
             <div className="w-9 shrink-0 flex justify-center"><PositionBadge position={opp.position} /></div>
-            <div className={`flex flex-col items-end text-right ${ROSTER_NAME_WIDTH}`}>
+            <div className={`flex flex-col sm:items-end sm:text-right ${ROSTER_NAME_WIDTH}`}>
               <div className="flex items-center gap-1 min-w-0">
                 <InjuryBadge status={opp.injuryStatus} />
                 <PlayerNameButton playerId={oppId} name={opp.name} position={opp.position} className="font-bold text-[var(--text2)] truncate" />
@@ -108,7 +112,7 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
             </div>
             <div className="shrink-0"><NflTeamTag team={opp.team} number={opp.number} /></div>
             {(oppActualVal != null || oppProj != null) && (
-              <span className="font-mono text-left mr-auto shrink-0 whitespace-nowrap flex flex-col items-start leading-tight">
+              <span className="font-mono sm:text-left ml-auto sm:ml-0 sm:mr-auto shrink-0 whitespace-nowrap flex flex-col items-end sm:items-start leading-tight">
                 <span className={`font-bold text-base ${oppIsActual ? oppColor : "text-[var(--muted)]"}`}>
                   {oppIsActual ? oppActualVal.toFixed(2) : "--"}
                 </span>

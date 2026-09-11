@@ -23,6 +23,7 @@ export default function TeamName({ manager, conf, className = "", showLogo = tru
         <img
           src={logoUrl}
           alt=""
+          data-manager={manager}
           className={`rounded-full object-cover shrink-0 ${isMe ? "w-7 h-7 ring-2 ring-[var(--accent)]" : "w-6 h-6"}`}
           onError={() => setLogoFailed(true)}
         />

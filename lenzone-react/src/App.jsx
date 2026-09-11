@@ -31,6 +31,7 @@ import GrabbableFootball from './components/GrabbableFootball';
 import BouncingTrophies from './components/BouncingTrophies';
 import FallingPhotos from './components/FallingPhotos';
 import DancingStickmen from './components/DancingStickmen';
+import RandomNameBubble from './components/RandomNameBubble';
 import NflGamesPanel from './components/NflGamesPanel';
 import WeeklyHighlights from './components/WeeklyHighlights';
 import PlayerHighlights from './components/PlayerHighlights';
@@ -1187,6 +1188,7 @@ export default function App() {
       <BouncingTrophies enabled={activeTab !== "home"} />
       <FallingPhotos enabled={activeTab !== "home"} />
       <DancingStickmen enabled={activeTab !== "home"} />
+      <RandomNameBubble enabled={activeTab !== "home"} afcData={afcData} nfcData={nfcData} />
 
       <main className="max-w-7xl mx-auto">
         {/* Desktop Navigation Tabs -- also hidden on Home; the radial menu is its navigation */}

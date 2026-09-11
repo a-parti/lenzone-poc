@@ -39,82 +39,100 @@
    has strong contrast against a near-white bg. A few naturally bright brand colors (Panthers,
    Bengals, Chargers, Dolphins, Titans) read better with dark ink than white text on top of them in
    either mode, so those set --accent-text: #111111 to override the white default below. */
-[data-scheme="nfl-ari"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #a40227 14%); --text: #F8FAFC; --accent: #b83a57; }
-[data-scheme="nfl-ari"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #a40227 7%); --text: #0F172A; --accent: #a40227; }
-[data-scheme="nfl-atl"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #a71930 14%); --text: #F8FAFC; --accent: #b74255; }
-[data-scheme="nfl-atl"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #a71930 7%); --text: #0F172A; --accent: #a71930; }
-[data-scheme="nfl-bal"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #29126f 14%); --text: #F8FAFC; --accent: #6d5e9d; }
-[data-scheme="nfl-bal"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #29126f 7%); --text: #0F172A; --accent: #29126f; }
-[data-scheme="nfl-buf"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #00338d 14%); --text: #F8FAFC; --accent: #4268ab; }
-[data-scheme="nfl-buf"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #00338d 7%); --text: #0F172A; --accent: #00338d; }
-[data-scheme="nfl-car"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #0085ca 14%); --text: #F8FAFC; --accent: #0085ca; --accent-text: #111111; }
-[data-scheme="nfl-car"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #0085ca 7%); --text: #0F172A; --accent: #0085ca; --accent-text: #111111; }
-[data-scheme="nfl-chi"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #0b1c3a 14%); --text: #F8FAFC; --accent: #5e697d; }
-[data-scheme="nfl-chi"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #0b1c3a 7%); --text: #0F172A; --accent: #0b1c3a; }
-[data-scheme="nfl-cin"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #fb4f14 14%); --text: #F8FAFC; --accent: #fb4f14; --accent-text: #111111; }
-[data-scheme="nfl-cin"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #fb4f14 7%); --text: #0F172A; --accent: #f14c13; --accent-text: #111111; }
-[data-scheme="nfl-cle"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #472a08 14%); --text: #F8FAFC; --accent: #7b664d; }
-[data-scheme="nfl-cle"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #472a08 7%); --text: #0F172A; --accent: #472a08; }
-[data-scheme="nfl-dal"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #002a5c 14%); --text: #F8FAFC; --accent: #4d6a8d; }
-[data-scheme="nfl-dal"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #002a5c 7%); --text: #0F172A; --accent: #002a5c; }
-[data-scheme="nfl-den"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #0a2343 14%); --text: #F8FAFC; --accent: #58697f; }
-[data-scheme="nfl-den"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #0a2343 7%); --text: #0F172A; --accent: #0a2343; }
-[data-scheme="nfl-det"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #0076b6 14%); --text: #F8FAFC; --accent: #0076b6; }
-[data-scheme="nfl-det"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #0076b6 7%); --text: #0F172A; --accent: #0076b6; }
-[data-scheme="nfl-gb"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #204e32 14%); --text: #F8FAFC; --accent: #4d715b; }
-[data-scheme="nfl-gb"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #204e32 7%); --text: #0F172A; --accent: #204e32; }
-[data-scheme="nfl-hou"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #021018 14%); --text: #F8FAFC; --accent: #5d666b; }
-[data-scheme="nfl-hou"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #021018 7%); --text: #0F172A; --accent: #021018; }
-[data-scheme="nfl-ind"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #003b75 14%); --text: #F8FAFC; --accent: #426e99; }
-[data-scheme="nfl-ind"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #003b75 7%); --text: #0F172A; --accent: #003b75; }
-[data-scheme="nfl-jax"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #007487 14%); --text: #F8FAFC; --accent: #0a7a8c; }
-[data-scheme="nfl-jax"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #007487 7%); --text: #0F172A; --accent: #007487; }
-[data-scheme="nfl-kc"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #e31837 14%); --text: #F8FAFC; --accent: #e31837; }
-[data-scheme="nfl-kc"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #e31837 7%); --text: #0F172A; --accent: #e31837; }
-[data-scheme="nfl-lv"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #000000 14%); --text: #F8FAFC; --accent: #666666; }
-[data-scheme="nfl-lv"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #000000 7%); --text: #0F172A; --accent: #000000; }
-[data-scheme="nfl-lac"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #0080c6 14%); --text: #F8FAFC; --accent: #0080c6; --accent-text: #111111; }
-[data-scheme="nfl-lac"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #0080c6 7%); --text: #0F172A; --accent: #0080c6; --accent-text: #111111; }
-[data-scheme="nfl-lar"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #003594 14%); --text: #F8FAFC; --accent: #426ab0; }
-[data-scheme="nfl-lar"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #003594 7%); --text: #0F172A; --accent: #003594; }
-[data-scheme="nfl-mia"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #008e97 14%); --text: #F8FAFC; --accent: #008e97; --accent-text: #111111; }
-[data-scheme="nfl-mia"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #008e97 7%); --text: #0F172A; --accent: #008e97; --accent-text: #111111; }
-[data-scheme="nfl-min"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #4f2683 14%); --text: #F8FAFC; --accent: #795aa1; }
-[data-scheme="nfl-min"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #4f2683 7%); --text: #0F172A; --accent: #4f2683; }
-[data-scheme="nfl-ne"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #002a5c 14%); --text: #F8FAFC; --accent: #4d6a8d; }
-[data-scheme="nfl-ne"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #002a5c 7%); --text: #0F172A; --accent: #002a5c; }
-[data-scheme="nfl-no"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #000000 14%); --text: #F8FAFC; --accent: #666666; }
-[data-scheme="nfl-no"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #000000 7%); --text: #0F172A; --accent: #000000; }
-[data-scheme="nfl-nyg"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #003c7f 14%); --text: #F8FAFC; --accent: #3d6b9e; }
-[data-scheme="nfl-nyg"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #003c7f 7%); --text: #0F172A; --accent: #003c7f; }
-[data-scheme="nfl-nyj"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #115740 14%); --text: #F8FAFC; --accent: #3c7562; }
-[data-scheme="nfl-nyj"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #115740 7%); --text: #0F172A; --accent: #115740; }
-[data-scheme="nfl-phi"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #06424d 14%); --text: #F8FAFC; --accent: #426f78; }
-[data-scheme="nfl-phi"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #06424d 7%); --text: #0F172A; --accent: #06424d; }
-[data-scheme="nfl-pit"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #000000 14%); --text: #F8FAFC; --accent: #666666; }
-[data-scheme="nfl-pit"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #000000 7%); --text: #0F172A; --accent: #000000; }
-[data-scheme="nfl-sf"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #aa0000 14%); --text: #F8FAFC; --accent: #bd3838; }
-[data-scheme="nfl-sf"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #aa0000 7%); --text: #0F172A; --accent: #aa0000; }
-[data-scheme="nfl-sea"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #002a5c 14%); --text: #F8FAFC; --accent: #4d6a8d; }
-[data-scheme="nfl-sea"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #002a5c 7%); --text: #0F172A; --accent: #002a5c; }
-[data-scheme="nfl-tb"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #bd1c36 14%); --text: #F8FAFC; --accent: #c4334a; }
-[data-scheme="nfl-tb"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #bd1c36 7%); --text: #0F172A; --accent: #bd1c36; }
-[data-scheme="nfl-ten"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #4495d2 14%); --text: #F8FAFC; --accent: #4495d2; --accent-text: #111111; }
-[data-scheme="nfl-ten"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #4495d2 7%); --text: #0F172A; --accent: #408cc5; --accent-text: #111111; }
-[data-scheme="nfl-was"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #5a1414 14%); --text: #F8FAFC; --accent: #8c5b5b; }
-[data-scheme="nfl-was"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #5a1414 7%); --text: #0F172A; --accent: #5a1414; }
+[data-scheme="nfl-ari"][data-mode="dark"]  { --bg: #201021 /* precomputed: color-mix(in srgb, #0b1220, #a40227 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #b83a57; }
+[data-scheme="nfl-ari"][data-mode="light"] { --bg: #f4eaed /* precomputed: color-mix(in srgb, #fafbfc, #a40227 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #a40227; }
+[data-scheme="nfl-atl"][data-mode="dark"]  { --bg: #211322 /* precomputed: color-mix(in srgb, #0b1220, #a71930 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #b74255; }
+[data-scheme="nfl-atl"][data-mode="light"] { --bg: #f4ebee /* precomputed: color-mix(in srgb, #fafbfc, #a71930 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #a71930; }
+[data-scheme="nfl-bal"][data-mode="dark"]  { --bg: #0f122b /* precomputed: color-mix(in srgb, #0b1220, #29126f 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #6d5e9d; }
+[data-scheme="nfl-bal"][data-mode="light"] { --bg: #ebebf2 /* precomputed: color-mix(in srgb, #fafbfc, #29126f 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #29126f; }
+[data-scheme="nfl-buf"][data-mode="dark"]  { --bg: #09172f /* precomputed: color-mix(in srgb, #0b1220, #00338d 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #4268ab; }
+[data-scheme="nfl-buf"][data-mode="light"] { --bg: #e8edf4 /* precomputed: color-mix(in srgb, #fafbfc, #00338d 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #00338d; }
+[data-scheme="nfl-car"][data-mode="dark"]  { --bg: #092238 /* precomputed: color-mix(in srgb, #0b1220, #0085ca 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #0085ca; --accent-text: #111111; }
+[data-scheme="nfl-car"][data-mode="light"] { --bg: #e8f3f9 /* precomputed: color-mix(in srgb, #fafbfc, #0085ca 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #0085ca; --accent-text: #111111; }
+[data-scheme="nfl-chi"][data-mode="dark"]  { --bg: #0b1324 /* precomputed: color-mix(in srgb, #0b1220, #0b1c3a 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #5e697d; }
+[data-scheme="nfl-chi"][data-mode="light"] { --bg: #e9ebee /* precomputed: color-mix(in srgb, #fafbfc, #0b1c3a 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #0b1c3a; }
+[data-scheme="nfl-cin"][data-mode="dark"]  { --bg: #2d1b1e /* precomputed: color-mix(in srgb, #0b1220, #fb4f14 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #fb4f14; --accent-text: #111111; }
+[data-scheme="nfl-cin"][data-mode="light"] { --bg: #faefec /* precomputed: color-mix(in srgb, #fafbfc, #fb4f14 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #f14c13; --accent-text: #111111; }
+[data-scheme="nfl-cle"][data-mode="dark"]  { --bg: #13151d /* precomputed: color-mix(in srgb, #0b1220, #472a08 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #7b664d; }
+[data-scheme="nfl-cle"][data-mode="light"] { --bg: #edeceb /* precomputed: color-mix(in srgb, #fafbfc, #472a08 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #472a08; }
+[data-scheme="nfl-dal"][data-mode="dark"]  { --bg: #091528 /* precomputed: color-mix(in srgb, #0b1220, #002a5c 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #4d6a8d; }
+[data-scheme="nfl-dal"][data-mode="light"] { --bg: #e8ecf1 /* precomputed: color-mix(in srgb, #fafbfc, #002a5c 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #002a5c; }
+[data-scheme="nfl-den"][data-mode="dark"]  { --bg: #0b1425 /* precomputed: color-mix(in srgb, #0b1220, #0a2343 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #58697f; }
+[data-scheme="nfl-den"][data-mode="light"] { --bg: #e9ecef /* precomputed: color-mix(in srgb, #fafbfc, #0a2343 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #0a2343; }
+[data-scheme="nfl-det"][data-mode="dark"]  { --bg: #092035 /* precomputed: color-mix(in srgb, #0b1220, #0076b6 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #0076b6; }
+[data-scheme="nfl-det"][data-mode="light"] { --bg: #e8f2f7 /* precomputed: color-mix(in srgb, #fafbfc, #0076b6 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #0076b6; }
+[data-scheme="nfl-gb"][data-mode="dark"]  { --bg: #0e1a23 /* precomputed: color-mix(in srgb, #0b1220, #204e32 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #4d715b; }
+[data-scheme="nfl-gb"][data-mode="light"] { --bg: #ebefee /* precomputed: color-mix(in srgb, #fafbfc, #204e32 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #204e32; }
+[data-scheme="nfl-hou"][data-mode="dark"]  { --bg: #0a121f /* precomputed: color-mix(in srgb, #0b1220, #021018 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #5d666b; }
+[data-scheme="nfl-hou"][data-mode="light"] { --bg: #e9ebec /* precomputed: color-mix(in srgb, #fafbfc, #021018 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #021018; }
+[data-scheme="nfl-ind"][data-mode="dark"]  { --bg: #09182c /* precomputed: color-mix(in srgb, #0b1220, #003b75 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #426e99; }
+[data-scheme="nfl-ind"][data-mode="light"] { --bg: #e8eef3 /* precomputed: color-mix(in srgb, #fafbfc, #003b75 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #003b75; }
+[data-scheme="nfl-jax"][data-mode="dark"]  { --bg: #09202e /* precomputed: color-mix(in srgb, #0b1220, #007487 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #0a7a8c; }
+[data-scheme="nfl-jax"][data-mode="light"] { --bg: #e8f2f4 /* precomputed: color-mix(in srgb, #fafbfc, #007487 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #007487; }
+[data-scheme="nfl-kc"][data-mode="dark"]  { --bg: #291323 /* precomputed: color-mix(in srgb, #0b1220, #e31837 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #e31837; }
+[data-scheme="nfl-kc"][data-mode="light"] { --bg: #f8ebee /* precomputed: color-mix(in srgb, #fafbfc, #e31837 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #e31837; }
+[data-scheme="nfl-lv"][data-mode="dark"]  { --bg: #090f1c /* precomputed: color-mix(in srgb, #0b1220, #000000 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #666666; }
+[data-scheme="nfl-lv"][data-mode="light"] { --bg: #e8e9ea /* precomputed: color-mix(in srgb, #fafbfc, #000000 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #000000; }
+[data-scheme="nfl-lac"][data-mode="dark"]  { --bg: #092137 /* precomputed: color-mix(in srgb, #0b1220, #0080c6 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #0080c6; --accent-text: #111111; }
+[data-scheme="nfl-lac"][data-mode="light"] { --bg: #e8f2f8 /* precomputed: color-mix(in srgb, #fafbfc, #0080c6 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #0080c6; --accent-text: #111111; }
+[data-scheme="nfl-lar"][data-mode="dark"]  { --bg: #091730 /* precomputed: color-mix(in srgb, #0b1220, #003594 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #426ab0; }
+[data-scheme="nfl-lar"][data-mode="light"] { --bg: #e8edf5 /* precomputed: color-mix(in srgb, #fafbfc, #003594 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #003594; }
+[data-scheme="nfl-mia"][data-mode="dark"]  { --bg: #092331 /* precomputed: color-mix(in srgb, #0b1220, #008e97 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #008e97; --accent-text: #111111; }
+[data-scheme="nfl-mia"][data-mode="light"] { --bg: #e8f3f5 /* precomputed: color-mix(in srgb, #fafbfc, #008e97 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #008e97; --accent-text: #111111; }
+[data-scheme="nfl-min"][data-mode="dark"]  { --bg: #15152e /* precomputed: color-mix(in srgb, #0b1220, #4f2683 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #795aa1; }
+[data-scheme="nfl-min"][data-mode="light"] { --bg: #eeecf4 /* precomputed: color-mix(in srgb, #fafbfc, #4f2683 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #4f2683; }
+[data-scheme="nfl-ne"][data-mode="dark"]  { --bg: #091528 /* precomputed: color-mix(in srgb, #0b1220, #002a5c 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #4d6a8d; }
+[data-scheme="nfl-ne"][data-mode="light"] { --bg: #e8ecf1 /* precomputed: color-mix(in srgb, #fafbfc, #002a5c 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #002a5c; }
+[data-scheme="nfl-no"][data-mode="dark"]  { --bg: #090f1c /* precomputed: color-mix(in srgb, #0b1220, #000000 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #666666; }
+[data-scheme="nfl-no"][data-mode="light"] { --bg: #e8e9ea /* precomputed: color-mix(in srgb, #fafbfc, #000000 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #000000; }
+[data-scheme="nfl-nyg"][data-mode="dark"]  { --bg: #09182d /* precomputed: color-mix(in srgb, #0b1220, #003c7f 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #3d6b9e; }
+[data-scheme="nfl-nyg"][data-mode="light"] { --bg: #e8eef3 /* precomputed: color-mix(in srgb, #fafbfc, #003c7f 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #003c7f; }
+[data-scheme="nfl-nyj"][data-mode="dark"]  { --bg: #0c1c24 /* precomputed: color-mix(in srgb, #0b1220, #115740 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #3c7562; }
+[data-scheme="nfl-nyj"][data-mode="light"] { --bg: #eaf0ef /* precomputed: color-mix(in srgb, #fafbfc, #115740 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #115740; }
+[data-scheme="nfl-phi"][data-mode="dark"]  { --bg: #0a1926 /* precomputed: color-mix(in srgb, #0b1220, #06424d 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #426f78; }
+[data-scheme="nfl-phi"][data-mode="light"] { --bg: #e9eef0 /* precomputed: color-mix(in srgb, #fafbfc, #06424d 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #06424d; }
+[data-scheme="nfl-pit"][data-mode="dark"]  { --bg: #090f1c /* precomputed: color-mix(in srgb, #0b1220, #000000 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #666666; }
+[data-scheme="nfl-pit"][data-mode="light"] { --bg: #e8e9ea /* precomputed: color-mix(in srgb, #fafbfc, #000000 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #000000; }
+[data-scheme="nfl-sf"][data-mode="dark"]  { --bg: #210f1c /* precomputed: color-mix(in srgb, #0b1220, #aa0000 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #bd3838; }
+[data-scheme="nfl-sf"][data-mode="light"] { --bg: #f4e9ea /* precomputed: color-mix(in srgb, #fafbfc, #aa0000 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #aa0000; }
+[data-scheme="nfl-sea"][data-mode="dark"]  { --bg: #091528 /* precomputed: color-mix(in srgb, #0b1220, #002a5c 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #4d6a8d; }
+[data-scheme="nfl-sea"][data-mode="light"] { --bg: #e8ecf1 /* precomputed: color-mix(in srgb, #fafbfc, #002a5c 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #002a5c; }
+[data-scheme="nfl-tb"][data-mode="dark"]  { --bg: #241323 /* precomputed: color-mix(in srgb, #0b1220, #bd1c36 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #c4334a; }
+[data-scheme="nfl-tb"][data-mode="light"] { --bg: #f6ebee /* precomputed: color-mix(in srgb, #fafbfc, #bd1c36 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #bd1c36; }
+[data-scheme="nfl-ten"][data-mode="dark"]  { --bg: #132439 /* precomputed: color-mix(in srgb, #0b1220, #4495d2 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #4495d2; --accent-text: #111111; }
+[data-scheme="nfl-ten"][data-mode="light"] { --bg: #edf4f9 /* precomputed: color-mix(in srgb, #fafbfc, #4495d2 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #408cc5; --accent-text: #111111; }
+[data-scheme="nfl-was"][data-mode="dark"]  { --bg: #16121e /* precomputed: color-mix(in srgb, #0b1220, #5a1414 14%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #F8FAFC; --accent: #8c5b5b; }
+[data-scheme="nfl-was"][data-mode="light"] { --bg: #efebec /* precomputed: color-mix(in srgb, #fafbfc, #5a1414 7%) -- literal hex instead of a runtime color-mix() so team schemes still render on browsers without color-mix support (Safari <16.4, some older Android WebViews) */; --text: #0F172A; --accent: #5a1414; }
 
+/* Plain, scheme-agnostic fallback for browsers without color-mix() support (Safari <16.4, some
+   older Android WebViews, some in-app browsers) -- an invalid color-mix() value doesn't just fail
+   quietly, it makes the WHOLE custom property invalid, which cascades to every element using it
+   (transparent card backgrounds, invisible borders, unreadable muted text) across the entire app,
+   regardless of which color scheme is active. These generic slate tones aren't scheme-aware, but a
+   correctly-readable app in the wrong shade of gray beats an app that looks broken. Supporting
+   browsers immediately override these with the real color-mix versions below.  */
 :root, [data-scheme] {
-  --surface:   color-mix(in srgb, var(--bg), var(--text) 6%);
-  --surface2:  color-mix(in srgb, var(--bg), var(--text) 12%);
-  --border:    color-mix(in srgb, var(--bg), var(--text) 18%);
-  --border2:   color-mix(in srgb, var(--bg), var(--text) 28%);
-  --text2:     color-mix(in srgb, var(--text), var(--bg) 22%);
-  --muted:     color-mix(in srgb, var(--text), var(--bg) 45%);
-  --accent-ink: color-mix(in srgb, var(--accent), black 25%);
+  --surface: rgba(148, 163, 184, 0.08);
+  --surface2: rgba(148, 163, 184, 0.16);
+  --border: rgba(148, 163, 184, 0.24);
+  --border2: rgba(148, 163, 184, 0.38);
+  --text2: var(--text);
+  --muted: var(--text);
+  --accent-ink: var(--accent);
   /* Text color to place on top of a solid --accent fill (buttons, active pills). White by default;
      a handful of team schemes with unusually bright accents override this to dark ink above. */
   --accent-text: #ffffff;
+}
+@supports (color: color-mix(in srgb, red, blue)) {
+  :root, [data-scheme] {
+    --surface:   color-mix(in srgb, var(--bg), var(--text) 6%);
+    --surface2:  color-mix(in srgb, var(--bg), var(--text) 12%);
+    --border:    color-mix(in srgb, var(--bg), var(--text) 18%);
+    --border2:   color-mix(in srgb, var(--bg), var(--text) 28%);
+    --text2:     color-mix(in srgb, var(--text), var(--bg) 22%);
+    --muted:     color-mix(in srgb, var(--text), var(--bg) 45%);
+    --accent-ink: color-mix(in srgb, var(--accent), black 25%);
+  }
 }
 
 /* Semantic status colors (actual/beat-projection green, projected blue, missed-projection red) --

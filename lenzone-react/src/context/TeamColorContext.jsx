@@ -8,5 +8,5 @@ export function TeamColorProvider({ colorMap, children }) {
 
 export function useTeamColor(manager) {
   const map = useContext(TeamColorContext);
-  return map[manager] || { text: "text-slate-200", border: "border-slate-800/80" };
+  return map[manager] || { text: "text-[var(--text)]", border: "border-[var(--border)]/80" };
 }

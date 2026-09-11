@@ -1,0 +1,12 @@
+{
+  "name": "LENZONE 2026",
+  "short_name": "LENZONE",
+  "description": "Dual-conference fantasy football hub for the LENZONE 2026 season.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0F172A",
+  "theme_color": "#0F172A",
+  "icons": [
+    { "src": "/icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

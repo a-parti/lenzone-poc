@@ -21,9 +21,14 @@ export async function fetchSleeperLeague(leagueId) {
     });
 
     const rosterIdMap = {};
+    // Sleeper's user_id -- stable across a team renaming itself, unlike the display-name string
+    // used as the manager key everywhere else in this app. Anything that needs to survive a rename
+    // (e.g. an admin-configured per-team default) should key off this, not off `manager`.
+    const ownerIdMap = {};
     const parsedRosters = rostersRes.map(r => {
       const mgrName = userMap[r.owner_id] || `Team ${r.roster_id}`;
       rosterIdMap[r.roster_id] = mgrName;
+      ownerIdMap[mgrName] = r.owner_id;
       const settings = r.settings || {};
       const wins = settings.wins || 0;
       const losses = settings.losses || 0;
@@ -35,6 +40,7 @@ export async function fetchSleeperLeague(leagueId) {
       return {
         manager: mgrName,
         rosterId: r.roster_id,
+        ownerId: r.owner_id,
         wins,
         losses,
         ties,
@@ -56,7 +62,7 @@ export async function fetchSleeperLeague(leagueId) {
     const scoringSettings = leagueRes.scoring_settings || {};
     const tradeDeadlineWeek = leagueRes.settings?.trade_deadline ?? null;
 
-    return { name: leagueRes.name || "Conference", rosters: parsedRosters, rosterIdMap, startingSlots, receptionPoints, scoringSettings, logoMap, irSlotCount, tradeDeadlineWeek };
+    return { name: leagueRes.name || "Conference", rosters: parsedRosters, rosterIdMap, ownerIdMap, startingSlots, receptionPoints, scoringSettings, logoMap, irSlotCount, tradeDeadlineWeek };
   } catch (err) {
     console.error("Failed to fetch Sleeper league:", err);
     return null;

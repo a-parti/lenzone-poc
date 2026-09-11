@@ -1,12 +1,16 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import { useRosterModal } from '../context/RosterModalContext';
+import { useTeamLogo } from '../context/TeamLogoContext';
+import { Zoomable } from '../context/ImageLightboxContext';
 import { CONF_STYLES } from '../lib/theme';
 import RosterList from './RosterList';
 import { scoringFieldFor } from '../lib/players';
+import { useEscapeKey } from './shared';
 
 export default function RosterModal({ afcData, nfcData, afcSeason, nfcSeason, playersDB, weekProjections, selectedWeek, byTeamWeek }) {
   const { target, closeRoster } = useRosterModal();
+  useEscapeKey(closeRoster);
   if (!target) return null;
 
   const confData = target.conf === 'AFC' ? afcData : nfcData;
@@ -14,23 +18,32 @@ export default function RosterModal({ afcData, nfcData, afcSeason, nfcSeason, pl
   const roster = confData.rosters.find(r => r.manager === target.manager);
   const fallbackField = scoringFieldFor(confData.receptionPoints || 0);
   const playersPoints = season?.rosterSnapshotByWeek?.[selectedWeek]?.[target.manager]?.playersPoints;
+  const logoUrl = useTeamLogo(target.manager);
 
   return (
-    <div className="fixed inset-0 z-[60] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={closeRoster}>
+    <div className="fixed inset-0 z-[60] bg-[var(--bg)]/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={closeRoster}>
       <div
-        className="bg-slate-900/95 border border-slate-800/80 rounded-xl p-6 w-full max-w-md shadow-2xl relative max-h-[80vh] overflow-y-auto scroll-thin"
+        className="bg-[var(--surface)]/95 border border-[var(--border)]/80 rounded-xl p-6 w-full max-w-md shadow-2xl relative max-h-[80vh] overflow-y-auto scroll-thin"
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${target.manager} roster`}
       >
-        <button onClick={closeRoster} className="absolute top-3 right-3 text-slate-500 hover:text-slate-200">
+        <button onClick={closeRoster} aria-label="Close" className="absolute top-3 right-3 text-[var(--muted)] hover:text-[var(--text)]">
           <X className="w-4 h-4" />
         </button>
-        <div className="flex items-center gap-2 mb-4">
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${CONF_STYLES[target.conf].badge}`}>{target.conf}</span>
-          <h2 className="font-bold text-slate-100">{target.manager}</h2>
-          <span className="text-[10px] text-slate-500 ml-auto">Week {selectedWeek}</span>
+        <div className="flex items-center gap-3 mb-4">
+          {logoUrl && (
+            <Zoomable src={logoUrl} alt={target.manager} className="w-16 h-16 rounded-full object-cover shrink-0 border-2 border-[var(--border)]" />
+          )}
+          <div className="min-w-0">
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${CONF_STYLES[target.conf].badge}`}>{target.conf}</span>
+            <h2 className="font-display text-xl font-bold text-[var(--text)] truncate">{target.manager}</h2>
+          </div>
+          <span className="text-[10px] text-[var(--muted)] ml-auto shrink-0">Week {selectedWeek}</span>
         </div>
 
-        {!roster && <p className="text-sm text-slate-500 italic">No live roster data available for this team yet.</p>}
+        {!roster && <p className="text-sm text-[var(--muted)] italic">No live roster data available for this team yet.</p>}
         {roster && (
           <RosterList
             roster={roster} startingSlots={confData.startingSlots || []} irSlotCount={confData.irSlotCount || 0} playersDB={playersDB}

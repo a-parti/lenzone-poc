@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { PositionBadge, InjuryBadge, SkeletonRows } from './shared';
 import TeamName from './TeamName';
 import { playerLabel, buildOwnerMap, buildAcquisitionHistory } from '../lib/players';
@@ -16,10 +16,10 @@ const SORT_ACCESSORS = {
 function SortHeader({ label, sortKey, activeKey, dir, onClick }) {
   const active = sortKey === activeKey;
   return (
-    <th className="py-3 px-4 cursor-pointer select-none hover:text-slate-200 transition-colors duration-150" onClick={() => onClick(sortKey)}>
+    <th className="py-3 px-4 cursor-pointer select-none hover:text-[var(--text)] transition-colors duration-150" onClick={() => onClick(sortKey)}>
       <span className="inline-flex items-center gap-1">
         {label}
-        <span className={`text-[9px] ${active ? "text-slate-300" : "text-slate-700"}`}>{active && dir === 'desc' ? "▼" : "▲"}</span>
+        <span className={`text-[9px] ${active ? "text-[var(--text2)]" : "text-[var(--muted)]"}`}>{active && dir === 'desc' ? "▼" : "▲"}</span>
       </span>
     </th>
   );
@@ -28,15 +28,22 @@ function SortHeader({ label, sortKey, activeKey, dir, onClick }) {
 const FANTASY_POSITIONS = ["QB", "RB", "WR", "TE", "K", "DEF"];
 const FLEX_POSITIONS = ["RB", "WR", "TE"];
 
-export default function PlayersTab({ afcData, nfcData, afcDraft, nfcDraft, afcTransactions, nfcTransactions, afcManagers, nfcManagers, playersDB, playersLoading }) {
+export default function PlayersTab({ afcData, nfcData, afcDraft, nfcDraft, afcTransactions, nfcTransactions, afcManagers, nfcManagers, playersDB, playersLoading, focusManager, focusConf }) {
   const [search, setSearch] = useState('');
   const [position, setPosition] = useState('ALL');
-  const [confFilter, setConfFilter] = useState('ALL');
-  const [teamFilter, setTeamFilter] = useState('ALL');
+  const [confFilter, setConfFilter] = useState(focusConf || 'ALL');
+  const [teamFilter, setTeamFilter] = useState(focusManager || 'ALL');
   const [nflTeamFilter, setNflTeamFilter] = useState('ALL');
   const [rosteredOnly, setRosteredOnly] = useState(true);
   const [sortKey, setSortKey] = useState('afcAcquired');
   const [sortDir, setSortDir] = useState('asc');
+
+  useEffect(() => {
+    if (focusManager && focusConf) {
+      setConfFilter(focusConf);
+      setTeamFilter(focusManager);
+    }
+  }, [focusManager, focusConf]);
 
   const afcOwners = useMemo(() => buildOwnerMap(afcData.rosters), [afcData.rosters]);
   const nfcOwners = useMemo(() => buildOwnerMap(nfcData.rosters), [nfcData.rosters]);
@@ -117,29 +124,29 @@ export default function PlayersTab({ afcData, nfcData, afcDraft, nfcDraft, afcTr
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end gap-4 bg-slate-900/60 backdrop-blur-md border border-slate-800/80 p-4 rounded-xl">
+      <div className="flex flex-wrap items-end gap-4 bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 p-4 rounded-xl">
         <div>
-          <label className="tracking-wider text-xs uppercase font-semibold text-slate-400 block mb-1">Search Player</label>
+          <label className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)] block mb-1">Search Player</label>
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Player name..."
-            className="bg-slate-950 border border-slate-800/80 text-sm rounded-lg px-3 py-1.5 text-slate-200 w-44"
+            className="bg-[var(--bg)] border border-[var(--border)]/80 text-sm rounded-lg px-3 py-1.5 text-[var(--text)] w-44"
           />
         </div>
         <div>
-          <label className="tracking-wider text-xs uppercase font-semibold text-slate-400 block mb-1">Position</label>
-          <select value={position} onChange={(e) => setPosition(e.target.value)} className="bg-slate-950 border border-slate-800/80 text-sm rounded-lg px-3 py-1.5 text-slate-200">
+          <label className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)] block mb-1">Position</label>
+          <select value={position} onChange={(e) => setPosition(e.target.value)} className="bg-[var(--bg)] border border-[var(--border)]/80 text-sm rounded-lg px-3 py-1.5 text-[var(--text)]">
             {positions.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
         </div>
         <div>
-          <label className="tracking-wider text-xs uppercase font-semibold text-slate-400 block mb-1">Conference</label>
+          <label className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)] block mb-1">Conference</label>
           <select
             value={confFilter}
             onChange={(e) => { setConfFilter(e.target.value); setTeamFilter('ALL'); }}
-            className="bg-slate-950 border border-slate-800/80 text-sm rounded-lg px-3 py-1.5 text-slate-200"
+            className="bg-[var(--bg)] border border-[var(--border)]/80 text-sm rounded-lg px-3 py-1.5 text-[var(--text)]"
           >
             <option value="ALL">ALL</option>
             <option value="AFC">AFC</option>
@@ -147,25 +154,25 @@ export default function PlayersTab({ afcData, nfcData, afcDraft, nfcDraft, afcTr
           </select>
         </div>
         <div>
-          <label className="tracking-wider text-xs uppercase font-semibold text-slate-400 block mb-1">Fantasy Team</label>
-          <select value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)} className="bg-slate-950 border border-slate-800/80 text-sm rounded-lg px-3 py-1.5 text-slate-200 max-w-[10rem]">
+          <label className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)] block mb-1">Fantasy Team</label>
+          <select value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)} className="bg-[var(--bg)] border border-[var(--border)]/80 text-sm rounded-lg px-3 py-1.5 text-[var(--text)] max-w-[10rem]">
             <option value="ALL">All Teams</option>
             {fantasyTeamOptions.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
         </div>
         <div>
-          <label className="tracking-wider text-xs uppercase font-semibold text-slate-400 block mb-1">NFL Team</label>
-          <select value={nflTeamFilter} onChange={(e) => setNflTeamFilter(e.target.value)} className="bg-slate-950 border border-slate-800/80 text-sm rounded-lg px-3 py-1.5 text-slate-200">
+          <label className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)] block mb-1">NFL Team</label>
+          <select value={nflTeamFilter} onChange={(e) => setNflTeamFilter(e.target.value)} className="bg-[var(--bg)] border border-[var(--border)]/80 text-sm rounded-lg px-3 py-1.5 text-[var(--text)]">
             <option value="ALL">ALL</option>
             {nflTeamOptions.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
-        <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer pb-1.5">
+        <label className="flex items-center gap-2 text-sm text-[var(--text2)] cursor-pointer pb-1.5">
           <input
             type="checkbox"
             checked={rosteredOnly}
             onChange={(e) => setRosteredOnly(e.target.checked)}
-            className="accent-blue-500 w-4 h-4"
+            className="accent-[var(--accent)] w-4 h-4"
           />
           Rostered only
         </label>
@@ -173,10 +180,10 @@ export default function PlayersTab({ afcData, nfcData, afcDraft, nfcDraft, afcTr
 
       {playersLoading && <SkeletonRows rows={4} />}
 
-      <div className="bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-xl overflow-hidden shadow-xl">
+      <div className="bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl overflow-hidden shadow-xl">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-300">
-            <thead className="bg-slate-950/80 tracking-wider text-xs uppercase font-semibold text-slate-400 border-b border-slate-800/80">
+          <table className="w-full text-left text-sm text-[var(--text2)]">
+            <thead className="bg-[var(--bg)]/80 tracking-wider text-xs uppercase font-semibold text-[var(--text2)] border-b border-[var(--border)]/80">
               <tr>
                 <SortHeader label="Player" sortKey="name" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
                 <SortHeader label="Pos" sortKey="position" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
@@ -186,13 +193,13 @@ export default function PlayersTab({ afcData, nfcData, afcDraft, nfcDraft, afcTr
                 <SortHeader label="NFC Acquired" sortKey="nfcAcquired" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60">
+            <tbody className="divide-y divide-[var(--border)]/60">
               {sorted.map(r => (
-                <tr key={r.id} className="hover:bg-slate-800/30 transition-all duration-200">
+                <tr key={r.id} className="hover:bg-[var(--surface2)]/30 transition-all duration-200">
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-2">
-                      <PlayerNameButton playerId={r.id} name={r.name} position={r.position} className="font-semibold text-slate-100" />
-                      <span className="text-xs text-slate-500">{r.nflTeam}</span>
+                      <PlayerNameButton playerId={r.id} name={r.name} position={r.position} className="font-semibold text-[var(--text)]" />
+                      <span className="text-xs text-[var(--muted)]">{r.nflTeam}</span>
                       <InjuryBadge status={r.injuryStatus} />
                     </div>
                   </td>
@@ -200,14 +207,14 @@ export default function PlayersTab({ afcData, nfcData, afcDraft, nfcDraft, afcTr
                     <div className="flex items-center gap-1.5">
                       <PositionBadge position={r.position} />
                       {r.depthChart && (
-                        <span className="text-[10px] font-mono text-slate-500 bg-slate-800/60 px-1.5 py-0.5 rounded">{r.depthChart}</span>
+                        <span className="text-[10px] font-mono text-[var(--muted)] bg-[var(--surface2)]/60 px-1.5 py-0.5 rounded">{r.depthChart}</span>
                       )}
                     </div>
                   </td>
                   <td className="py-3 px-4">
-                    {r.afcOwner ? <TeamName manager={r.afcOwner} conf="AFC" /> : <span className="text-slate-700 italic">Unrostered</span>}
+                    {r.afcOwner ? <TeamName manager={r.afcOwner} conf="AFC" /> : <span className="text-[var(--muted)] italic">Unrostered</span>}
                   </td>
-                  <td className="py-3 px-4 font-mono text-xs text-slate-400">
+                  <td className="py-3 px-4 font-mono text-xs text-[var(--text2)]">
                     {r.afcHistory ? (
                       <div className="space-y-0.5">
                         {r.afcHistory.map((e, i) => <p key={i}>{e.label}</p>)}
@@ -215,9 +222,9 @@ export default function PlayersTab({ afcData, nfcData, afcDraft, nfcDraft, afcTr
                     ) : "Undrafted / FA"}
                   </td>
                   <td className="py-3 px-4">
-                    {r.nfcOwner ? <TeamName manager={r.nfcOwner} conf="NFC" /> : <span className="text-slate-700 italic">Unrostered</span>}
+                    {r.nfcOwner ? <TeamName manager={r.nfcOwner} conf="NFC" /> : <span className="text-[var(--muted)] italic">Unrostered</span>}
                   </td>
-                  <td className="py-3 px-4 font-mono text-xs text-slate-400">
+                  <td className="py-3 px-4 font-mono text-xs text-[var(--text2)]">
                     {r.nfcHistory ? (
                       <div className="space-y-0.5">
                         {r.nfcHistory.map((e, i) => <p key={i}>{e.label}</p>)}
@@ -227,7 +234,7 @@ export default function PlayersTab({ afcData, nfcData, afcDraft, nfcDraft, afcTr
                 </tr>
               ))}
               {sorted.length === 0 && (
-                <tr><td colSpan={6} className="py-6 px-4 text-center text-slate-500 italic">No players match this filter.</td></tr>
+                <tr><td colSpan={6} className="py-6 px-4 text-center text-[var(--muted)] italic">No players match this filter.</td></tr>
               )}
             </tbody>
           </table>

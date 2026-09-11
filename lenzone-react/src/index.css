@@ -1,21 +1,245 @@
 @import "tailwindcss";
 
+/* ---------------------------------------------------------------------------
+   Color-scheme theme system
+   Each scheme defines just 3 raw values (--bg, --text, --accent); every other
+   surface/border/muted-text role is derived from those via color-mix so the
+   same formula works for light AND dark automatically (mixing bg+text always
+   nudges toward the readable end, whichever mode that is).
+--------------------------------------------------------------------------- */
+:root {
+  --bg: #0F172A;
+  --text: #F8FAFC;
+  --accent: #e76f51;
+}
+
+[data-scheme="accent"][data-mode="dark"]    { --bg: #0F172A; --text: #F8FAFC; --accent: #e76f51; }
+[data-scheme="accent"][data-mode="light"]   { --bg: #F8FAFC; --text: #0F172A; --accent: #e76f51; }
+
+[data-scheme="ocean"][data-mode="dark"]     { --bg: #1d3557; --text: #f1faee; --accent: #e63946; }
+[data-scheme="ocean"][data-mode="light"]    { --bg: #f1faee; --text: #1d3557; --accent: #e63946; }
+
+[data-scheme="beach"][data-mode="dark"]     { --bg: #353535; --text: #d9d9d9; --accent: #3c6e71; }
+[data-scheme="beach"][data-mode="light"]    { --bg: #ffffff; --text: #353535; --accent: #3c6e71; }
+
+[data-scheme="contrast"][data-mode="dark"]  { --bg: #011627; --text: #fdfffc; --accent: #2ec4b6; }
+[data-scheme="contrast"][data-mode="light"] { --bg: #fdfffc; --text: #011627; --accent: #2ec4b6; }
+
+[data-scheme="fireside"][data-mode="dark"]  { --bg: #231f20; --text: #efe6dd; --accent: #bb4430; }
+[data-scheme="fireside"][data-mode="light"] { --bg: #efe6dd; --text: #231f20; --accent: #bb4430; }
+
+/* One scheme per NFL team, generated from each team's real brand colors (src/lib/nflTeams.js,
+   NFL_TEAM_SCHEMES) -- bg is the same near-black/near-white base as the curated schemes above,
+   lightly tinted with the team's brand color for a distinct-but-still-readable feel. A random one
+   of these loads by default each visit (ThemeContext.jsx) until the viewer picks a scheme manually.
+   The accent itself is tuned SEPARATELY per mode (not just re-tinted like bg/text) -- a team's raw
+   brand color is often too dark to read against this same dark bg (e.g. Steelers/Raiders black,
+   or navy teams like Cowboys/Seahawks/Patriots), so the dark-mode accent is lightened just enough
+   to clear a 3:1 contrast check against --bg; light mode uses the true brand color, which already
+   has strong contrast against a near-white bg. A few naturally bright brand colors (Panthers,
+   Bengals, Chargers, Dolphins, Titans) read better with dark ink than white text on top of them in
+   either mode, so those set --accent-text: #111111 to override the white default below. */
+[data-scheme="nfl-ari"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #a40227 14%); --text: #F8FAFC; --accent: #b83a57; }
+[data-scheme="nfl-ari"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #a40227 7%); --text: #0F172A; --accent: #a40227; }
+[data-scheme="nfl-atl"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #a71930 14%); --text: #F8FAFC; --accent: #b74255; }
+[data-scheme="nfl-atl"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #a71930 7%); --text: #0F172A; --accent: #a71930; }
+[data-scheme="nfl-bal"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #29126f 14%); --text: #F8FAFC; --accent: #6d5e9d; }
+[data-scheme="nfl-bal"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #29126f 7%); --text: #0F172A; --accent: #29126f; }
+[data-scheme="nfl-buf"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #00338d 14%); --text: #F8FAFC; --accent: #4268ab; }
+[data-scheme="nfl-buf"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #00338d 7%); --text: #0F172A; --accent: #00338d; }
+[data-scheme="nfl-car"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #0085ca 14%); --text: #F8FAFC; --accent: #0085ca; --accent-text: #111111; }
+[data-scheme="nfl-car"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #0085ca 7%); --text: #0F172A; --accent: #0085ca; --accent-text: #111111; }
+[data-scheme="nfl-chi"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #0b1c3a 14%); --text: #F8FAFC; --accent: #5e697d; }
+[data-scheme="nfl-chi"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #0b1c3a 7%); --text: #0F172A; --accent: #0b1c3a; }
+[data-scheme="nfl-cin"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #fb4f14 14%); --text: #F8FAFC; --accent: #fb4f14; --accent-text: #111111; }
+[data-scheme="nfl-cin"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #fb4f14 7%); --text: #0F172A; --accent: #f14c13; --accent-text: #111111; }
+[data-scheme="nfl-cle"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #472a08 14%); --text: #F8FAFC; --accent: #7b664d; }
+[data-scheme="nfl-cle"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #472a08 7%); --text: #0F172A; --accent: #472a08; }
+[data-scheme="nfl-dal"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #002a5c 14%); --text: #F8FAFC; --accent: #4d6a8d; }
+[data-scheme="nfl-dal"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #002a5c 7%); --text: #0F172A; --accent: #002a5c; }
+[data-scheme="nfl-den"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #0a2343 14%); --text: #F8FAFC; --accent: #58697f; }
+[data-scheme="nfl-den"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #0a2343 7%); --text: #0F172A; --accent: #0a2343; }
+[data-scheme="nfl-det"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #0076b6 14%); --text: #F8FAFC; --accent: #0076b6; }
+[data-scheme="nfl-det"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #0076b6 7%); --text: #0F172A; --accent: #0076b6; }
+[data-scheme="nfl-gb"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #204e32 14%); --text: #F8FAFC; --accent: #4d715b; }
+[data-scheme="nfl-gb"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #204e32 7%); --text: #0F172A; --accent: #204e32; }
+[data-scheme="nfl-hou"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #021018 14%); --text: #F8FAFC; --accent: #5d666b; }
+[data-scheme="nfl-hou"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #021018 7%); --text: #0F172A; --accent: #021018; }
+[data-scheme="nfl-ind"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #003b75 14%); --text: #F8FAFC; --accent: #426e99; }
+[data-scheme="nfl-ind"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #003b75 7%); --text: #0F172A; --accent: #003b75; }
+[data-scheme="nfl-jax"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #007487 14%); --text: #F8FAFC; --accent: #0a7a8c; }
+[data-scheme="nfl-jax"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #007487 7%); --text: #0F172A; --accent: #007487; }
+[data-scheme="nfl-kc"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #e31837 14%); --text: #F8FAFC; --accent: #e31837; }
+[data-scheme="nfl-kc"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #e31837 7%); --text: #0F172A; --accent: #e31837; }
+[data-scheme="nfl-lv"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #000000 14%); --text: #F8FAFC; --accent: #666666; }
+[data-scheme="nfl-lv"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #000000 7%); --text: #0F172A; --accent: #000000; }
+[data-scheme="nfl-lac"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #0080c6 14%); --text: #F8FAFC; --accent: #0080c6; --accent-text: #111111; }
+[data-scheme="nfl-lac"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #0080c6 7%); --text: #0F172A; --accent: #0080c6; --accent-text: #111111; }
+[data-scheme="nfl-lar"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #003594 14%); --text: #F8FAFC; --accent: #426ab0; }
+[data-scheme="nfl-lar"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #003594 7%); --text: #0F172A; --accent: #003594; }
+[data-scheme="nfl-mia"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #008e97 14%); --text: #F8FAFC; --accent: #008e97; --accent-text: #111111; }
+[data-scheme="nfl-mia"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #008e97 7%); --text: #0F172A; --accent: #008e97; --accent-text: #111111; }
+[data-scheme="nfl-min"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #4f2683 14%); --text: #F8FAFC; --accent: #795aa1; }
+[data-scheme="nfl-min"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #4f2683 7%); --text: #0F172A; --accent: #4f2683; }
+[data-scheme="nfl-ne"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #002a5c 14%); --text: #F8FAFC; --accent: #4d6a8d; }
+[data-scheme="nfl-ne"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #002a5c 7%); --text: #0F172A; --accent: #002a5c; }
+[data-scheme="nfl-no"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #000000 14%); --text: #F8FAFC; --accent: #666666; }
+[data-scheme="nfl-no"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #000000 7%); --text: #0F172A; --accent: #000000; }
+[data-scheme="nfl-nyg"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #003c7f 14%); --text: #F8FAFC; --accent: #3d6b9e; }
+[data-scheme="nfl-nyg"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #003c7f 7%); --text: #0F172A; --accent: #003c7f; }
+[data-scheme="nfl-nyj"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #115740 14%); --text: #F8FAFC; --accent: #3c7562; }
+[data-scheme="nfl-nyj"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #115740 7%); --text: #0F172A; --accent: #115740; }
+[data-scheme="nfl-phi"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #06424d 14%); --text: #F8FAFC; --accent: #426f78; }
+[data-scheme="nfl-phi"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #06424d 7%); --text: #0F172A; --accent: #06424d; }
+[data-scheme="nfl-pit"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #000000 14%); --text: #F8FAFC; --accent: #666666; }
+[data-scheme="nfl-pit"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #000000 7%); --text: #0F172A; --accent: #000000; }
+[data-scheme="nfl-sf"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #aa0000 14%); --text: #F8FAFC; --accent: #bd3838; }
+[data-scheme="nfl-sf"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #aa0000 7%); --text: #0F172A; --accent: #aa0000; }
+[data-scheme="nfl-sea"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #002a5c 14%); --text: #F8FAFC; --accent: #4d6a8d; }
+[data-scheme="nfl-sea"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #002a5c 7%); --text: #0F172A; --accent: #002a5c; }
+[data-scheme="nfl-tb"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #bd1c36 14%); --text: #F8FAFC; --accent: #c4334a; }
+[data-scheme="nfl-tb"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #bd1c36 7%); --text: #0F172A; --accent: #bd1c36; }
+[data-scheme="nfl-ten"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #4495d2 14%); --text: #F8FAFC; --accent: #4495d2; --accent-text: #111111; }
+[data-scheme="nfl-ten"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #4495d2 7%); --text: #0F172A; --accent: #408cc5; --accent-text: #111111; }
+[data-scheme="nfl-was"][data-mode="dark"]  { --bg: color-mix(in srgb, #0b1220, #5a1414 14%); --text: #F8FAFC; --accent: #8c5b5b; }
+[data-scheme="nfl-was"][data-mode="light"] { --bg: color-mix(in srgb, #fafbfc, #5a1414 7%); --text: #0F172A; --accent: #5a1414; }
+
+:root, [data-scheme] {
+  --surface:   color-mix(in srgb, var(--bg), var(--text) 6%);
+  --surface2:  color-mix(in srgb, var(--bg), var(--text) 12%);
+  --border:    color-mix(in srgb, var(--bg), var(--text) 18%);
+  --border2:   color-mix(in srgb, var(--bg), var(--text) 28%);
+  --text2:     color-mix(in srgb, var(--text), var(--bg) 22%);
+  --muted:     color-mix(in srgb, var(--text), var(--bg) 45%);
+  --accent-ink: color-mix(in srgb, var(--accent), black 25%);
+  /* Text color to place on top of a solid --accent fill (buttons, active pills). White by default;
+     a handful of team schemes with unusually bright accents override this to dark ink above. */
+  --accent-text: #ffffff;
+}
+
+/* Semantic status colors (actual/beat-projection green, projected blue, missed-projection red) --
+   kept independent of the aesthetic color scheme, but tuned per light/dark mode since a shade
+   that reads clearly on a dark surface (e.g. Tailwind's emerald-400) can be too light to pass
+   contrast on a light one. */
+:root, [data-mode="dark"] {
+  --pos: #34d399;
+  --neg: #fb7185;
+  --proj: #60a5fa;
+}
+[data-mode="light"] {
+  --pos: #047857;
+  --neg: #be123c;
+  --proj: #1d4ed8;
+}
+
+html {
+  /* Bumps every rem-based Tailwind text size up uniformly (site-wide "bigger text" pass)
+     without having to touch every text-* class individually. */
+  font-size: 18px;
+}
+
+html {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border2) var(--bg);
+}
+.scrollbar-none::-webkit-scrollbar { display: none; }
+
+@keyframes confetti-pop {
+  0% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+  100% { transform: translate(var(--dx), var(--dy)) rotate(var(--rot)); opacity: 0; }
+}
+.confetti-piece {
+  animation: confetti-pop 0.9s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+
+/* The SAME wide gradient/background-size is applied at rest and on hover -- only whether the
+   animation is running toggles. Swapping background-image itself (the old approach) caused a
+   visible jump right as the hover started, since the browser had to jump from a plain 3-stop
+   gradient to an already-scrolled frame of the 8-stop one; keeping one continuous gradient and
+   just pausing/resuming it removes that seam entirely.
+   The 4-stop cycle (red/accent/blue/gold) is written out TWICE back-to-back, then background-size
+   is set so one cycle spans exactly 100% of the element width -- shifting by exactly one cycle
+   (0% to -100%) lands on a pixel-identical frame to the start, so the loop itself has no seam either. */
+.lenzone-title {
+  background-image: linear-gradient(90deg, #f87171, var(--accent), #60a5fa, #facc15, #f87171, var(--accent), #60a5fa, #facc15);
+  background-size: 200% 100%;
+  animation: title-shine 2.4s linear infinite;
+  animation-play-state: paused;
+  transition: filter 0.3s ease;
+}
+.group:hover .lenzone-title {
+  animation-play-state: running;
+  filter: brightness(1.2) drop-shadow(0 0 10px color-mix(in srgb, var(--accent), transparent 45%));
+}
+@keyframes title-shine {
+  from { background-position: 0% 50%; }
+  to { background-position: -100% 50%; }
+}
+
+/* Continuous spin for as long as the logo is hovered (not just a single one-shot rotation) --
+   paused at rest so it sits still, resumes exactly where a CSS animation naturally restarts (0deg)
+   when re-hovered, which reads fine since a full rotation ends visually identical to the start. */
+.logo-ball {
+  animation: logo-spin 0.9s linear infinite;
+  animation-play-state: paused;
+}
+.group:hover .logo-ball {
+  animation-play-state: running;
+}
+@keyframes logo-spin {
+  to { transform: rotate(360deg); }
+}
+html::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+html::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+html::-webkit-scrollbar-thumb {
+  background-color: var(--border2);
+  border-radius: 999px;
+  border: 2px solid var(--bg);
+}
+html::-webkit-scrollbar-thumb:hover {
+  background-color: var(--muted);
+}
+
+:root {
+  --font-body: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: 'Sora', ui-sans-serif, system-ui, sans-serif;
+}
+
 body {
   margin: 0;
-  background-color: #0F172A;
-  color: #F8FAFC;
-  font-family: system-ui, -apple-system, sans-serif;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .font-display {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-display);
 }
 
-/* Thin, dark scrollbar for internal scroll containers (weekly scoring table, etc.) instead of the
-   default chunky OS scrollbar. */
+/* Tabular figures for scores/stats so columns of numbers line up cleanly. */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up {
+  animation: fade-in-up 0.4s ease-out both;
+}
+
+/* Thin, theme-aware scrollbar for internal scroll containers (weekly scoring table, etc.) instead
+   of the default chunky OS scrollbar. */
 .scroll-thin {
   scrollbar-width: thin;
-  scrollbar-color: #334155 transparent;
+  scrollbar-color: var(--border2) transparent;
 }
 .scroll-thin::-webkit-scrollbar {
   width: 6px;
@@ -25,9 +249,9 @@ body {
   background: transparent;
 }
 .scroll-thin::-webkit-scrollbar-thumb {
-  background-color: #334155;
+  background-color: var(--border2);
   border-radius: 999px;
 }
 .scroll-thin::-webkit-scrollbar-thumb:hover {
-  background-color: #475569;
+  background-color: var(--muted);
 }

@@ -295,6 +295,40 @@ export function computeWeeklyAwards(afcSeason, nfcSeason, week, projectedScoreBy
   return { highScore, lowScore, closest, blowout, projectedClosest, projectedBlowout, projectedHighScore, projectedLowScore };
 }
 
+// "Trophies" = the cross-conference matchup wins tally for the week (real once final, blended
+// live+projected otherwise -- pass whichever `matchupRecord` fits) PLUS the weekly award
+// categories (High Score / Low Score / Closest Game / Biggest Blowout) shown as trophy/award
+// cards on the Weekly Matchups tab, each attributed to its manager's conference. One function so
+// the Home "This Week" card and the Weekly Matchups tab always show the identical number.
+export function computeProjectedTrophies(awards, matchupRecord, afcManagers) {
+  const afcSet = new Set(afcManagers);
+  const tally = { afc: 0, nfc: 0 };
+  if (matchupRecord) {
+    tally.afc += matchupRecord.afcWins || 0;
+    tally.nfc += matchupRecord.nfcWins || 0;
+  }
+  if (awards) {
+    const high = awards.projectedHighScore || awards.highScore;
+    const low = awards.projectedLowScore || awards.lowScore;
+    const closest = awards.projectedClosest || awards.closest;
+    const blowout = awards.projectedBlowout || awards.blowout;
+    const award = (rec) => {
+      if (!rec) return;
+      if (afcSet.has(rec.manager)) tally.afc++; else tally.nfc++;
+    };
+    const gameWinner = (g) => {
+      if (!g || g.sa == null || g.sb == null || g.sa === g.sb) return;
+      const winner = g.sa > g.sb ? g.a : g.b;
+      if (afcSet.has(winner)) tally.afc++; else tally.nfc++;
+    };
+    award(high);
+    award(low);
+    gameWinner(closest);
+    gameWinner(blowout);
+  }
+  return tally;
+}
+
 // inConfRecordByManager: output of computeInConfRecord (real, frozen-to-completed-weeks record/PF) --
 // replaces reading confData.rosters' live Sleeper wins/losses/ties/fpts.
 export function buildConferenceList(managers, confData, crossRecordByManager, pointsAgainstByManager = {}, inConfRecordByManager = {}) {

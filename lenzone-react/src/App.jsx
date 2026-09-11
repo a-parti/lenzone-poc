@@ -1,14 +1,16 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Trophy, Swords, Megaphone, Scroll, ExternalLink, RefreshCw, Award, Lock, Unlock, X, TrendingDown, Zap, Flame, Activity, ListOrdered, Users, Calendar, ChevronDown, Search, Image, ImageOff, Home } from 'lucide-react';
-import lenzoneLogo from './assets/LENZone-option-H-vertical-bold-no-text.png';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Trophy, Swords, Megaphone, Scroll, ExternalLink, RefreshCw, Award, Lock, Unlock, X, Activity, ListOrdered, Users, Calendar, Search, Volume2, VolumeX } from 'lucide-react';
+import lenzoneLogoRing from './assets/lenzone-logo-ring.png';
+import lenzoneLogoBall from './assets/lenzone-logo-ball.png';
 import { CONF_STYLES } from './lib/theme';
 import { ConfFilterToggle } from './components/shared';
 import {
   fetchSleeperLeague, fetchFullSeasonData, fetchPlayersDB, fetchSeasonTransactions, fetchDraftPicks, fetchAllWeekProjections, fetchNflState, fetchNflSchedule
 } from './lib/sleeperApi';
+import { fetchWeekKickoffInfo } from './lib/espnApi';
 import {
   computeStats, buildHistory, simulateCombinedPlayoffOdds, computeCrossRecords, computeCrossWeekRecord,
-  computeWeeklyAwards, buildConferenceList, rankConference, winProbability, roughWinProbability, computePointsAgainst, computeInConfRecord
+  computeWeeklyAwards, computeProjectedTrophies, buildConferenceList, rankConference, winProbability, roughWinProbability, computePointsAgainst, computeInConfRecord
 } from './lib/statsMath';
 import RosterTab from './components/RosterTab';
 import ActivityTab from './components/ActivityTab';
@@ -18,17 +20,25 @@ import RosterModal from './components/RosterModal';
 import TeamName from './components/TeamName';
 import ScheduleTab from './components/ScheduleTab';
 import HomeView from './components/HomeView';
+import CurrentWeekView from './components/CurrentWeekView';
+import CommandPalette from './components/CommandPalette';
+import ManagerMatchupRow from './components/ManagerMatchupRow';
+import WeeklyHighlights from './components/WeeklyHighlights';
 import { RosterModalProvider } from './context/RosterModalContext';
 import { PlayerModalProvider } from './context/PlayerModalContext';
 import PlayerModal from './components/PlayerModal';
-import PlayerNameButton from './components/PlayerNameButton';
 import { TeamColorProvider } from './context/TeamColorContext';
+import { MyTeamProvider } from './context/MyTeamContext';
+import { useTheme, ALL_SCHEMES } from './context/ThemeContext';
+import { getEffectiveOverrides, managerSchemeKey } from './lib/teamDefaults';
+import { resolveEasterEggSoundUrl } from './lib/genericSounds';
+import TeamDefaultsAdmin from './components/TeamDefaultsAdmin';
+import { ImageLightboxProvider, Zoomable } from './context/ImageLightboxContext';
 import { TeamLogoProvider } from './context/TeamLogoContext';
-import { PlayerPhotoProvider, usePlayerPhotos } from './context/PlayerPhotoContext';
+import { PlayerPhotoProvider } from './context/PlayerPhotoContext';
 import { buildConferenceColorMap, getDraftSlotMap } from './lib/teamColors';
-import { playerLabel, scoringFieldFor, projectedPoints, computeRosterProjection, computeBlendedRosterScore, buildOwnerMap, buildAcquisitionHistory, computeMoveCounts } from './lib/players';
-import { PositionBadge, InjuryBadge, GameBadge, Button } from './components/shared';
-import PlayerAvatar from './components/PlayerAvatar';
+import { scoringFieldFor, computeRosterProjection, computeBlendedRosterScore, buildOwnerMap, buildAcquisitionHistory, computeMoveCounts } from './lib/players';
+import { Button, ThemeToggle, TeamPicker, useEscapeKey } from './components/shared';
 
 // LENZONE 2026 is a fixed dual-conference league. These IDs should not change season to season.
 const AFC_LEAGUE_ID = "1394069274644979712";
@@ -66,6 +76,7 @@ const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD;
 function AdminLoginModal({ onClose, onSuccess }) {
   const [passwordInput, setPasswordInput] = useState("");
   const [error, setError] = useState("");
+  useEscapeKey(onClose);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -81,23 +92,23 @@ function AdminLoginModal({ onClose, onSuccess }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[60] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <form onSubmit={handleSubmit} className="bg-slate-900/95 border border-slate-800/80 rounded-xl p-6 w-full max-w-xs shadow-2xl relative">
-        <button type="button" onClick={onClose} className="absolute top-3 right-3 text-slate-500 hover:text-slate-200">
+    <div className="fixed inset-0 z-[60] bg-[var(--bg)]/80 backdrop-blur-sm flex items-center justify-center p-4">
+      <form onSubmit={handleSubmit} className="bg-[var(--surface)]/95 border border-[var(--border)]/80 rounded-xl p-6 w-full max-w-xs shadow-2xl relative" role="dialog" aria-modal="true" aria-label="Admin Login">
+        <button type="button" onClick={onClose} aria-label="Close" className="absolute top-3 right-3 text-[var(--muted)] hover:text-[var(--text)]">
           <X className="w-4 h-4" />
         </button>
-        <h2 className="text-sm font-bold text-slate-100 mb-1">Admin Login</h2>
-        <p className="text-xs text-slate-500 mb-4">Unlocks charter editing, broadcast fields, and league ID overrides.</p>
+        <h2 className="text-sm font-bold text-[var(--text)] mb-1">Admin Login</h2>
+        <p className="text-xs text-[var(--muted)] mb-4">Unlocks charter editing, broadcast fields, and league ID overrides.</p>
         <input
           type="password"
           autoFocus
           value={passwordInput}
           onChange={(e) => setPasswordInput(e.target.value)}
           placeholder="Password"
-          className="w-full bg-slate-950 border border-slate-800/80 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-blue-500 mb-2"
+          className="w-full bg-[var(--bg)] border border-[var(--border)]/80 text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-[var(--accent)] mb-2"
         />
         {error && <p className="text-xs text-rose-400 mb-2">{error}</p>}
-        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-3 py-2 rounded-lg transition-all duration-200">
+        <button type="submit" className="w-full bg-[var(--accent)] hover:bg-[var(--accent-ink)] text-[var(--accent-text)] text-sm font-semibold px-3 py-2 rounded-lg transition-all duration-200">
           Unlock
         </button>
       </form>
@@ -131,23 +142,14 @@ function SortHeader({ label, sortKey, activeKey, dir, onClick }) {
   const active = sortKey === activeKey;
   return (
     <th
-      className="py-3 px-4 cursor-pointer select-none hover:text-slate-200 transition-colors duration-150"
+      className="py-3 px-4 cursor-pointer select-none hover:text-[var(--text)] transition-colors duration-150"
       onClick={() => onClick(sortKey)}
     >
       <span className="inline-flex items-center gap-1">
         {label}
-        <span className={`text-[9px] ${active ? "text-slate-300" : "text-slate-700"}`}>{active && dir === 'desc' ? "▼" : "▲"}</span>
+        <span className={`text-[9px] ${active ? "text-[var(--text2)]" : "text-[var(--muted)]"}`}>{active && dir === 'desc' ? "▼" : "▲"}</span>
       </span>
     </th>
-  );
-}
-
-function PhotoToggleButton() {
-  const { enabled, toggle } = usePlayerPhotos();
-  return (
-    <Button variant="icon" onClick={toggle} title={enabled ? "Hide player photos" : "Show player photos"}>
-      {enabled ? <Image className="w-4 h-4" /> : <ImageOff className="w-4 h-4" />}
-    </Button>
   );
 }
 
@@ -173,15 +175,15 @@ function StandingsTable({ conf, rows }) {
   });
 
   return (
-    <div className="bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-xl overflow-hidden shadow-xl">
-      <div className="px-4 py-3 border-b border-slate-800/80 flex items-center gap-2">
+    <div className="bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl overflow-hidden shadow-xl">
+      <div className="px-4 py-3 border-b border-[var(--border)]/80 flex items-center gap-2">
         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${style.badge}`}>{conf}</span>
-        <span className="tracking-wider text-xs uppercase font-semibold text-slate-400">Conference Standings</span>
+        <span className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)]">Conference Standings</span>
       </div>
 
       <div className="hidden md:block overflow-x-auto">
-        <table className="w-full text-left text-sm text-slate-300">
-          <thead className="bg-slate-950/80 tracking-wider text-xs uppercase font-semibold text-slate-400 border-b border-slate-800/80">
+        <table className="w-full text-left text-sm text-[var(--text2)]">
+          <thead className="bg-[var(--bg)]/80 tracking-wider text-xs uppercase font-semibold text-[var(--text2)] border-b border-[var(--border)]/80">
             <tr>
               <SortHeader label="Rank" sortKey="rank" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
               <SortHeader label="Manager" sortKey="manager" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
@@ -195,72 +197,70 @@ function StandingsTable({ conf, rows }) {
               <SortHeader label="Moves" sortKey="moves" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/60">
+          <tbody className="divide-y divide-[var(--border)]/60">
             {sortedRows.map((item, idx) => (
-              <tr key={idx} className="hover:bg-slate-800/30 transition-all duration-200">
-                <td className="py-3 px-4 font-bold text-slate-400">{item.rank}</td>
-                <td className="py-3 px-4 font-bold text-slate-100">
+              <tr key={idx} className="hover:bg-[var(--surface2)]/30 transition-all duration-200">
+                <td className="py-3 px-4 font-bold text-[var(--text2)]">{item.rank}</td>
+                <td className="py-3 px-4 font-bold text-[var(--text)]">
                   <div className="flex items-center gap-2">
                     <TeamName manager={item.manager} conf={conf} className="font-bold" />
-                    {item.rank === 1 && <Award className="w-4 h-4 text-emerald-400" />}
                   </div>
                 </td>
                 <td className="py-3 px-4">{item.inConfRecord}</td>
                 <td className="py-3 px-4">{item.interConfRecord}</td>
                 <td className={`py-3 px-4 font-extrabold ${style.text}`}>{item.totalPts.toFixed(1)}</td>
                 <td className="py-3 px-4 font-mono">{item.pf.toFixed(2)}</td>
-                <td className="py-3 px-4 font-mono text-slate-400">{item.pa.toFixed(2)}</td>
+                <td className="py-3 px-4 font-mono text-[var(--text2)]">{item.pa.toFixed(2)}</td>
                 <td className="py-3 px-4 font-mono">{item.playoffPct === null || item.playoffPct === undefined ? "--" : `${item.playoffPct.toFixed(0)}%`}</td>
                 <td className="py-3 px-4 text-emerald-400">{item.faab}</td>
-                <td className="py-3 px-4 font-mono text-slate-400">{item.moves}</td>
+                <td className="py-3 px-4 font-mono text-[var(--text2)]">{item.moves}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
 
-      <div className="md:hidden divide-y divide-slate-800/60">
+      <div className="md:hidden divide-y divide-[var(--border)]/60">
         {sortedRows.map((item, idx) => (
-          <div key={idx} className={`p-4 border-l-2 ${style.border} hover:bg-slate-800/30 transition-all duration-200`}>
+          <div key={idx} className={`p-4 border-l-2 ${style.border} hover:bg-[var(--surface2)]/30 transition-all duration-200`}>
             <div className="flex justify-between items-center mb-3">
               <div className="flex items-center gap-2">
-                <span className="text-slate-500 font-bold text-sm">#{item.rank}</span>
+                <span className="text-[var(--muted)] font-bold text-sm">#{item.rank}</span>
                 <TeamName manager={item.manager} conf={conf} className="font-bold" />
-                {item.rank === 1 && <Award className="w-4 h-4 text-emerald-400" />}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <p className="tracking-wider text-[10px] uppercase font-semibold text-slate-500">Intra-Conf</p>
-                <p className="text-slate-200 font-semibold text-sm">{item.inConfRecord}</p>
+                <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">Intra-Conf</p>
+                <p className="text-[var(--text)] font-semibold text-sm">{item.inConfRecord}</p>
               </div>
               <div>
-                <p className="tracking-wider text-[10px] uppercase font-semibold text-slate-500">Inter-Conf</p>
-                <p className="text-slate-200 font-semibold text-sm">{item.interConfRecord}</p>
+                <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">Inter-Conf</p>
+                <p className="text-[var(--text)] font-semibold text-sm">{item.interConfRecord}</p>
               </div>
               <div>
-                <p className="tracking-wider text-[10px] uppercase font-semibold text-slate-500">Pts</p>
+                <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">Pts</p>
                 <p className={`font-extrabold text-sm ${style.text}`}>{item.totalPts.toFixed(1)}</p>
               </div>
               <div>
-                <p className="tracking-wider text-[10px] uppercase font-semibold text-slate-500">PF</p>
-                <p className="text-slate-200 font-mono text-sm">{item.pf.toFixed(2)}</p>
+                <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">PF</p>
+                <p className="text-[var(--text)] font-mono text-sm">{item.pf.toFixed(2)}</p>
               </div>
               <div>
-                <p className="tracking-wider text-[10px] uppercase font-semibold text-slate-500">PA</p>
-                <p className="text-slate-400 font-mono text-sm">{item.pa.toFixed(2)}</p>
+                <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">PA</p>
+                <p className="text-[var(--text2)] font-mono text-sm">{item.pa.toFixed(2)}</p>
               </div>
               <div>
-                <p className="tracking-wider text-[10px] uppercase font-semibold text-slate-500">Playoff %</p>
-                <p className="text-slate-200 font-mono text-sm">{item.playoffPct === null || item.playoffPct === undefined ? "--" : `${item.playoffPct.toFixed(0)}%`}</p>
+                <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">Playoff %</p>
+                <p className="text-[var(--text)] font-mono text-sm">{item.playoffPct === null || item.playoffPct === undefined ? "--" : `${item.playoffPct.toFixed(0)}%`}</p>
               </div>
               <div>
-                <p className="tracking-wider text-[10px] uppercase font-semibold text-slate-500">FAAB</p>
+                <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">FAAB</p>
                 <p className="text-emerald-400 font-semibold text-sm">{item.faab}</p>
               </div>
               <div>
-                <p className="tracking-wider text-[10px] uppercase font-semibold text-slate-500">Moves</p>
-                <p className="text-slate-400 font-mono text-sm">{item.moves}</p>
+                <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">Moves</p>
+                <p className="text-[var(--text2)] font-mono text-sm">{item.moves}</p>
               </div>
             </div>
           </div>
@@ -270,87 +270,31 @@ function StandingsTable({ conf, rows }) {
   );
 }
 
-function HighlightCard({ icon: Icon, label, name, value, accent, onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="text-left bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-xl p-4 hover:border-slate-700 hover:scale-[1.01] transition-all duration-200 w-full"
-    >
-      <div className="flex items-center gap-2 mb-2">
-        <Icon className={`w-4 h-4 ${accent}`} />
-        <span className="tracking-wider text-[10px] uppercase font-semibold text-slate-500">{label}</span>
-      </div>
-      <p className="font-bold text-slate-100 text-sm truncate">{name}</p>
-      <p className={`text-xs font-mono ${accent}`}>{value}</p>
-    </button>
-  );
-}
-
-// While the week is still live/in-progress, every card is explicitly labeled "Projected" and driven
-// by the blended projected-final numbers (not a partial leaderboard of whoever's ahead right now) --
-// so it's clear these aren't real trophies yet. Once the week is fully complete, they flip to the
-// real Trophy icon and the actual final numbers. Clicking a card jumps the matchup grid to that manager.
-function WeeklyHighlights({ awards, week, isWeekFinal, onSelectManager }) {
-  if (!awards) {
-    return (
-      <div className="bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-xl p-4 text-sm text-slate-500 italic">
-        No live scores yet for Week {week}. Highlights populate once Sleeper reports scores.
-      </div>
-    );
-  }
-  // Each card's name AND value must come from the SAME record -- previously the name was taken
-  // from the real (mostly-empty pre-kickoff) closest/blowout while the margin was taken from the
-  // separate projected one, so a card could show one matchup's name next to a different matchup's
-  // margin. Swap the whole record together, never just the number.
-  const high = isWeekFinal ? awards.highScore : (awards.projectedHighScore || awards.highScore);
-  const low = isWeekFinal ? awards.lowScore : (awards.projectedLowScore || awards.lowScore);
-  const closest = isWeekFinal ? awards.closest : (awards.projectedClosest || awards.closest);
-  const blowout = isWeekFinal ? awards.blowout : (awards.projectedBlowout || awards.blowout);
-  const prefix = isWeekFinal ? "" : "Projected ";
-  const icon = isWeekFinal ? Trophy : Award;
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-      <HighlightCard
-        icon={icon} label={`${prefix}High Score`} name={high.manager} value={`${high.points.toFixed(1)} pts`} accent="text-amber-400"
-        onClick={() => onSelectManager(high.manager)}
-      />
-      <HighlightCard
-        icon={TrendingDown} label={`${prefix}Low Score`} name={low.manager} value={`${low.points.toFixed(1)} pts`} accent="text-rose-400"
-        onClick={() => onSelectManager(low.manager)}
-      />
-      {closest && (
-        <HighlightCard
-          icon={Zap} label={`${prefix}Closest Game`} name={`${closest.a} vs ${closest.b}`}
-          value={`${closest.margin.toFixed(1)} pt margin`} accent="text-blue-400"
-          onClick={() => onSelectManager(closest.a)}
-        />
-      )}
-      {blowout && (
-        <HighlightCard
-          icon={Flame} label={`${prefix}Biggest Blowout`} name={`${blowout.a} vs ${blowout.b}`}
-          value={`${blowout.margin.toFixed(1)} pt margin`} accent="text-orange-400"
-          onClick={() => onSelectManager(blowout.a)}
-        />
-      )}
-    </div>
-  );
-}
 
 // "Live" here is a blend of real posted points + projections for anyone who hasn't played yet
 // (same blended figure the matchup pills show) -- not a pure real-only sum -- so the badge says so.
 const WEEK_POINTS_STATUS_LABEL = { projected: "Projected", live: "Live (blended w/ projections)", final: "Final" };
 
-function ConferenceWarPanel({ weekRecord, seasonRecord, weekPoints, week, isWeekFinal }) {
+function ConferenceWarPanel({ weekRecord, seasonRecord, weekPoints, week, isWeekFinal, projectedTrophies }) {
   return (
-    <div className="bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-xl p-4">
+    <div className="bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 flex-wrap">
         <div>
+          <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)] mb-1">
+            {isWeekFinal ? "Week " + week + " Trophies" : "Projected Trophies"}
+          </p>
+          <p className="text-lg font-extrabold tabular-nums">
+            <span className={CONF_STYLES.AFC.text}>AFC {projectedTrophies.afc}</span>
+            <span className="text-[var(--muted)] mx-2">-</span>
+            <span className={CONF_STYLES.NFC.text}>{projectedTrophies.nfc} NFC</span>
+          </p>
+        </div>
+        <div>
           <div className="flex items-center gap-2 mb-1">
-            <p className="tracking-wider text-[10px] uppercase font-semibold text-slate-500">Week {week} Total Points</p>
+            <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">Week {week} Total Points</p>
             {weekPoints.status && (
               <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
-                weekPoints.status === 'final' ? 'bg-emerald-500/10 text-emerald-400' : weekPoints.status === 'live' ? 'bg-amber-500/10 text-amber-400' : 'bg-slate-800 text-slate-400'
+                weekPoints.status === 'final' ? 'bg-emerald-500/10 text-emerald-400' : weekPoints.status === 'live' ? 'bg-amber-500/10 text-amber-400' : 'bg-[var(--surface2)] text-[var(--text2)]'
               }`}>
                 {WEEK_POINTS_STATUS_LABEL[weekPoints.status]}
               </span>
@@ -359,35 +303,35 @@ function ConferenceWarPanel({ weekRecord, seasonRecord, weekPoints, week, isWeek
           {weekPoints.afcTotal != null ? (
             <p className="text-lg font-extrabold">
               <span className={CONF_STYLES.AFC.text}>AFC {weekPoints.afcTotal.toFixed(1)}</span>
-              <span className="text-slate-600 mx-2">-</span>
+              <span className="text-[var(--muted)] mx-2">-</span>
               <span className={CONF_STYLES.NFC.text}>{weekPoints.nfcTotal.toFixed(1)} NFC</span>
             </p>
           ) : (
-            <p className="text-sm text-slate-500 italic">No data yet</p>
+            <p className="text-sm text-[var(--muted)] italic">No data yet</p>
           )}
         </div>
         <div>
-          <p className="tracking-wider text-[10px] uppercase font-semibold text-slate-500 mb-1">Week {week} Matchup Record (Non-Cumulative)</p>
+          <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)] mb-1">Week {week} Matchup Record (Non-Cumulative)</p>
           {!isWeekFinal ? (
-            <p className="text-sm text-slate-500 italic">Pending &mdash; finalizes once Week {week} is complete</p>
+            <p className="text-sm text-[var(--muted)] italic">Pending &mdash; finalizes once Week {week} is complete</p>
           ) : weekRecord.counted > 0 ? (
             <p className="text-lg font-extrabold">
               <span className={CONF_STYLES.AFC.text}>AFC {weekRecord.afcWins}</span>
-              <span className="text-slate-600 mx-2">-</span>
+              <span className="text-[var(--muted)] mx-2">-</span>
               <span className={CONF_STYLES.NFC.text}>{weekRecord.nfcWins} NFC</span>
-              {weekRecord.ties > 0 && <span className="text-slate-500 text-xs ml-2">({weekRecord.ties} tie{weekRecord.ties > 1 ? "s" : ""})</span>}
+              {weekRecord.ties > 0 && <span className="text-[var(--muted)] text-xs ml-2">({weekRecord.ties} tie{weekRecord.ties > 1 ? "s" : ""})</span>}
             </p>
           ) : (
-            <p className="text-sm text-slate-500 italic">No scores yet</p>
+            <p className="text-sm text-[var(--muted)] italic">No scores yet</p>
           )}
         </div>
         <div>
-          <p className="tracking-wider text-[10px] uppercase font-semibold text-slate-500 mb-1">Season Series (Cumulative)</p>
+          <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)] mb-1">Season Series (Cumulative)</p>
           <p className="text-lg font-extrabold">
             <span className={CONF_STYLES.AFC.text}>AFC {seasonRecord.afcWins}</span>
-            <span className="text-slate-600 mx-2">-</span>
+            <span className="text-[var(--muted)] mx-2">-</span>
             <span className={CONF_STYLES.NFC.text}>{seasonRecord.nfcWins} NFC</span>
-            {seasonRecord.ties > 0 && <span className="text-slate-500 text-xs ml-2">({seasonRecord.ties} tie{seasonRecord.ties > 1 ? "s" : ""})</span>}
+            {seasonRecord.ties > 0 && <span className="text-[var(--muted)] text-xs ml-2">({seasonRecord.ties} tie{seasonRecord.ties > 1 ? "s" : ""})</span>}
           </p>
         </div>
       </div>
@@ -510,208 +454,60 @@ function estimateTeamScore(manager, confData, season, week, weekProjections, lat
   return { value: proj, isFinal: false };
 }
 
-function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, playersDB, byTeamWeek, week }) {
-  const my = myId && myId !== '0' ? playerLabel(playersDB, myId) : null;
-  const opp = oppId && oppId !== '0' ? playerLabel(playersDB, oppId) : null;
-  const myIsActual = myPts > 0;
-  const oppIsActual = oppPts > 0;
-  const myDisplayPts = myIsActual ? myPts : myProj;
-  const oppDisplayPts = oppIsActual ? oppPts : oppProj;
-  return (
-    <div className="grid grid-cols-2 gap-4 text-xs py-1.5">
-      <div className="flex items-center gap-1.5 min-w-0">
-        <span className="text-[9px] font-mono text-slate-600 w-9 shrink-0">{label}</span>
-        {my ? (
-          <>
-            <PlayerAvatar playerId={myId} position={my.position} className="w-5 h-5" />
-            <div className="flex flex-col min-w-0">
-              <PlayerNameButton playerId={myId} name={my.name} position={my.position} className="text-slate-300 truncate" />
-              <GameBadge nflTeam={my.team} week={week} byTeamWeek={byTeamWeek} />
-            </div>
-            <PositionBadge position={my.position} />
-            <InjuryBadge status={my.injuryStatus} />
-            {myDisplayPts != null && <span className={`font-mono shrink-0 ml-auto ${myIsActual ? "text-emerald-400" : "text-blue-300"}`}>{myDisplayPts.toFixed(2)}</span>}
-          </>
-        ) : <span className="text-slate-700 italic">Empty</span>}
-      </div>
-      <div className="flex items-center gap-1.5 min-w-0">
-        <span className="text-[9px] font-mono text-slate-600 w-9 shrink-0">{label}</span>
-        {opp ? (
-          <>
-            <PlayerAvatar playerId={oppId} position={opp.position} className="w-5 h-5" />
-            <div className="flex flex-col min-w-0">
-              <PlayerNameButton playerId={oppId} name={opp.name} position={opp.position} className="text-slate-300 truncate" />
-              <GameBadge nflTeam={opp.team} week={week} byTeamWeek={byTeamWeek} />
-            </div>
-            <PositionBadge position={opp.position} />
-            <InjuryBadge status={opp.injuryStatus} />
-            {oppDisplayPts != null && <span className={`font-mono shrink-0 ml-auto ${oppIsActual ? "text-emerald-400" : "text-blue-300"}`}>{oppDisplayPts.toFixed(2)}</span>}
-          </>
-        ) : <span className="text-slate-700 italic">Empty</span>}
-      </div>
-    </div>
-  );
-}
+const VALID_TABS = new Set(["home", "currentWeek", "standings", "matchups", "players", "teams", "charter"]);
 
-function MatchupRosterComparison({ mySlots, oppSlots, mySnapshot, oppSnapshot, playersDB, weekProjections, myScoringSettings, myFallbackField, oppScoringSettings, oppFallbackField, byTeamWeek, week }) {
-  if (!mySnapshot && !oppSnapshot) {
-    return <p className="text-xs text-slate-600 italic mt-2">No roster data available for this matchup yet.</p>;
-  }
-  const rows = Math.max(mySlots.length, oppSlots.length, mySnapshot?.starters?.length || 0, oppSnapshot?.starters?.length || 0);
-  return (
-    <div className="mt-3 pt-3 border-t border-slate-800/60 divide-y divide-slate-800/40">
-      {Array.from({ length: rows }).map((_, i) => {
-        const myId = mySnapshot?.starters?.[i];
-        const oppId = oppSnapshot?.starters?.[i];
-        return (
-          <RosterCompareRow
-            key={i}
-            label={mySlots[i] || oppSlots[i] || "FLEX"}
-            myId={myId}
-            oppId={oppId}
-            myPts={mySnapshot?.startersPoints?.[i]}
-            oppPts={oppSnapshot?.startersPoints?.[i]}
-            myProj={projectedPoints(weekProjections, myId, myScoringSettings, myFallbackField)}
-            oppProj={projectedPoints(weekProjections, oppId, oppScoringSettings, oppFallbackField)}
-            playersDB={playersDB} byTeamWeek={byTeamWeek} week={week}
-          />
-        );
-      })}
-    </div>
-  );
-}
-
-function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlots = [], oppSlots = [], playersDB, weekProjections, byTeamWeek, week }) {
-  if (!info) {
-    return (
-      <div className={`flex-1 min-w-[220px] bg-slate-950/60 border ${accentBorder} rounded-lg p-3 flex items-center justify-center`}>
-        <span className="text-xs text-slate-600 italic">No {label.toLowerCase()} matchup this week</span>
-      </div>
-    );
-  }
-  const {
-    opponent, myScore, oppScore, myLiveScore, oppLiveScore, isFinal, isLive, myWinPct, winPctIsRough, myHasData, oppHasData, mySnapshot, oppSnapshot,
-    myScoringSettings, myFallbackField, oppScoringSettings, oppFallbackField
-  } = info;
-  const showWinPct = !isFinal && myWinPct !== null;
-  const showScores = isFinal || myHasData || oppHasData;
-  // Sleeper's own convention: the big number is always the best REAL number available right now
-  // (final score, or the live score while a game is in progress); the projected final is a small
-  // secondary caption underneath, only while there's still uncertainty left (live or pregame).
-  const bigMy = isFinal ? myScore : isLive ? (myLiveScore ?? 0) : myScore;
-  const bigOpp = isFinal ? oppScore : isLive ? (oppLiveScore ?? 0) : oppScore;
-  const bigColor = isFinal ? "text-emerald-400" : isLive ? "text-slate-100" : "text-blue-300";
-  const showCaption = isLive && showScores;
-  const [showRosters, setShowRosters] = useState(false);
-  return (
-    <div className={`bg-slate-950/60 border ${accentBorder} rounded-lg p-3`}>
-      <div className="flex items-center justify-between mb-3">
-        <span className="tracking-wider text-[10px] uppercase font-semibold text-slate-500">{label}</span>
-        {isFinal && <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider">Final</span>}
-        {isLive && <span className="text-[9px] font-bold text-amber-400 uppercase tracking-wider">Live</span>}
-        {!isFinal && !isLive && showScores && <span className="text-[9px] font-bold text-blue-300 uppercase tracking-wider">Projected</span>}
-      </div>
-
-      <div className="flex items-center gap-2 mb-1">
-        <div className="flex-1 flex flex-col items-end gap-1 min-w-0">
-          <TeamName manager={myTeam} conf={myConf} className="font-semibold truncate" />
-          <span className={`font-mono text-lg font-bold leading-none ${showScores ? bigColor : "text-slate-600"}`}>
-            {showScores && bigMy != null ? bigMy.toFixed(1) : "--"}
-          </span>
-        </div>
-        <span className="text-[10px] font-bold text-slate-600 bg-slate-900 px-2 py-1 rounded shrink-0">VS</span>
-        <div className="flex-1 flex flex-col items-start gap-1 min-w-0">
-          <TeamName manager={opponent} conf={oppConf} className="font-semibold truncate" />
-          <span className={`font-mono text-lg font-bold leading-none ${showScores ? bigColor : "text-slate-600"}`}>
-            {showScores && bigOpp != null ? bigOpp.toFixed(1) : "--"}
-          </span>
-        </div>
-      </div>
-      {showCaption && (
-        <div className="flex items-center gap-2 mb-2">
-          <span className="flex-1 text-right font-mono text-[10px] text-blue-300">{myScore != null ? `${myScore.toFixed(1)} proj` : ""}</span>
-          <span className="w-7 shrink-0" />
-          <span className="flex-1 text-left font-mono text-[10px] text-blue-300">{oppScore != null ? `${oppScore.toFixed(1)} proj` : ""}</span>
-        </div>
-      )}
-
-      {showWinPct && (
-        <>
-          <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden flex mt-2">
-            <div className="h-full bg-blue-500" style={{ width: `${(myWinPct * 100).toFixed(0)}%` }} />
-          </div>
-          <div className="text-right text-[10px] text-slate-500 mt-1">
-            {(myWinPct * 100).toFixed(0)}% to win{winPctIsRough ? " (rough est.)" : ""}
-          </div>
-        </>
-      )}
-      {!isFinal && !showScores && (
-        <div className="text-[10px] text-slate-600 italic">
-          No scores logged yet this season -- projections appear once Week 1 results post to Sleeper.
-        </div>
-      )}
-
-      {(mySnapshot || oppSnapshot) && (
-        <button
-          type="button"
-          onClick={() => setShowRosters(v => !v)}
-          className="w-full flex items-center justify-center gap-1.5 text-[11px] font-semibold text-slate-300 hover:text-white bg-slate-900/80 hover:bg-slate-800 border border-slate-800/80 rounded-md py-1.5 mt-3 uppercase tracking-wider transition-all duration-200"
-        >
-          {showRosters ? "Hide Rosters" : "Expand Rosters"}
-          <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${showRosters ? "rotate-180" : ""}`} />
-        </button>
-      )}
-      {showRosters && (
-        <MatchupRosterComparison
-          mySlots={mySlots} oppSlots={oppSlots} mySnapshot={mySnapshot} oppSnapshot={oppSnapshot}
-          playersDB={playersDB} weekProjections={weekProjections}
-          myScoringSettings={myScoringSettings} myFallbackField={myFallbackField}
-          oppScoringSettings={oppScoringSettings} oppFallbackField={oppFallbackField}
-          byTeamWeek={byTeamWeek} week={week}
-        />
-      )}
-    </div>
-  );
-}
-
-function ManagerMatchupRow({ manager, conf, intra, inter, afcSlots, nfcSlots, playersDB, weekProjections, byTeamWeek, week }) {
-  const style = CONF_STYLES[conf];
-  const interAccent = inter ? CONF_STYLES[inter.oppConf].border : style.border;
-  const slotsFor = (c) => (c === "AFC" ? afcSlots : nfcSlots);
-  return (
-    <div className="bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-xl p-4 hover:border-slate-700 transition-all duration-200">
-      <div className="flex items-center gap-2 mb-3">
-        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${style.badge}`}>{conf}</span>
-        <TeamName manager={manager} conf={conf} className="font-bold" />
-      </div>
-      <div className="flex flex-col gap-3">
-        <MatchupPill
-          label="In-Conference" myTeam={manager} myConf={conf} oppConf={conf}
-          accentBorder={style.border} info={intra}
-          mySlots={slotsFor(conf)} oppSlots={slotsFor(conf)} playersDB={playersDB}
-          weekProjections={weekProjections} byTeamWeek={byTeamWeek} week={week}
-        />
-        <MatchupPill
-          label="Cross-Conference" myTeam={manager} myConf={conf} oppConf={inter?.oppConf}
-          accentBorder={interAccent} info={inter}
-          mySlots={slotsFor(conf)} oppSlots={slotsFor(inter?.oppConf)} playersDB={playersDB}
-          weekProjections={weekProjections} byTeamWeek={byTeamWeek} week={week}
-        />
-      </div>
-    </div>
-  );
+function tabFromHash() {
+  const id = window.location.hash.slice(1);
+  return VALID_TABS.has(id) ? id : null;
 }
 
 export default function App() {
   const [afcLeagueId, setAfcLeagueId] = useState(() => localStorage.getItem('lenzone_afc_league_id') || AFC_LEAGUE_ID);
   const [nfcLeagueId, setNfcLeagueId] = useState(() => localStorage.getItem('lenzone_nfc_league_id') || NFC_LEAGUE_ID);
-  const [activeTab, setActiveTab] = useState("home");
+  // Deep-linkable: the current tab lives in the URL hash (shareable/bookmarkable, and survives a
+  // reload) rather than only in memory. Falls back to the last tab you were on, then Home.
+  const [activeTab, setActiveTabState] = useState(() => tabFromHash() || localStorage.getItem('lenzone_last_tab') || "home");
+  const setActiveTab = (id) => {
+    setActiveTabState(id);
+    window.history.pushState(null, '', `#${id}`);
+    localStorage.setItem('lenzone_last_tab', id);
+  };
+  // Back/forward browser navigation.
+  useEffect(() => {
+    const handler = () => {
+      const id = tabFromHash();
+      if (id) setActiveTabState(id);
+    };
+    window.addEventListener('popstate', handler);
+    return () => window.removeEventListener('popstate', handler);
+  }, []);
+  // Switching tabs always lands at the top of the new page, never wherever the previous tab
+  // happened to be scrolled to.
+  useEffect(() => { window.scrollTo(0, 0); }, [activeTab]);
   const [confFilter, setConfFilter] = useState("ALL");
+  // Matchups tab has two pivots on the same underlying schedule/score data: "week" (everyone's
+  // matchup for one week -- the old Weekly Matchups tab) and "season" (one team's full schedule --
+  // the old Schedule tab), merged into a single tab with a toggle instead of two separate tabs.
+  const [matchupsView, setMatchupsView] = useState("week");
   const [selectedWeek, setSelectedWeek] = useState(1);
   const [selectedManager, setSelectedManager] = useState("ALL");
+  const [myTeamManager, setMyTeamManager] = useState(() => localStorage.getItem('lenzone_my_team') || null);
   const [loading, setLoading] = useState(false);
 
   const [isAdmin, setIsAdmin] = useState(() => localStorage.getItem('lenzone_admin') === 'true');
+  // A deep link to the admin-only broadcast tab from a non-admin session lands on Home instead of
+  // a blank page.
+  useEffect(() => { if (activeTab === "teams" && !isAdmin) setActiveTab("home"); }, [activeTab, isAdmin]);
+  // Every trip back to the landing page re-rolls a fresh random team color palette (unless the
+  // viewer has explicitly picked a scheme, which always wins -- see rerollScheme in ThemeContext).
+  const { rerollScheme, setScheme } = useTheme();
+  useEffect(() => { if (activeTab === "home") rerollScheme(); }, [activeTab]);
+  // Keeps the URL in sync even on first load (so the address bar always reflects real state,
+  // ready to copy/share/bookmark).
+  useEffect(() => {
+    if (!window.location.hash) window.history.replaceState(null, '', `#${activeTab}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [showLoginModal, setShowLoginModal] = useState(false);
 
   const [charterText, setCharterText] = useState(() => localStorage.getItem('lenzone_charter') || DEFAULT_CHARTER);
@@ -724,6 +520,66 @@ export default function App() {
 
   const [afcData, setAfcData] = useState({ name: "AFC Conference", rosters: [], rosterIdMap: {} });
   const [nfcData, setNfcData] = useState({ name: "NFC Conference", rosters: [], rosterIdMap: {} });
+
+  // A manager with an admin-configured default (lib/teamDefaults.js) always lands on that scheme
+  // when picked -- re-applied on cold load too, in case myTeamManager was restored from localStorage
+  // before the roster data (and therefore the owner-id lookup) had finished loading.
+  useEffect(() => {
+    const key = managerSchemeKey(afcData, nfcData, myTeamManager);
+    if (!key) return;
+    const override = getEffectiveOverrides()[key];
+    if (override?.scheme) setScheme(override.scheme);
+  }, [myTeamManager, afcData, nfcData]);
+  // Easter egg: picking ANY team plays a random clip from the shared public/sounds/generic/ pool
+  // (not tied to who was picked -- that per-manager mapping was scrapped in favor of one shared,
+  // pre-trimmed/normalized pool), plus a confetti burst in that team's real brand colors for
+  // managers with a configured color default. Managers without a configured color just get the
+  // sound, no burst.
+  const [teamBurst, setTeamBurst] = useState(null);
+  const [soundMuted, setSoundMuted] = useState(() => localStorage.getItem('lenzone_sound_muted') === 'true');
+  const toggleSoundMuted = () => {
+    setSoundMuted(prev => {
+      const next = !prev;
+      localStorage.setItem('lenzone_sound_muted', String(next));
+      return next;
+    });
+  };
+  // Holds every currently-playing easter-egg Audio element -- doubles as (a) what keeps each one
+  // alive against GC (a bare `new Audio(url).play()` with no reference anywhere can get reclaimed
+  // mid-load before playback starts, silently dropping the sound) and (b) the list rebalanceVolumes
+  // ducks when more than one clip overlaps, so picking teams in quick succession doesn't stack their
+  // volumes on top of each other.
+  const activeAudiosRef = useRef([]);
+  const BASE_SOUND_VOLUME = 0.6; // 40% quieter than the source clip -- a light touch, not a jump-scare
+  const rebalanceVolumes = () => {
+    const n = activeAudiosRef.current.length;
+    const level = n > 0 ? BASE_SOUND_VOLUME / n : BASE_SOUND_VOLUME;
+    activeAudiosRef.current.forEach(a => { a.volume = level; });
+  };
+  const triggerTeamEasterEgg = (manager) => {
+    const key = managerSchemeKey(afcData, nfcData, manager);
+    if (key) {
+      const override = getEffectiveOverrides()[key];
+      const schemeEntry = override?.scheme && ALL_SCHEMES.find(s => s.id === override.scheme);
+      if (schemeEntry) setTeamBurst({ nonce: Date.now(), color: schemeEntry.swatch });
+    }
+    if (soundMuted) return;
+    // Resolving is async (a HEAD check for that manager's exclusive file) -- fine here since nothing
+    // else is waiting on it, it just plays whenever the check resolves a moment later.
+    resolveEasterEggSoundUrl(manager).then((soundUrl) => {
+      if (!soundUrl || soundMuted) return;
+      try {
+        const audio = new Audio(soundUrl);
+        activeAudiosRef.current.push(audio);
+        rebalanceVolumes();
+        audio.addEventListener('ended', () => {
+          activeAudiosRef.current = activeAudiosRef.current.filter(a => a !== audio);
+          rebalanceVolumes();
+        });
+        audio.play().catch(() => {});
+      } catch {}
+    });
+  };
 
   const [afcSeason, setAfcSeason] = useState({ scoreByWeek: {}, scheduleByWeek: {}, rosterSnapshotByWeek: {}, latestCompletedWeek: 0 });
   const [nfcSeason, setNfcSeason] = useState({ scoreByWeek: {}, scheduleByWeek: {}, rosterSnapshotByWeek: {}, latestCompletedWeek: 0 });
@@ -817,6 +673,13 @@ export default function App() {
     fetchNflSchedule(SEASON_YEAR).then(setNflSchedule);
   }, []);
 
+  // Real kickoff time + live status for the currently viewed week, from ESPN's public scoreboard
+  // (Sleeper's own schedule feed has no time-of-day). Refetches whenever the viewed week changes.
+  const [weekKickoffInfo, setWeekKickoffInfo] = useState({});
+  useEffect(() => {
+    fetchWeekKickoffInfo(selectedWeek, SEASON_YEAR).then(setWeekKickoffInfo);
+  }, [selectedWeek]);
+
   const handleLeagueIdChange = (conf, value) => {
     if (conf === "AFC") {
       setAfcLeagueId(value);
@@ -851,6 +714,81 @@ export default function App() {
 
   const afcManagers = afcData.rosters.length > 0 ? afcData.rosters.map(r => r.manager) : AFC_DEFAULT;
   const nfcManagers = nfcData.rosters.length > 0 ? nfcData.rosters.map(r => r.manager) : NFC_DEFAULT;
+  const myTeamConf = myTeamManager && afcManagers.includes(myTeamManager) ? "AFC" : myTeamManager && nfcManagers.includes(myTeamManager) ? "NFC" : null;
+
+  // Jumping to a specific manager's matchup (e.g. from Home) must clear the conference filter to
+  // ALL first -- otherwise, if that manager is in the conference NOT currently filtered to (a
+  // cross-conference opponent while your own conference is selected), their matchup card is
+  // filtered out of view entirely and the tab appears to do nothing.
+  const goToMatchup = (manager, week) => {
+    setConfFilter("ALL");
+    setSelectedManager(manager);
+    if (week != null) setSelectedWeek(week);
+    setMatchupsView("week");
+    setActiveTab("matchups");
+  };
+
+  const chooseMyTeam = (manager) => {
+    setMyTeamManager(manager);
+    if (manager) localStorage.setItem('lenzone_my_team', manager);
+    else localStorage.removeItem('lenzone_my_team');
+    if (manager) triggerTeamEasterEgg(manager);
+    const conf = afcManagers.includes(manager) ? "AFC" : nfcManagers.includes(manager) ? "NFC" : null;
+    // Only the conference filter focuses on your own side -- the Matchups "Filter Manager" dropdown
+    // deliberately stays on "All Managers" so picking your team doesn't also narrow the matchup
+    // list down to just your own games.
+    if (manager && conf) {
+      setConfFilter(conf);
+    }
+  };
+
+  // Once real roster data has loaded, focus the Standings/Matchups conference filter on the
+  // remembered team (picked via "I am ___" on Home) exactly once -- afterward the user's own filter
+  // choices win. Deliberately does NOT touch selectedManager -- see chooseMyTeam above.
+  const appliedRememberedTeamRef = useRef(false);
+  useEffect(() => {
+    if (appliedRememberedTeamRef.current) return;
+    if (!myTeamManager || !myTeamConf) return;
+    if (afcData.rosters.length === 0 && nfcData.rosters.length === 0) return;
+    appliedRememberedTeamRef.current = true;
+    setConfFilter(myTeamConf);
+  }, [myTeamManager, myTeamConf, afcData.rosters.length, nfcData.rosters.length]);
+
+  const myTeamConfData = myTeamConf === "AFC" ? afcData : myTeamConf === "NFC" ? nfcData : null;
+  const myTeamSeason = myTeamConf === "AFC" ? afcSeason : myTeamConf === "NFC" ? nfcSeason : null;
+  const myTeamRoster = myTeamConfData?.rosters.find(r => r.manager === myTeamManager) || null;
+  const myTeamFallbackField = myTeamConfData ? scoringFieldFor(myTeamConfData.receptionPoints || 0) : null;
+  const myTeamPlayersPoints = myTeamSeason?.rosterSnapshotByWeek?.[selectedWeek]?.[myTeamManager]?.playersPoints;
+  const myTeamNflTeams = useMemo(() => {
+    if (!myTeamRoster) return new Set();
+    const teams = new Set();
+    (myTeamRoster.players || []).forEach(pid => {
+      const team = playersDB[pid]?.team;
+      if (team) teams.add(team);
+    });
+    return teams;
+  }, [myTeamRoster, playersDB]);
+
+  // Real per-team kickoff time + live status (from ESPN) merged onto the currently viewed week's
+  // entry only -- everything else passes through Sleeper's own schedule data untouched.
+  const enrichedByTeamWeek = useMemo(() => {
+    const merged = {};
+    Object.keys(nflSchedule.byTeamWeek).forEach(team => {
+      merged[team] = { ...nflSchedule.byTeamWeek[team] };
+      const info = weekKickoffInfo[team];
+      if (info && merged[team][selectedWeek]) {
+        merged[team][selectedWeek] = { ...merged[team][selectedWeek], ...info };
+      }
+    });
+    return merged;
+  }, [nflSchedule.byTeamWeek, weekKickoffInfo, selectedWeek]);
+
+  const enrichedNflGames = useMemo(() => {
+    return (nflSchedule.games || []).map(g => {
+      const info = weekKickoffInfo[g.home] || weekKickoffInfo[g.away];
+      return info ? { ...g, ...info } : g;
+    });
+  }, [nflSchedule.games, weekKickoffInfo]);
 
   const afcDraftSlots = getDraftSlotMap(afcDraft, afcData.rosterIdMap);
   const nfcDraftSlots = getDraftSlotMap(nfcDraft, nfcData.rosterIdMap);
@@ -917,6 +855,15 @@ export default function App() {
   const isSelectedWeekFinal = selectedWeek <= latestCompletedWeek;
   const weekCrossPairs = schedule.filter(m => m.week === selectedWeek);
 
+  // My team's own matchups this week (same buildMatchupInfo pipeline as the Matchups tab cards),
+  // used to power the "Playing ___" section on Home.
+  const myTeamIntra = myTeamManager && myTeamConf
+    ? getIntraInfo(myTeamManager, myTeamConf === "AFC" ? afcSeason : nfcSeason, allStats, selectedWeek, myTeamConfData, weekProjections, latestCompletedWeek)
+    : null;
+  const myTeamInter = myTeamManager && myTeamConf
+    ? getInterInfo(myTeamManager, myTeamConf, weekCrossPairs, afcSeason, nfcSeason, allStats, selectedWeek, afcData, nfcData, weekProjections, latestCompletedWeek)
+    : null;
+
   // Blended projected-final per manager for this week, used to surface a "projected margin" on
   // the closest/blowout awards while the week is still live (not yet fully completed).
   const projectedScoreByManager = {};
@@ -938,6 +885,14 @@ export default function App() {
   const weekRecord = isSelectedWeekFinal
     ? computeCrossWeekRecord(weekCrossPairs, afcSeason.scoreByWeek[selectedWeek] || {}, nfcSeason.scoreByWeek[selectedWeek] || {})
     : { afcWins: 0, nfcWins: 0, ties: 0, counted: 0 };
+
+  // Same blended per-manager projections powering the matchup pills, used here so the projected
+  // cross-conference win tally (fed into "Projected Trophies") updates live instead of sitting at
+  // zero all week the way the real, final-only weekRecord does.
+  const projectedMatchupRecord = isSelectedWeekFinal
+    ? weekRecord
+    : computeCrossWeekRecord(weekCrossPairs, projectedScoreByManager, projectedScoreByManager);
+  const projectedTrophies = computeProjectedTrophies(weeklyAwards, projectedMatchupRecord, afcManagers);
 
   const afcWeekEstimates = afcManagers.map(m => estimateTeamScore(m, afcData, afcSeason, selectedWeek, weekProjections, latestCompletedWeek));
   const nfcWeekEstimates = nfcManagers.map(m => estimateTeamScore(m, nfcData, nfcSeason, selectedWeek, weekProjections, latestCompletedWeek));
@@ -985,113 +940,167 @@ export default function App() {
   );
 
   const [playersSubTab, setPlayersSubTab] = useState("search");
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
+  // Home isn't listed as a nav tab -- the header logo already links there, so it's not one more
+  // click to hold a spot in the bar too.
   const tabs = [
-    { id: "home", label: "Home", shortLabel: "Home", icon: Home },
+    { id: "currentWeek", label: `This Week (${selectedWeek})`, shortLabel: `This Week (${selectedWeek})`, icon: Calendar },
     { id: "standings", label: "Standings", shortLabel: "Standings", icon: Trophy },
-    { id: "schedule", label: "Schedule", shortLabel: "Schedule", icon: Calendar },
-    { id: "matchups", label: "Weekly Matchups", shortLabel: "Matchups", icon: Swords },
-    { id: "rosters", label: "Rosters", shortLabel: "Rosters", icon: Users },
-    { id: "activity", label: "Activity", shortLabel: "Activity", icon: Activity },
+    { id: "matchups", label: "Matchups", shortLabel: "Matchups", icon: Swords },
     { id: "players", label: "Players", shortLabel: "Players", icon: Search },
     ...(isAdmin ? [{ id: "teams", label: "MS Teams Broadcast", shortLabel: "Broadcast", icon: Megaphone }] : [])
   ];
 
   return (
+    <ImageLightboxProvider>
+    <MyTeamProvider manager={myTeamManager}>
     <TeamColorProvider colorMap={teamColorMap}>
     <TeamLogoProvider logoMap={teamLogoMap}>
     <PlayerPhotoProvider>
     <PlayerModalProvider>
     <RosterModalProvider>
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 pb-24 md:pb-8">
+    <div className="min-h-screen bg-[var(--bg)] text-[var(--text)] p-4 md:p-8 pb-24 md:pb-8">
       {showLoginModal && (
         <AdminLoginModal onClose={() => setShowLoginModal(false)} onSuccess={handleLoginSuccess} />
       )}
+      <CommandPalette
+        tabs={tabs} onSelect={setActiveTab} open={commandPaletteOpen} setOpen={setCommandPaletteOpen}
+        playersDB={playersDB} afcManagers={afcManagers} nfcManagers={nfcManagers}
+      />
       <RosterModal
         afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason} playersDB={playersDB}
-        weekProjections={weekProjections} selectedWeek={selectedWeek} byTeamWeek={nflSchedule.byTeamWeek}
+        weekProjections={weekProjections} selectedWeek={selectedWeek} byTeamWeek={enrichedByTeamWeek}
       />
       <PlayerModal
         playersDB={playersDB} afcOwners={afcOwners} nfcOwners={nfcOwners} afcHistory={afcHistory} nfcHistory={nfcHistory}
         selectedWeek={selectedWeek} weekProjectionsByWeek={weekProjectionsByWeek} seasonWeeks={SEASON_WEEKS} latestCompletedWeek={latestCompletedWeek}
-        afcSeason={afcSeason} nfcSeason={nfcSeason} afcData={afcData} nfcData={nfcData}
+        afcSeason={afcSeason} nfcSeason={nfcSeason} afcData={afcData} nfcData={nfcData} byTeamWeek={enrichedByTeamWeek}
       />
 
-      {/* Header Banner */}
-      <header className="max-w-7xl mx-auto bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-2xl p-6 mb-8 shadow-xl flex flex-col md:flex-row justify-between items-center gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <button type="button" onClick={() => setActiveTab("home")} className="flex items-center gap-3">
-              <img src={lenzoneLogo} alt="LENZONE" className="w-10 h-10 rounded-full object-cover" />
-              <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-blue-400 via-indigo-400 to-rose-400 bg-clip-text text-transparent">
+      {/* Header Banner -- hidden on Home, which is deliberately just the "I am" picker + radial menu */}
+      {activeTab !== "home" && (
+        <header className="max-w-7xl mx-auto bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-2xl px-5 py-3 mb-8 shadow-xl">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <button type="button" onClick={() => setActiveTab("home")} className="flex items-center gap-2.5 group shrink-0">
+              {/* Two layered images (split from the original single PNG) so only the football
+                  spins on hover, not the whole ring -- the ring stays put and just scales up. */}
+              <span className="relative w-14 h-14 shrink-0 transition-transform duration-500 group-hover:scale-125">
+                <img src={lenzoneLogoRing} alt="LENZONE" className="absolute inset-0 w-full h-full" />
+                <img src={lenzoneLogoBall} alt="" aria-hidden="true" className="absolute inset-0 w-full h-full logo-ball" />
+              </span>
+              <h1 className="lenzone-title font-display text-xl font-extrabold tracking-tight bg-clip-text text-transparent">
                 LENZONE 2026
               </h1>
             </button>
             {isAdmin && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase tracking-wider">
-                Admin Mode
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase tracking-wider shrink-0">
+                Admin
               </span>
             )}
-          </div>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <a href={`https://sleeper.com/leagues/${afcLeagueId}/team`} target="_blank" rel="noreferrer" className={`flex items-center gap-2 ${CONF_STYLES.AFC.button} text-white px-4 py-2 rounded-lg font-semibold text-xs transition-all duration-200`}>
-            <span>AFC League</span> <ExternalLink className="w-3 h-3" />
-          </a>
-          <a href={`https://sleeper.com/leagues/${nfcLeagueId}/team`} target="_blank" rel="noreferrer" className={`flex items-center gap-2 ${CONF_STYLES.NFC.button} text-white px-4 py-2 rounded-lg font-semibold text-xs transition-all duration-200`}>
-            <span>NFC League</span> <ExternalLink className="w-3 h-3" />
-          </a>
-          <Button
-            variant="icon"
-            onClick={() => setActiveTab("charter")}
-            title="League Charter"
-            className={activeTab === "charter" ? "bg-blue-600 text-white hover:bg-blue-500" : ""}
-          >
-            <Scroll className="w-4 h-4" />
-          </Button>
-          <Button variant="icon" onClick={() => isAdmin ? handleLogout() : setShowLoginModal(true)} title={isAdmin ? "Log out of admin mode" : "Admin login"}>
-            {isAdmin ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
-          </Button>
-          <PhotoToggleButton />
-        </div>
-      </header>
+            {/* Secondary utility actions -- deliberately small/icon-first so they read as
+                secondary to the "I am" picker and don't compete for attention with it. */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <a
+                href={`https://sleeper.com/leagues/${afcLeagueId}/team`} target="_blank" rel="noreferrer"
+                title="Open AFC league in Sleeper"
+                className="flex items-center gap-1 bg-red-700/70 hover:bg-red-600/80 text-white px-2 py-1.5 rounded-lg font-bold text-[10px] transition-all duration-200"
+              >
+                AFC <ExternalLink className="w-2.5 h-2.5" />
+              </a>
+              <a
+                href={`https://sleeper.com/leagues/${nfcLeagueId}/team`} target="_blank" rel="noreferrer"
+                title="Open NFC league in Sleeper"
+                className="flex items-center gap-1 bg-blue-700/70 hover:bg-blue-600/80 text-white px-2 py-1.5 rounded-lg font-bold text-[10px] transition-all duration-200"
+              >
+                NFC <ExternalLink className="w-2.5 h-2.5" />
+              </a>
+              <Button
+                variant="icon"
+                onClick={() => setActiveTab("charter")}
+                title="League Charter"
+                className={activeTab === "charter" ? "bg-[var(--accent)] text-[var(--accent-text)] hover:bg-[var(--accent-ink)]" : ""}
+              >
+                <Scroll className="w-4 h-4" />
+              </Button>
+              <Button variant="icon" onClick={() => isAdmin ? handleLogout() : setShowLoginModal(true)} title={isAdmin ? "Log out of admin mode" : "Admin login"}>
+                {isAdmin ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+              </Button>
+              <Button variant="icon" onClick={() => setCommandPaletteOpen(true)} title="Search pages, teams, and players (Ctrl+K)">
+                <Search className="w-4 h-4" />
+              </Button>
+              <Button variant="icon" onClick={toggleSoundMuted} title={soundMuted ? "Unmute team easter-egg sounds" : "Mute team easter-egg sounds"}>
+                {soundMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+              </Button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 ml-auto">
+              <TeamPicker afcManagers={afcManagers} nfcManagers={nfcManagers} value={myTeamManager} onChange={chooseMyTeam} />
+              <ThemeToggle />
+            </div>
+          </div>
+        </header>
+      )}
 
       <main className="max-w-7xl mx-auto">
-        {/* Desktop Navigation Tabs */}
-        <div className="hidden md:flex flex-wrap border-b border-slate-800/80 mb-6 gap-2">
-          {tabs.map(tab => {
-            const Icon = tab.icon;
-            return (
+        {/* Desktop Navigation Tabs -- also hidden on Home; the radial menu is its navigation */}
+        {activeTab !== "home" && (
+          <div className="hidden md:flex flex-wrap border-b border-[var(--border)]/80 mb-6 gap-2">
+            {tabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-2 px-5 py-3 font-semibold text-sm border-b-2 transition-all duration-200 ${
-                  activeTab === tab.id ? "border-blue-500 text-blue-400 bg-slate-900/40" : "border-transparent text-slate-400 hover:text-slate-200"
+                  activeTab === tab.id ? "border-[var(--accent)] text-[var(--accent)] bg-[var(--surface)]/40" : "border-transparent text-[var(--text2)] hover:text-[var(--text)]"
                 }`}
               >
-                <Icon className="w-4 h-4" />
                 {tab.label}
               </button>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        )}
 
         {/* TAB: HOME */}
         {activeTab === "home" && (
           <HomeView
-            setActiveTab={setActiveTab} selectedWeek={selectedWeek} isWeekFinal={isSelectedWeekFinal}
-            weeklyAwards={weeklyAwards} weekPoints={weekPoints} seasonRecord={seasonRecord} nflGames={nflSchedule.games}
+            setActiveTab={setActiveTab} selectedWeek={selectedWeek}
+            afcManagers={afcManagers} nfcManagers={nfcManagers} myTeamManager={myTeamManager} onChooseMyTeam={chooseMyTeam}
+            teamBurst={teamBurst} soundMuted={soundMuted} onToggleSoundMuted={toggleSoundMuted}
+          />
+        )}
+
+        {/* TAB: CURRENT WEEK */}
+        {activeTab === "currentWeek" && (
+          <CurrentWeekView
+            onGoToMatchup={goToMatchup} selectedWeek={selectedWeek} isWeekFinal={isSelectedWeekFinal}
+            weeklyAwards={weeklyAwards} nflGames={enrichedNflGames}
+            myTeamNflTeams={myTeamNflTeams} myTeamManager={myTeamManager}
+            myTeamIntra={myTeamIntra} myTeamInter={myTeamInter} myTeamConf={myTeamConf}
+            myTeamRoster={myTeamRoster} myTeamConfData={myTeamConfData} myTeamFallbackField={myTeamFallbackField}
+            myTeamPlayersPoints={myTeamPlayersPoints} playersDB={playersDB} weekProjections={weekProjections}
+            byTeamWeek={enrichedByTeamWeek}
+            afcSlots={afcData.startingSlots || []} nfcSlots={nfcData.startingSlots || []}
           />
         )}
 
         {/* TAB: STANDINGS */}
         {activeTab === "standings" && (
           <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900/60 backdrop-blur-md border border-slate-800/80 p-4 rounded-xl">
+            <div className="bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-4 flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-2">
-                <span className="tracking-wider text-xs uppercase font-semibold text-slate-400">Filter View:</span>
+                <span className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)]">Filter View:</span>
                 <ConfFilterToggle value={confFilter} onChange={setConfFilter} />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">Season Series:</span>
+                <p className="text-lg font-extrabold">
+                  <span className={CONF_STYLES.AFC.text}>AFC {seasonRecord.afcWins}</span>
+                  <span className="text-[var(--muted)] mx-2">-</span>
+                  <span className={CONF_STYLES.NFC.text}>{seasonRecord.nfcWins} NFC</span>
+                  {seasonRecord.ties > 0 && <span className="text-[var(--muted)] text-xs ml-2">({seasonRecord.ties} tie{seasonRecord.ties > 1 ? "s" : ""})</span>}
+                </p>
               </div>
 
               {isAdmin && (
@@ -1101,14 +1110,14 @@ export default function App() {
                     placeholder="AFC Sleeper League ID"
                     value={afcLeagueId}
                     onChange={(e) => handleLeagueIdChange("AFC", e.target.value)}
-                    className="bg-slate-950 border border-slate-800/80 text-xs px-3 py-1.5 rounded-lg focus:outline-none focus:border-blue-500 w-full sm:w-44"
+                    className="bg-[var(--bg)] border border-[var(--border)]/80 text-xs px-3 py-1.5 rounded-lg focus:outline-none focus:border-red-500 w-full sm:w-44"
                   />
                   <input
                     type="text"
                     placeholder="NFC Sleeper League ID"
                     value={nfcLeagueId}
                     onChange={(e) => handleLeagueIdChange("NFC", e.target.value)}
-                    className="bg-slate-950 border border-slate-800/80 text-xs px-3 py-1.5 rounded-lg focus:outline-none focus:border-rose-500 w-full sm:w-44"
+                    className="bg-[var(--bg)] border border-[var(--border)]/80 text-xs px-3 py-1.5 rounded-lg focus:outline-none focus:border-blue-500 w-full sm:w-44"
                   />
                   <Button variant="icon" onClick={loadData}>
                     <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
@@ -1117,44 +1126,52 @@ export default function App() {
               )}
             </div>
 
-            <div className="bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-xl p-4 flex items-center justify-between">
-              <span className="tracking-wider text-[10px] uppercase font-semibold text-slate-500">Season Series (AFC vs NFC)</span>
-              <p className="text-lg font-extrabold">
-                <span className={CONF_STYLES.AFC.text}>AFC {seasonRecord.afcWins}</span>
-                <span className="text-slate-600 mx-2">-</span>
-                <span className={CONF_STYLES.NFC.text}>{seasonRecord.nfcWins} NFC</span>
-                {seasonRecord.ties > 0 && <span className="text-slate-500 text-xs ml-2">({seasonRecord.ties} tie{seasonRecord.ties > 1 ? "s" : ""})</span>}
-              </p>
-            </div>
-
             {showAfc && <StandingsTable conf="AFC" rows={afcStandings} />}
             {showNfc && <StandingsTable conf="NFC" rows={nfcStandings} />}
           </div>
         )}
 
-        {/* TAB: SCHEDULE */}
-        {activeTab === "schedule" && (
-          <ScheduleTab
-            afcSeason={afcSeason} nfcSeason={nfcSeason} crossSchedule={schedule}
-            afcManagers={afcManagers} nfcManagers={nfcManagers}
-            afcTradeDeadlineWeek={afcData.tradeDeadlineWeek} nfcTradeDeadlineWeek={nfcData.tradeDeadlineWeek}
-          />
-        )}
-
-        {/* TAB: MATCHUPS */}
+        {/* TAB: MATCHUPS (merged Weekly Matchups + Schedule -- same schedule/score data, two pivots) */}
         {activeTab === "matchups" && (
-          <div className="space-y-8">
-            <div className="flex flex-wrap items-center gap-4 bg-slate-900/60 backdrop-blur-md border border-slate-800/80 p-4 rounded-xl">
+          <div className="space-y-8 max-w-7xl mx-auto w-full">
+            <div className="inline-flex rounded-full bg-[var(--surface2)] border border-[var(--border)] p-1 gap-1">
+              {[["week", "This Week"], ["season", "Full Season"]].map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setMatchupsView(id)}
+                  className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all duration-200 ${
+                    matchupsView === id ? "bg-[var(--accent)] text-[var(--accent-text)]" : "text-[var(--text2)] hover:text-[var(--text)]"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {matchupsView === "season" && (
+              <ScheduleTab
+                afcSeason={afcSeason} nfcSeason={nfcSeason} crossSchedule={schedule}
+                afcManagers={afcManagers} nfcManagers={nfcManagers}
+                afcTradeDeadlineWeek={afcData.tradeDeadlineWeek} nfcTradeDeadlineWeek={nfcData.tradeDeadlineWeek}
+                focusManager={myTeamManager} focusConf={myTeamConf} currentWeek={nflState.week}
+                onGoToMatchup={(week, manager) => goToMatchup(manager, week)}
+              />
+            )}
+
+            {matchupsView === "week" && (
+              <>
+            <div className="flex flex-wrap items-center gap-4 bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 p-4 rounded-xl">
               <div>
-                <label className="tracking-wider text-xs uppercase font-semibold text-slate-400 block mb-1">Conference</label>
+                <label className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)] block mb-1">Conference</label>
                 <ConfFilterToggle value={confFilter} onChange={setConfFilter} />
               </div>
               <div>
-                <label className="tracking-wider text-xs uppercase font-semibold text-slate-400 block mb-1">NFL Week</label>
+                <label className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)] block mb-1">NFL Week</label>
                 <select
                   value={selectedWeek}
                   onChange={(e) => setSelectedWeek(Number(e.target.value))}
-                  className="bg-slate-950 border border-slate-800/80 text-sm rounded-lg px-3 py-1.5 text-slate-200"
+                  className="bg-[var(--bg)] border border-[var(--border)]/80 text-sm rounded-lg px-3 py-1.5 text-[var(--text)]"
                 >
                   {Array.from({ length: SEASON_WEEKS }, (_, i) => i + 1).map(w => (
                     <option key={w} value={w}>Week {w}</option>
@@ -1162,11 +1179,11 @@ export default function App() {
                 </select>
               </div>
               <div>
-                <label className="tracking-wider text-xs uppercase font-semibold text-slate-400 block mb-1">Filter Manager</label>
+                <label className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)] block mb-1">Filter Manager</label>
                 <select
                   value={selectedManager}
                   onChange={(e) => setSelectedManager(e.target.value)}
-                  className="bg-slate-950 border border-slate-800/80 text-sm rounded-lg px-3 py-1.5 text-slate-200"
+                  className="bg-[var(--bg)] border border-[var(--border)]/80 text-sm rounded-lg px-3 py-1.5 text-[var(--text)]"
                 >
                   <option value="ALL">All Managers</option>
                   {[...afcManagers, ...nfcManagers].map(m => (
@@ -1177,15 +1194,13 @@ export default function App() {
             </div>
 
             <WeeklyHighlights awards={weeklyAwards} week={selectedWeek} isWeekFinal={isSelectedWeekFinal} onSelectManager={setSelectedManager} />
-            <ConferenceWarPanel weekRecord={weekRecord} seasonRecord={seasonRecord} weekPoints={weekPoints} week={selectedWeek} isWeekFinal={isSelectedWeekFinal} />
 
             {showAfc && (
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <Swords className="w-4 h-4 text-slate-400" />
-                  <h2 className="tracking-wider text-xs uppercase font-semibold text-slate-400">AFC Matchups &mdash; Week {selectedWeek}</h2>
+                  <h2 className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)]">AFC Matchups &mdash; Week {selectedWeek}</h2>
                 </div>
-                <div className="grid grid-cols-1 2xl:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   {afcManagerRows.map(m => (
                     <ManagerMatchupRow
                       key={m}
@@ -1197,7 +1212,7 @@ export default function App() {
                       nfcSlots={nfcData.startingSlots || []}
                       playersDB={playersDB}
                       weekProjections={weekProjections}
-                      byTeamWeek={nflSchedule.byTeamWeek} week={selectedWeek}
+                      byTeamWeek={enrichedByTeamWeek} week={selectedWeek}
                     />
                   ))}
                 </div>
@@ -1207,10 +1222,9 @@ export default function App() {
             {showNfc && (
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <Swords className="w-4 h-4 text-slate-400" />
-                  <h2 className="tracking-wider text-xs uppercase font-semibold text-slate-400">NFC Matchups &mdash; Week {selectedWeek}</h2>
+                  <h2 className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)]">NFC Matchups &mdash; Week {selectedWeek}</h2>
                 </div>
-                <div className="grid grid-cols-1 2xl:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   {nfcManagerRows.map(m => (
                     <ManagerMatchupRow
                       key={m}
@@ -1222,46 +1236,28 @@ export default function App() {
                       nfcSlots={nfcData.startingSlots || []}
                       playersDB={playersDB}
                       weekProjections={weekProjections}
-                      byTeamWeek={nflSchedule.byTeamWeek} week={selectedWeek}
+                      byTeamWeek={enrichedByTeamWeek} week={selectedWeek}
                     />
                   ))}
                 </div>
               </div>
             )}
+              </>
+            )}
           </div>
         )}
 
-        {/* TAB: ROSTERS */}
-        {activeTab === "rosters" && (
-          <RosterTab
-            afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason} playersDB={playersDB} playersLoading={playersLoading}
-            weekProjections={weekProjections} selectedWeek={selectedWeek} setSelectedWeek={setSelectedWeek} seasonWeeks={SEASON_WEEKS}
-            byTeamWeek={nflSchedule.byTeamWeek}
-          />
-        )}
-
-        {/* TAB: ACTIVITY */}
-        {activeTab === "activity" && (
-          <ActivityTab
-            afcTransactions={afcTransactions}
-            nfcTransactions={nfcTransactions}
-            afcRosterIdMap={afcData.rosterIdMap}
-            nfcRosterIdMap={nfcData.rosterIdMap}
-            playersDB={playersDB}
-            loading={transactionsLoading}
-          />
-        )}
-
-        {/* TAB: PLAYERS (with Player Search / Draft Board sub-pages) */}
+        {/* TAB: PLAYERS (merged Player Search + Rosters + Activity + Draft Board -- all views onto
+             the same player pool, just sliced differently) */}
         {activeTab === "players" && (
           <div className="space-y-6">
-            <div className="inline-flex bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-xl p-1 gap-1">
-              {[["search", "Player Search", Search], ["draft", "Draft Board", ListOrdered]].map(([key, label, Icon]) => (
+            <div className="inline-flex bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-1 gap-1 flex-wrap">
+              {[["search", "Player Search", Search], ["rosters", "Rosters", Users], ["activity", "Activity", Activity], ["draft", "Draft Board", ListOrdered]].map(([key, label, Icon]) => (
                 <button
                   key={key}
                   onClick={() => setPlayersSubTab(key)}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 ${
-                    playersSubTab === key ? "bg-blue-600 text-white" : "text-slate-400 hover:text-slate-200"
+                    playersSubTab === key ? "bg-[var(--accent)] text-[var(--accent-text)]" : "text-[var(--text2)] hover:text-[var(--text)]"
                   }`}
                 >
                   <Icon className="w-4 h-4" />
@@ -1271,6 +1267,8 @@ export default function App() {
             </div>
 
             {playersSubTab === "search" && (
+              // Player Search deliberately defaults to All/All rather than your own team -- unlike
+              // Rosters/Activity below, browsing players isn't "your team" scoped by default.
               <PlayersTab
                 afcData={afcData}
                 nfcData={nfcData}
@@ -1282,6 +1280,26 @@ export default function App() {
                 nfcManagers={nfcManagers}
                 playersDB={playersDB}
                 playersLoading={playersLoading}
+                focusManager={null} focusConf={null}
+              />
+            )}
+            {playersSubTab === "rosters" && (
+              <RosterTab
+                afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason} playersDB={playersDB} playersLoading={playersLoading}
+                weekProjections={weekProjections} selectedWeek={selectedWeek} setSelectedWeek={setSelectedWeek} seasonWeeks={SEASON_WEEKS}
+                byTeamWeek={enrichedByTeamWeek}
+                focusManager={myTeamManager} focusConf={myTeamConf}
+              />
+            )}
+            {playersSubTab === "activity" && (
+              <ActivityTab
+                afcTransactions={afcTransactions}
+                nfcTransactions={nfcTransactions}
+                afcRosterIdMap={afcData.rosterIdMap}
+                nfcRosterIdMap={nfcData.rosterIdMap}
+                playersDB={playersDB}
+                loading={transactionsLoading}
+                focusConf={myTeamConf}
               />
             )}
             {playersSubTab === "draft" && (
@@ -1291,6 +1309,7 @@ export default function App() {
                 afcRosterIdMap={afcData.rosterIdMap}
                 nfcRosterIdMap={nfcData.rosterIdMap}
                 loading={draftLoading}
+                playersDB={playersDB}
               />
             )}
           </div>
@@ -1298,43 +1317,45 @@ export default function App() {
 
         {/* TAB: MS TEAMS RECAP (admin only) */}
         {activeTab === "teams" && isAdmin && (
-          <div className="bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-xl p-6 space-y-4">
+          <div className="space-y-6">
+          <TeamDefaultsAdmin afcData={afcData} nfcData={nfcData} afcManagers={afcManagers} nfcManagers={nfcManagers} />
+          <div className="bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-6 space-y-4">
             <div>
-              <h2 className="text-xl font-bold mb-2 text-slate-100">MS Teams Weekly Broadcast Generator</h2>
-              <p className="text-sm text-slate-400">Copy and paste this markdown recap directly into your MS Teams channel every Tuesday morning.</p>
+              <h2 className="text-xl font-bold mb-2 text-[var(--text)]">MS Teams Weekly Broadcast Generator</h2>
+              <p className="text-sm text-[var(--text2)]">Copy and paste this markdown recap directly into your MS Teams channel every Tuesday morning.</p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="tracking-wider text-[10px] uppercase font-semibold text-slate-500 block mb-1">High Score Winner</label>
+                <label className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)] block mb-1">High Score Winner</label>
                 <input
                   type="text"
                   value={broadcastFields.highScoreWinner}
                   onChange={(e) => updateBroadcastField("highScoreWinner", e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800/80 text-xs px-3 py-1.5 rounded-lg focus:outline-none focus:border-blue-500"
+                  className="w-full bg-[var(--bg)] border border-[var(--border)]/80 text-xs px-3 py-1.5 rounded-lg focus:outline-none focus:border-[var(--accent)]"
                 />
               </div>
               <div>
-                <label className="tracking-wider text-[10px] uppercase font-semibold text-slate-500 block mb-1">AFC Wildcard Leader</label>
+                <label className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)] block mb-1">AFC Wildcard Leader</label>
                 <input
                   type="text"
                   value={broadcastFields.afcWildcardLeader}
                   onChange={(e) => updateBroadcastField("afcWildcardLeader", e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800/80 text-xs px-3 py-1.5 rounded-lg focus:outline-none focus:border-blue-500"
+                  className="w-full bg-[var(--bg)] border border-[var(--border)]/80 text-xs px-3 py-1.5 rounded-lg focus:outline-none focus:border-red-500"
                 />
               </div>
               <div>
-                <label className="tracking-wider text-[10px] uppercase font-semibold text-slate-500 block mb-1">NFC Wildcard Leader</label>
+                <label className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)] block mb-1">NFC Wildcard Leader</label>
                 <input
                   type="text"
                   value={broadcastFields.nfcWildcardLeader}
                   onChange={(e) => updateBroadcastField("nfcWildcardLeader", e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800/80 text-xs px-3 py-1.5 rounded-lg focus:outline-none focus:border-rose-500"
+                  className="w-full bg-[var(--bg)] border border-[var(--border)]/80 text-xs px-3 py-1.5 rounded-lg focus:outline-none focus:border-blue-500"
                 />
               </div>
             </div>
 
-            <pre className="bg-slate-950 p-4 rounded-lg border border-slate-800/80 text-xs font-mono text-emerald-400 whitespace-pre-wrap select-all">
+            <pre className="bg-[var(--bg)] p-4 rounded-lg border border-[var(--border)]/80 text-xs font-mono text-emerald-400 whitespace-pre-wrap select-all">
 {`========================================
 LENZONE WEEKLY RECAP: WEEK ${selectedWeek}
 ========================================
@@ -1347,13 +1368,14 @@ LENZONE WEEKLY RECAP: WEEK ${selectedWeek}
 Full Standings & Scoreboard: https://lenzone.vercel.app`}
             </pre>
           </div>
+          </div>
         )}
 
         {/* TAB: CHARTER */}
         {activeTab === "charter" && (
-          <div className="bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-xl p-6 space-y-4 text-slate-300 text-sm">
+          <div className="bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-6 space-y-4 text-[var(--text2)] text-sm">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-slate-100">Official LENZONE 2026 Charter</h2>
+              <h2 className="text-xl font-bold text-[var(--text)]">Official LENZONE 2026 Charter</h2>
               {isAdmin && (
                 <Button onClick={saveCharter}>Save</Button>
               )}
@@ -1364,10 +1386,10 @@ Full Standings & Scoreboard: https://lenzone.vercel.app`}
                 value={charterDraft}
                 onChange={(e) => setCharterDraft(e.target.value)}
                 rows={10}
-                className="w-full bg-slate-950 border border-slate-800/80 rounded-lg p-4 text-sm text-slate-300 focus:outline-none focus:border-blue-500"
+                className="w-full bg-[var(--bg)] border border-[var(--border)]/80 rounded-lg p-4 text-sm text-[var(--text2)] focus:outline-none focus:border-[var(--accent)]"
               />
             ) : (
-              <div className="whitespace-pre-wrap p-4 bg-slate-950 rounded-lg border-l-4 border-blue-500">
+              <div className="whitespace-pre-wrap p-4 bg-[var(--bg)] rounded-lg border-l-4 border-[var(--accent)]">
                 {charterText}
               </div>
             )}
@@ -1375,29 +1397,29 @@ Full Standings & Scoreboard: https://lenzone.vercel.app`}
         )}
       </main>
 
-      {/* Mobile Sticky Bottom Navigation Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-slate-900/70 backdrop-blur-md border-t border-slate-800/80 flex justify-around py-2.5 overflow-x-auto">
-        {tabs.map(tab => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex flex-col items-center gap-1 text-[10px] font-semibold transition-all duration-200 shrink-0 px-2 ${
-                activeTab === tab.id ? "text-blue-400" : "text-slate-400"
-              }`}
-            >
-              <Icon className="w-5 h-5" />
-              <span>{tab.shortLabel}</span>
-            </button>
-          );
-        })}
+      {/* Mobile Sticky Bottom Navigation Bar -- hidden on Home too */}
+      {activeTab !== "home" && (
+      <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-[var(--surface)]/70 backdrop-blur-md border-t border-[var(--border)]/80 flex justify-around py-2.5 overflow-x-auto">
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`text-[11px] font-semibold transition-all duration-200 shrink-0 px-2 py-1 ${
+              activeTab === tab.id ? "text-[var(--accent)]" : "text-[var(--text2)]"
+            }`}
+          >
+            {tab.shortLabel}
+          </button>
+        ))}
       </nav>
+      )}
     </div>
     </RosterModalProvider>
     </PlayerModalProvider>
     </PlayerPhotoProvider>
     </TeamLogoProvider>
     </TeamColorProvider>
+    </MyTeamProvider>
+    </ImageLightboxProvider>
   );
 }

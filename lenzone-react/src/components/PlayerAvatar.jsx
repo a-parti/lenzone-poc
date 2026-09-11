@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { usePlayerPhotos } from '../context/PlayerPhotoContext';
+import { Zoomable } from '../context/ImageLightboxContext';
 
 // Real Sleeper-hosted images: player headshots (many bench/practice-squad guys have none on file)
 // and, for DEF entries (player_id is the team abbreviation itself), the NFL team's logo.
@@ -11,18 +12,21 @@ export default function PlayerAvatar({ playerId, position, className = "w-6 h-6"
 
   if (!enabled) return null;
   if (!playerId || playerId === '0' || failed) {
-    return <div className={`${className} rounded-full bg-slate-800 shrink-0`} />;
+    return <div className={`${className} rounded-full bg-[var(--surface2)] shrink-0`} />;
   }
 
-  const src = position === 'DEF'
+  const isDefense = position === 'DEF';
+  const src = isDefense
     ? `https://sleepercdn.com/images/team_logos/nfl/${playerId.toLowerCase()}.png`
     : `https://sleepercdn.com/content/nfl/players/thumb/${playerId}.jpg`;
+  const zoomSrc = isDefense ? src : `https://sleepercdn.com/content/nfl/players/${playerId}.jpg`;
 
   return (
-    <img
+    <Zoomable
       src={src}
+      zoomSrc={zoomSrc}
       alt=""
-      className={`${className} rounded-full object-cover shrink-0 bg-slate-800`}
+      className={`${className} rounded-full object-cover shrink-0 bg-[var(--surface2)]`}
       onError={() => setFailed(true)}
     />
   );

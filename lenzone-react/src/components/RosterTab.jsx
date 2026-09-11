@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { CONF_STYLES } from '../lib/theme';
 import { ConfFilterToggle, SkeletonRows } from './shared';
 import RosterList from './RosterList';
@@ -11,10 +11,18 @@ const SORT_OPTIONS = {
   ACTUAL_DESC: { label: "Actual Total (High to Low)", accessor: r => r.teamTotals.actualPosted, dir: -1 }
 };
 
-export default function RosterTab({ afcData, nfcData, afcSeason, nfcSeason, playersDB, playersLoading, weekProjections, selectedWeek, setSelectedWeek, seasonWeeks, byTeamWeek }) {
-  const [conf, setConf] = useState('ALL');
-  const [team, setTeam] = useState('ALL');
+export default function RosterTab({ afcData, nfcData, afcSeason, nfcSeason, playersDB, playersLoading, weekProjections, selectedWeek, setSelectedWeek, seasonWeeks, byTeamWeek, focusManager, focusConf }) {
+  const [conf, setConf] = useState(focusConf || 'ALL');
+  const [team, setTeam] = useState(focusManager || 'ALL');
   const [sortKey, setSortKey] = useState('DEFAULT');
+
+  // Re-focus on the remembered team whenever it changes (picked via "I am ___" on Home).
+  useEffect(() => {
+    if (focusManager && focusConf) {
+      setConf(focusConf);
+      setTeam(focusManager);
+    }
+  }, [focusManager, focusConf]);
 
   const afcFallbackField = scoringFieldFor(afcData.receptionPoints || 0);
   const nfcFallbackField = scoringFieldFor(nfcData.receptionPoints || 0);
@@ -48,28 +56,28 @@ export default function RosterTab({ afcData, nfcData, afcSeason, nfcSeason, play
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-4 bg-slate-900/60 backdrop-blur-md border border-slate-800/80 p-4 rounded-xl">
+      <div className="flex flex-wrap items-center gap-4 bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 p-4 rounded-xl">
         <div>
-          <label className="tracking-wider text-xs uppercase font-semibold text-slate-400 block mb-1">Conference</label>
+          <label className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)] block mb-1">Conference</label>
           <ConfFilterToggle value={conf} onChange={(v) => { setConf(v); setTeam('ALL'); }} />
         </div>
         <div>
-          <label className="tracking-wider text-xs uppercase font-semibold text-slate-400 block mb-1">Team</label>
+          <label className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)] block mb-1">Team</label>
           <select
             value={team}
             onChange={(e) => setTeam(e.target.value)}
-            className="bg-slate-950 border border-slate-800/80 text-sm rounded-lg px-3 py-1.5 text-slate-200"
+            className="bg-[var(--bg)] border border-[var(--border)]/80 text-sm rounded-lg px-3 py-1.5 text-[var(--text)]"
           >
             <option value="ALL">All Teams</option>
             {pool.map(r => <option key={r.manager} value={r.manager}>{r.manager}</option>)}
           </select>
         </div>
         <div>
-          <label className="tracking-wider text-xs uppercase font-semibold text-slate-400 block mb-1">Projected Pts Week</label>
+          <label className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)] block mb-1">Projected Pts Week</label>
           <select
             value={selectedWeek}
             onChange={(e) => setSelectedWeek(Number(e.target.value))}
-            className="bg-slate-950 border border-slate-800/80 text-sm rounded-lg px-3 py-1.5 text-slate-200"
+            className="bg-[var(--bg)] border border-[var(--border)]/80 text-sm rounded-lg px-3 py-1.5 text-[var(--text)]"
           >
             {Array.from({ length: seasonWeeks }, (_, i) => i + 1).map(w => (
               <option key={w} value={w}>Week {w}</option>
@@ -77,11 +85,11 @@ export default function RosterTab({ afcData, nfcData, afcSeason, nfcSeason, play
           </select>
         </div>
         <div>
-          <label className="tracking-wider text-xs uppercase font-semibold text-slate-400 block mb-1">Sort By</label>
+          <label className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)] block mb-1">Sort By</label>
           <select
             value={sortKey}
             onChange={(e) => setSortKey(e.target.value)}
-            className="bg-slate-950 border border-slate-800/80 text-sm rounded-lg px-3 py-1.5 text-slate-200"
+            className="bg-[var(--bg)] border border-[var(--border)]/80 text-sm rounded-lg px-3 py-1.5 text-[var(--text)]"
           >
             {Object.entries(SORT_OPTIONS).map(([key, opt]) => (
               <option key={key} value={key}>{opt.label}</option>
@@ -92,12 +100,12 @@ export default function RosterTab({ afcData, nfcData, afcSeason, nfcSeason, play
 
       {playersLoading && <SkeletonRows rows={4} />}
       {!playersLoading && pool.length === 0 && (
-        <div className="text-sm text-slate-500 italic">Connect a Sleeper League ID (Standings tab, admin mode) to view rosters.</div>
+        <div className="text-sm text-[var(--muted)] italic">Connect a Sleeper League ID (Standings tab, admin mode) to view rosters.</div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {sorted.map(r => (
-          <div key={r.manager} className={`bg-slate-900/60 backdrop-blur-md border ${CONF_STYLES[r.conf].border} rounded-xl p-4`}>
+          <div key={r.manager} className={`bg-[var(--surface)]/60 backdrop-blur-md border ${CONF_STYLES[r.conf].border} rounded-xl p-4`}>
             <div className="flex items-center gap-2 mb-3">
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${CONF_STYLES[r.conf].badge}`}>{r.conf}</span>
               <TeamName manager={r.manager} conf={r.conf} className="font-bold" />

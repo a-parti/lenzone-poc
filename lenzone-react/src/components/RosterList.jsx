@@ -172,10 +172,11 @@ export default function RosterList({ roster, startingSlots, irSlotCount = 0, pla
         {bench.map(id => {
           const { name, position, injuryStatus, team, number } = playerLabel(playersDB, id);
           const live = isLiveGame(byTeamWeek, team, week);
+          const final = byTeamWeek?.[team]?.[week]?.state === 'post';
           return (
             <div key={id} className={`${ROW_GRID} text-sm py-0.5 ${live ? LIVE_ROW_CLASS : ""}`}>
               <PlayerAvatar playerId={id} position={position} />
-              <span className="text-[10px] font-mono text-[var(--muted)] text-center">{number != null ? `#${number}` : ""}</span>
+              <div className="flex justify-center"><PositionBadge position={position} /></div>
               <div className="flex flex-col min-w-0">
                 <div className="flex items-center gap-1 min-w-0">
                   <PlayerNameButton playerId={id} name={name} position={position} className="text-[var(--text2)] truncate" />
@@ -183,9 +184,8 @@ export default function RosterList({ roster, startingSlots, irSlotCount = 0, pla
                 </div>
                 <GameBadge nflTeam={team} week={week} byTeamWeek={byTeamWeek} />
               </div>
-              <ProjectedPts id={id} weekProjections={weekProjections} scoringSettings={scoringSettings} fallbackField={fallbackField} playersPoints={playersPoints} isLive={live} />
-              <div className="flex justify-center"><PositionBadge position={position} /></div>
-              <div className="flex justify-center"><NflTeamTag team={team} /></div>
+              <ProjectedPts id={id} weekProjections={weekProjections} scoringSettings={scoringSettings} fallbackField={fallbackField} playersPoints={playersPoints} isLive={live} gameFinal={final} />
+              <div className="flex justify-center"><NflTeamTag team={team} number={number} /></div>
             </div>
           );
         })}

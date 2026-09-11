@@ -124,7 +124,7 @@ export default function PlayerModal({
 
           <div className="flex items-center gap-2 mt-2 mb-3">
             <PositionBadge position={position} />
-            {team && <NflTeamTag team={team} />}
+            {team && <NflTeamTag team={team} number={number} />}
             {depthChart && (
               <span className="text-[10px] font-mono text-[var(--muted)] bg-[var(--surface2)]/60 px-1.5 py-0.5 rounded">{depthChart}</span>
             )}

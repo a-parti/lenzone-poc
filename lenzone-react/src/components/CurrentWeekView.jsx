@@ -59,9 +59,9 @@ export default function CurrentWeekView({
       {myTeamManager && (
         <div className="space-y-3 w-full">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-3 min-w-0" style={{ perspective: '500px' }}>
               {logoUrl && (
-                <Zoomable src={logoUrl} alt={myTeamManager} className="w-14 h-14 rounded-full object-cover border-2 border-[var(--accent)]/60 shrink-0" />
+                <Zoomable key={myTeamManager} src={logoUrl} alt={myTeamManager} className="coin-flip w-14 h-14 rounded-full object-cover border-2 border-[var(--accent)]/60 shrink-0" />
               )}
               <p className="tracking-wider text-xs uppercase font-semibold text-[var(--muted)]">Your Matchups</p>
             </div>
@@ -73,6 +73,12 @@ export default function CurrentWeekView({
               Full Matchups Tab &rarr;
             </button>
           </div>
+          <MyPlayerHighlights
+            myTeamRoster={myTeamRoster} myTeamPlayersPoints={myTeamPlayersPoints} weekProjections={weekProjections}
+            myTeamConfData={myTeamConfData} myTeamFallbackField={myTeamFallbackField} playersDB={playersDB}
+            nflGames={nflGames} week={selectedWeek} myPlayersByNflTeam={myPlayersByNflTeam}
+            onSelectGame={toggleGame}
+          />
           {/* Same component as the Matchups tab -- identical scores, win%, and "Expand Rosters"
               (both sides' full lineups) so nothing here can drift from what that tab shows. Header
               hidden here since the logo+"Your Matchups" label above already identify whose card
@@ -82,12 +88,6 @@ export default function CurrentWeekView({
             afcSlots={afcSlots} nfcSlots={nfcSlots} playersDB={playersDB}
             weekProjections={weekProjections} byTeamWeek={byTeamWeek} week={selectedWeek}
             hideHeader highlightTeams={highlightTeams} onSelectGame={toggleGame}
-          />
-          <MyPlayerHighlights
-            myTeamRoster={myTeamRoster} myTeamPlayersPoints={myTeamPlayersPoints} weekProjections={weekProjections}
-            myTeamConfData={myTeamConfData} myTeamFallbackField={myTeamFallbackField} playersDB={playersDB}
-            nflGames={nflGames} week={selectedWeek} myPlayersByNflTeam={myPlayersByNflTeam}
-            onSelectGame={toggleGame}
           />
         </div>
       )}

@@ -4,8 +4,7 @@ import { TeamPicker } from './shared';
 import { useTheme } from '../context/ThemeContext';
 import { useTeamLogo } from '../context/TeamLogoContext';
 import { Zoomable } from '../context/ImageLightboxContext';
-import lenzoneLogoRing from '../assets/lenzone-logo-ring.png';
-import lenzoneLogoBall from '../assets/lenzone-logo-ball.png';
+import AnimatedLogo from './AnimatedLogo';
 
 // Easter egg: a short burst in the just-picked team's color, fired for EVERY manager selection
 // (whichever color they landed on -- an admin-configured default, or this pick's fresh random
@@ -141,27 +140,23 @@ function BigTeamLogo({ manager }) {
   const logoUrl = useTeamLogo(manager);
   if (!logoUrl) return null;
   return (
-    <div className="flex justify-center mb-4 animate-fade-in-up">
+    <div className="flex justify-center mb-4" style={{ perspective: '700px' }}>
       <Zoomable
+        key={manager}
         src={logoUrl}
         alt={manager}
-        className="w-28 h-28 sm:w-36 sm:h-36 rounded-full object-cover border-4 border-[var(--accent)]/60 shadow-lg shadow-[var(--accent)]/20"
+        className="coin-flip w-28 h-28 sm:w-36 sm:h-36 rounded-full object-cover border-4 border-[var(--accent)]/60 shadow-lg shadow-[var(--accent)]/20"
       />
     </div>
   );
 }
 
 // Before a team is picked, this fills the same big-logo slot BigTeamLogo takes afterward -- the
-// app's own ring+football mark, both layers spinning continuously (independently of each other) on
-// a rotating rainbow glow, rather than leaving that space empty until someone chooses.
+// same living AnimatedLogo used in the header, just bigger and with its glow turned on.
 function BigAppLogo() {
   return (
-    <div className="flex justify-center mb-4">
-      <div className="relative w-28 h-28 sm:w-36 sm:h-36">
-        <div className="big-logo-glow absolute -inset-4 rounded-full" aria-hidden="true" />
-        <img src={lenzoneLogoRing} alt="" aria-hidden="true" className="big-logo-ring absolute inset-0 w-full h-full" />
-        <img src={lenzoneLogoBall} alt="LENZONE" className="big-logo-ball absolute inset-0 w-full h-full" />
-      </div>
+    <div className="flex justify-center mb-4 py-6">
+      <AnimatedLogo sizeClass="w-28 h-28 sm:w-36 sm:h-36" showGlow />
     </div>
   );
 }

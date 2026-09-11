@@ -1,0 +1,73 @@
+import React, { useState, useEffect, useRef } from 'react';
+import lenzoneLogoRing from '../assets/lenzone-logo-ring.png';
+import lenzoneLogoBall from '../assets/lenzone-logo-ball.png';
+
+// The app's ring+football mark, read as a cartoon eye (the ring is the iris, the ball the pupil).
+// Ring and ball spin together as ONE rigid unit (same rate/direction) so the ring art's fixed
+// alignment with the ball never drifts (an earlier version spun them independently and looked
+// broken). Layered interactions, each on its own nested element so their transforms don't fight:
+// the outer zone tilts the whole thing toward the cursor, the middle layer reacts to hover (spins
+// faster, via the .group CSS hook) and click (a squash-and-stretch "boing"), and the ball blinks
+// shut every few seconds like an actual eye. Shared by the big Home pre-pick placeholder and the
+// small header logo on every other page, so it's the same living mark everywhere, not two designs.
+export default function AnimatedLogo({ sizeClass = "w-14 h-14", showGlow = false, onClick, label = "LENZONE" }) {
+  const zoneRef = useRef(null);
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
+  const [clicked, setClicked] = useState(false);
+  const [blinking, setBlinking] = useState(false);
+
+  useEffect(() => {
+    let timeoutId;
+    const scheduleBlink = () => {
+      timeoutId = setTimeout(() => {
+        setBlinking(true);
+        setTimeout(() => setBlinking(false), 260);
+        scheduleBlink();
+      }, 2800 + Math.random() * 4200);
+    };
+    scheduleBlink();
+    return () => clearTimeout(timeoutId);
+  }, []);
+
+  const handleMouseMove = (e) => {
+    const rect = zoneRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const dx = (e.clientX - (rect.left + rect.width / 2)) / (rect.width / 2);
+    const dy = (e.clientY - (rect.top + rect.height / 2)) / (rect.height / 2);
+    setTilt({
+      x: Math.max(-1, Math.min(1, dx)) * 14,
+      y: Math.max(-1, Math.min(1, dy)) * -14
+    });
+  };
+
+  const fireClick = () => {
+    setClicked(true);
+    setTimeout(() => setClicked(false), 420);
+    onClick?.();
+  };
+
+  return (
+    <div
+      ref={zoneRef}
+      className="inline-block transition-transform duration-150 ease-out"
+      onMouseMove={handleMouseMove}
+      onMouseLeave={() => setTilt({ x: 0, y: 0 })}
+      style={{ transform: `perspective(400px) rotateY(${tilt.x}deg) rotateX(${tilt.y}deg)` }}
+    >
+      <div
+        role={onClick ? "button" : undefined}
+        tabIndex={onClick ? 0 : undefined}
+        aria-label={label}
+        onClick={onClick ? fireClick : undefined}
+        onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fireClick(); } } : undefined}
+        className={`group relative ${sizeClass} shrink-0 ${onClick ? "cursor-pointer" : ""} ${clicked ? "big-logo-click" : ""}`}
+      >
+        {showGlow && <div className="big-logo-glow absolute -inset-4 rounded-full" aria-hidden="true" />}
+        <img src={lenzoneLogoRing} alt="" aria-hidden="true" className="big-logo-spin absolute inset-0 w-full h-full" />
+        <div className={`absolute inset-0 ${blinking ? "big-logo-blink" : ""}`}>
+          <img src={lenzoneLogoBall} alt={label} className="big-logo-spin absolute inset-0 w-full h-full" />
+        </div>
+      </div>
+    </div>
+  );
+}

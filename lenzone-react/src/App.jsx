@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Trophy, Swords, Megaphone, Scroll, ExternalLink, RefreshCw, Award, Lock, Unlock, X, Activity, ListOrdered, Users, Calendar, Search, Volume2, VolumeX } from 'lucide-react';
-import lenzoneLogoRing from './assets/lenzone-logo-ring.png';
-import lenzoneLogoBall from './assets/lenzone-logo-ball.png';
+import AnimatedLogo from './components/AnimatedLogo';
 import { CONF_STYLES } from './lib/theme';
 import { ConfFilterToggle } from './components/shared';
 import {
@@ -1052,17 +1051,14 @@ export default function App() {
       {activeTab !== "home" && (
         <header className="max-w-7xl mx-auto bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-2xl px-5 py-3 mb-8 shadow-xl">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <button type="button" onClick={() => setActiveTab("home")} className="flex items-center gap-2.5 group shrink-0">
-              {/* Two layered images (split from the original single PNG) so only the football
-                  spins on hover, not the whole ring -- the ring stays put and just scales up. */}
-              <span className="relative w-14 h-14 shrink-0 transition-transform duration-500 group-hover:scale-125">
-                <img src={lenzoneLogoRing} alt="LENZONE" className="absolute inset-0 w-full h-full" />
-                <img src={lenzoneLogoBall} alt="" aria-hidden="true" className="absolute inset-0 w-full h-full logo-ball" />
-              </span>
-              <h1 className="lenzone-title font-display text-xl font-extrabold tracking-tight bg-clip-text text-transparent">
-                LENZONE 2026
-              </h1>
-            </button>
+            <div className="group flex items-center gap-2.5 shrink-0">
+              <AnimatedLogo sizeClass="w-14 h-14" onClick={() => setActiveTab("home")} />
+              <button type="button" onClick={() => setActiveTab("home")} className="text-left">
+                <h1 className="lenzone-title font-display text-xl font-extrabold tracking-tight bg-clip-text text-transparent">
+                  LENZONE 2026
+                </h1>
+              </button>
+            </div>
             {isAdmin && (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase tracking-wider shrink-0">
                 Admin

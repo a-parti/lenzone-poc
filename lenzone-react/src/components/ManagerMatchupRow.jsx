@@ -11,13 +11,14 @@ import TeamName from './TeamName';
 // A CSS grid with the name column as a flexible 1fr track looks aligned in theory, but a 1fr
 // TRACK always claims the full leftover width regardless of how short its content is -- so a short
 // name like "Malik Willis" leaves a big dead gap between the name and the position/team tags that
-// follow, instead of the tags sitting right next to it. A flex row with a fixed (not flexible)
-// name width avoids that: the tags always sit a consistent, small gap after the name, and any
-// truly leftover space collects in one place -- right before the score, via ml-auto -- which reads
-// as a normal right-aligned column rather than a random gap mid-row. Also drops the old plain-text
-// slot label ("QB") that duplicated the colored position tag sitting right next to it.
+// follow, instead of the tags sitting right next to it. A flex row with a capped (not rigidly
+// fixed) name width avoids that: names normally sit at a consistent width so tags/score line up,
+// but the column can still SHRINK below that cap under real width pressure -- a rigid fixed width
+// with everything else shrink-0 has nowhere to give, so it silently overflows the half-card and
+// pushes the score off past the visible edge instead of just truncating the name. Also drops the
+// old plain-text slot label ("QB") that duplicated the colored position tag sitting right next to it.
 const ROSTER_ROW_FLEX = "flex items-center gap-1.5";
-const ROSTER_NAME_WIDTH = "w-[128px] shrink-0";
+const ROSTER_NAME_WIDTH = "flex-1 min-w-0 max-w-[168px]";
 
 // Clicking anywhere on a player's side of the row (but not the name or team-tag buttons, which
 // already have their own destinations -- player card / depth chart) highlights that player's real

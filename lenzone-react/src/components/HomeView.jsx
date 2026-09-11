@@ -4,6 +4,8 @@ import { TeamPicker } from './shared';
 import { useTheme } from '../context/ThemeContext';
 import { useTeamLogo } from '../context/TeamLogoContext';
 import { Zoomable } from '../context/ImageLightboxContext';
+import lenzoneLogoRing from '../assets/lenzone-logo-ring.png';
+import lenzoneLogoBall from '../assets/lenzone-logo-ball.png';
 
 // Easter egg: a short burst in the just-picked team's color, fired for EVERY manager selection
 // (whichever color they landed on -- an admin-configured default, or this pick's fresh random
@@ -149,6 +151,21 @@ function BigTeamLogo({ manager }) {
   );
 }
 
+// Before a team is picked, this fills the same big-logo slot BigTeamLogo takes afterward -- the
+// app's own ring+football mark, both layers spinning continuously (independently of each other) on
+// a rotating rainbow glow, rather than leaving that space empty until someone chooses.
+function BigAppLogo() {
+  return (
+    <div className="flex justify-center mb-4">
+      <div className="relative w-28 h-28 sm:w-36 sm:h-36">
+        <div className="big-logo-glow absolute -inset-4 rounded-full" aria-hidden="true" />
+        <img src={lenzoneLogoRing} alt="" aria-hidden="true" className="big-logo-ring absolute inset-0 w-full h-full" />
+        <img src={lenzoneLogoBall} alt="LENZONE" className="big-logo-ball absolute inset-0 w-full h-full" />
+      </div>
+    </div>
+  );
+}
+
 function navSections(selectedWeek) {
   return [
     { id: "currentWeek", title: `This Week (${selectedWeek})` },
@@ -219,7 +236,7 @@ export default function HomeView({ setActiveTab, selectedWeek, afcManagers, nfcM
           against); once the nav list is about to appear below it, the picker eases upward to make
           room instead of the list just abruptly appearing under a still-centered picker. */}
       <div className={`transition-[margin-top] duration-500 ease-out ${myTeamManager ? "mt-16 sm:mt-20" : "mt-[26vh] sm:mt-[30vh]"}`}>
-        {myTeamManager && <BigTeamLogo manager={myTeamManager} />}
+        {myTeamManager ? <BigTeamLogo manager={myTeamManager} /> : <BigAppLogo />}
         <TeamPicker afcManagers={afcManagers} nfcManagers={nfcManagers} value={myTeamManager} onChange={onChooseMyTeam} variant="blend" />
       </div>
 

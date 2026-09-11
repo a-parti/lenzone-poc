@@ -296,6 +296,33 @@ html {
   animation: title-shine 5s linear infinite;
   box-shadow: 0 0 8px 1px color-mix(in srgb, var(--accent), transparent 55%);
 }
+/* Big Home-page logo shown before a team is picked -- unlike the small header logo (which only
+   spins the football, and only on hover), both layers spin continuously here, at different
+   speeds/directions so the two rings read as independent moving parts rather than one flat image,
+   with a soft rotating rainbow glow behind it (same 8-stop palette as the title/picker glow) so
+   the empty pre-pick moment still feels alive instead of static. */
+@keyframes big-logo-ring-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes big-logo-ball-spin {
+  to { transform: rotate(-360deg); }
+}
+.big-logo-ring {
+  animation: big-logo-ring-spin 14s linear infinite;
+}
+.big-logo-ball {
+  animation: big-logo-ball-spin 3.5s linear infinite;
+}
+@keyframes big-logo-glow-spin {
+  to { transform: rotate(360deg); }
+}
+.big-logo-glow {
+  background: conic-gradient(from 0deg, #f87171, #fb923c, var(--accent), #2dd4bf, #60a5fa, #a78bfa, #f472b6, #facc15, #f87171);
+  filter: blur(24px);
+  opacity: 0.45;
+  animation: big-logo-glow-spin 7s linear infinite;
+}
+
 @supports not (color: color-mix(in srgb, red, blue)) {
   .picker-glow-bar { box-shadow: 0 0 8px 1px var(--accent); }
 }

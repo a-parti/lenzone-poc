@@ -615,6 +615,17 @@ export default function App() {
   const [nflState, setNflState] = useState({ week: 1, seasonType: null });
   const latestCompletedWeek = Math.max(0, Math.min(SEASON_WEEKS, (nflState.week || 1) - 1));
 
+  // The Matchups "Weekly" view's week dropdown defaults to whatever real current NFL week Sleeper
+  // reports, once that loads -- not always week 1. Only does this ONCE (the ref guard), so it
+  // doesn't yank the viewer back to the current week if they've already navigated to a different
+  // one and this effect re-fires from an unrelated nflState update (e.g. a background refresh).
+  const didSetInitialWeek = useRef(false);
+  useEffect(() => {
+    if (didSetInitialWeek.current || !nflState.week) return;
+    didSetInitialWeek.current = true;
+    setSelectedWeek(Math.min(SEASON_WEEKS, Math.max(1, nflState.week)));
+  }, [nflState.week]);
+
   const loadData = async () => {
     setLoading(true);
     const [afcRes, nfcRes, stateRes] = await Promise.all([
@@ -1179,7 +1190,7 @@ export default function App() {
         {activeTab === "matchups" && (
           <div className="space-y-8 max-w-7xl mx-auto w-full">
             <div className="inline-flex rounded-full bg-[var(--surface2)] border border-[var(--border)] p-1 gap-1">
-              {[["week", "This Week"], ["season", "Full Season"]].map(([id, label]) => (
+              {[["week", "Weekly"], ["season", "Full Season"]].map(([id, label]) => (
                 <button
                   key={id}
                   type="button"

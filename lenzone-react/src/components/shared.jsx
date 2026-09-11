@@ -150,6 +150,14 @@ export function ThemeToggle() {
   const { scheme, setScheme, mode, setMode } = useTheme();
   const stripRef = useRef(null);
 
+  // Whenever the active scheme changes -- picked here, forced by a manager selection, or the
+  // random Home-page default -- bring its swatch into view instead of leaving the strip scrolled
+  // wherever it happened to be, so the ring around the active color is never scrolled off-screen.
+  useEffect(() => {
+    const el = stripRef.current?.querySelector(`[data-scheme-id="${scheme}"]`);
+    el?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }, [scheme]);
+
   // A horizontal strip doesn't respond to a normal (vertical) mouse wheel by default -- redirect
   // vertical wheel delta into horizontal scroll so it can be browsed without a horizontal scrollbar/drag.
   const onWheel = (e) => {
@@ -187,6 +195,7 @@ export function ThemeToggle() {
               key={s.id}
               type="button"
               title={s.label}
+              data-scheme-id={s.id}
               aria-label={`Switch to ${s.label} color scheme`}
               aria-pressed={scheme === s.id}
               onClick={() => setScheme(s.id)}

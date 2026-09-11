@@ -13,7 +13,7 @@ export const COLOR_SCHEMES = [
 // is drawn from on a fresh visit (see initialScheme below).
 export const ALL_SCHEMES = [...COLOR_SCHEMES, ...NFL_TEAM_SCHEMES];
 
-const ThemeContext = createContext({ scheme: 'accent', mode: 'dark', setScheme: () => {}, setMode: () => {}, rerollScheme: () => {} });
+const ThemeContext = createContext({ scheme: 'accent', mode: 'dark', setScheme: () => {}, setMode: () => {}, rerollScheme: () => {}, pickRandomScheme: () => {} });
 
 function systemPrefersDark() {
   return typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches;
@@ -81,12 +81,20 @@ export function ThemeProvider({ children }) {
     setSchemeState(picked);
   };
 
+  // Unlike rerollScheme above, this ALWAYS picks a fresh random team palette, even if the viewer
+  // (or an admin, for a different manager) had previously locked one in manually -- used when
+  // picking a manager with no admin-configured color default, so choosing "who you are" always
+  // feels like a fresh roll of the dice, the same way it did before anyone had picked anything yet.
+  const pickRandomScheme = () => {
+    setScheme(randomTeamSchemeId());
+  };
+
   useEffect(() => {
     document.documentElement.setAttribute('data-mode', mode);
   }, [mode]);
 
   return (
-    <ThemeContext.Provider value={{ scheme, setScheme, mode, setMode, rerollScheme }}>
+    <ThemeContext.Provider value={{ scheme, setScheme, mode, setMode, rerollScheme, pickRandomScheme }}>
       {children}
     </ThemeContext.Provider>
   );

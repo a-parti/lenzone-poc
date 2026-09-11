@@ -500,7 +500,7 @@ export default function App() {
   useEffect(() => { if (activeTab === "teams" && !isAdmin) setActiveTab("home"); }, [activeTab, isAdmin]);
   // Every trip back to the landing page re-rolls a fresh random team color palette (unless the
   // viewer has explicitly picked a scheme, which always wins -- see rerollScheme in ThemeContext).
-  const { rerollScheme, setScheme } = useTheme();
+  const { rerollScheme, setScheme, pickRandomScheme } = useTheme();
   useEffect(() => { if (activeTab === "home") rerollScheme(); }, [activeTab]);
   // Keeps the URL in sync even on first load (so the address bar always reflects real state,
   // ready to copy/share/bookmark).
@@ -732,7 +732,16 @@ export default function App() {
     setMyTeamManager(manager);
     if (manager) localStorage.setItem('lenzone_my_team', manager);
     else localStorage.removeItem('lenzone_my_team');
-    if (manager) triggerTeamEasterEgg(manager);
+    if (manager) {
+      triggerTeamEasterEgg(manager);
+      // Picking a team always lands on a fresh random color -- UNLESS that specific manager has an
+      // admin-configured default (the effect above applies that one instead once myTeamManager
+      // updates). This intentionally overrides even a previously self-picked scheme, so choosing
+      // "who you are" always feels like a new roll rather than keeping whatever was showing before.
+      const key = managerSchemeKey(afcData, nfcData, manager);
+      const hasOverride = key && getEffectiveOverrides()[key]?.scheme;
+      if (!hasOverride) pickRandomScheme();
+    }
     const conf = afcManagers.includes(manager) ? "AFC" : nfcManagers.includes(manager) ? "NFC" : null;
     // Only the conference filter focuses on your own side -- the Matchups "Filter Manager" dropdown
     // deliberately stays on "All Managers" so picking your team doesn't also narrow the matchup

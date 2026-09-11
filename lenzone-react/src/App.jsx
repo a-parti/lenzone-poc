@@ -25,6 +25,7 @@ import HomeView from './components/HomeView';
 import CurrentWeekView from './components/CurrentWeekView';
 import CommandPalette from './components/CommandPalette';
 import ManagerMatchupRow from './components/ManagerMatchupRow';
+import HeaderKnockover from './components/HeaderKnockover';
 import NflGamesPanel from './components/NflGamesPanel';
 import WeeklyHighlights from './components/WeeklyHighlights';
 import PlayerHighlights from './components/PlayerHighlights';
@@ -578,6 +579,7 @@ export default function App() {
   // ducks when more than one clip overlaps, so picking teams in quick succession doesn't stack their
   // volumes on top of each other.
   const activeAudiosRef = useRef([]);
+  const headerRowRef = useRef(null);
   const BASE_SOUND_VOLUME = 0.6; // 40% quieter than the source clip -- a light touch, not a jump-scare
   const rebalanceVolumes = () => {
     const n = activeAudiosRef.current.length;
@@ -1112,7 +1114,7 @@ export default function App() {
       {/* Header Banner -- hidden on Home, which is deliberately just the "I am" picker + radial menu */}
       {activeTab !== "home" && (
         <header className="max-w-7xl mx-auto bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-2xl px-5 py-3 mb-8 shadow-xl">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div ref={headerRowRef} className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <div className="group flex items-center gap-2.5 shrink-0">
               <AnimatedLogo sizeClass="w-16 h-16 sm:w-[4.5rem] sm:h-[4.5rem]" onClick={() => setActiveTab("home")} />
               <button type="button" onClick={() => setActiveTab("home")} className="text-left">
@@ -1173,6 +1175,7 @@ export default function App() {
           </div>
         </header>
       )}
+      <HeaderKnockover targetRef={headerRowRef} enabled={activeTab !== "home"} />
 
       <main className="max-w-7xl mx-auto">
         {/* Desktop Navigation Tabs -- also hidden on Home; the radial menu is its navigation */}

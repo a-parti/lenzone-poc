@@ -2,6 +2,8 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Volume2, VolumeX, Sun, Moon } from 'lucide-react';
 import { TeamPicker } from './shared';
 import { useTheme } from '../context/ThemeContext';
+import { useTeamLogo } from '../context/TeamLogoContext';
+import { Zoomable } from '../context/ImageLightboxContext';
 
 // Easter egg: a short burst in the just-picked team's color, fired for EVERY manager selection
 // (whichever color they landed on -- an admin-configured default, or this pick's fresh random
@@ -129,6 +131,24 @@ function ConfettiBurst({ burst }) {
   );
 }
 
+// A big, prominent version of the chosen fantasy team's real Sleeper avatar -- small everywhere
+// else (roster cards, matchup rows), but here it's the whole point: confirming "yes, this is me"
+// right after picking. Fades/scales in rather than just popping in, matching the rest of the
+// picker's transition feel.
+function BigTeamLogo({ manager }) {
+  const logoUrl = useTeamLogo(manager);
+  if (!logoUrl) return null;
+  return (
+    <div className="flex justify-center mt-6 animate-fade-in-up">
+      <Zoomable
+        src={logoUrl}
+        alt={manager}
+        className="w-28 h-28 sm:w-36 sm:h-36 rounded-full object-cover border-4 border-[var(--accent)]/60 shadow-lg shadow-[var(--accent)]/20"
+      />
+    </div>
+  );
+}
+
 function navSections(selectedWeek) {
   return [
     { id: "currentWeek", title: `This Week (${selectedWeek})` },
@@ -201,6 +221,8 @@ export default function HomeView({ setActiveTab, selectedWeek, afcManagers, nfcM
       <div className={`transition-[margin-top] duration-500 ease-out ${myTeamManager ? "mt-16 sm:mt-20" : "mt-[26vh] sm:mt-[30vh]"}`}>
         <TeamPicker afcManagers={afcManagers} nfcManagers={nfcManagers} value={myTeamManager} onChange={onChooseMyTeam} variant="blend" />
       </div>
+
+      {myTeamManager && <BigTeamLogo manager={myTeamManager} />}
 
       {myTeamManager && (
         <NavListNumbered sections={sections} onSelect={setActiveTab} />

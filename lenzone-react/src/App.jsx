@@ -25,6 +25,7 @@ import HomeView from './components/HomeView';
 import CurrentWeekView from './components/CurrentWeekView';
 import CommandPalette from './components/CommandPalette';
 import ManagerMatchupRow from './components/ManagerMatchupRow';
+import NflGamesPanel from './components/NflGamesPanel';
 import WeeklyHighlights from './components/WeeklyHighlights';
 import { RosterModalProvider } from './context/RosterModalContext';
 import { PlayerModalProvider } from './context/PlayerModalContext';
@@ -494,6 +495,10 @@ export default function App() {
   const [matchupsView, setMatchupsView] = useState("week");
   const [selectedWeek, setSelectedWeek] = useState(1);
   const [selectedManager, setSelectedManager] = useState("ALL");
+  // Clicking a game in the Matchups tab's NFL games panel highlights any player from that game
+  // across every matchup card on the page -- a Set for O(1) lookup against a player's real team.
+  const [matchupsHighlightGame, setMatchupsHighlightGame] = useState(null);
+  const matchupsHighlightTeams = matchupsHighlightGame ? new Set([matchupsHighlightGame.home, matchupsHighlightGame.away]) : null;
   const [myTeamManager, setMyTeamManager] = useState(() => localStorage.getItem('lenzone_my_team') || null);
   const [loading, setLoading] = useState(false);
 
@@ -1187,12 +1192,15 @@ export default function App() {
                 afcData={afcData} nfcData={nfcData} weekProjectionsByWeek={weekProjectionsByWeek}
                 afcTradeDeadlineWeek={afcData.tradeDeadlineWeek} nfcTradeDeadlineWeek={nfcData.tradeDeadlineWeek}
                 focusManager={myTeamManager} focusConf={myTeamConf} currentWeek={nflState.week}
+                latestCompletedWeek={latestCompletedWeek}
                 onGoToMatchup={(week, manager) => goToMatchup(manager, week)}
               />
             )}
 
             {matchupsView === "week" && (
               <>
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6 items-start">
+            <div className="space-y-8 min-w-0">
             <div className="flex flex-wrap items-center gap-4 bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 p-4 rounded-xl">
               <div>
                 <label className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)] block mb-1">Conference</label>
@@ -1248,6 +1256,7 @@ export default function App() {
                       playersDB={playersDB}
                       weekProjections={weekProjections}
                       byTeamWeek={enrichedByTeamWeek} week={selectedWeek}
+                      highlightTeams={matchupsHighlightTeams}
                     />
                   ))}
                 </div>
@@ -1272,11 +1281,21 @@ export default function App() {
                       playersDB={playersDB}
                       weekProjections={weekProjections}
                       byTeamWeek={enrichedByTeamWeek} week={selectedWeek}
+                      highlightTeams={matchupsHighlightTeams}
                     />
                   ))}
                 </div>
               </div>
             )}
+            </div>
+            <div className="lg:sticky lg:top-4">
+              <NflGamesPanel
+                games={enrichedNflGames} week={selectedWeek} myTeamNflTeams={myTeamNflTeams}
+                playersDB={playersDB} afcOwners={afcOwners} nfcOwners={nfcOwners}
+                selectedGame={matchupsHighlightGame} onSelectGame={setMatchupsHighlightGame}
+              />
+            </div>
+            </div>
               </>
             )}
           </div>

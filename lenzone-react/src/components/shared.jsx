@@ -114,7 +114,7 @@ export function NflTeamLogo({ team, logoSize = "w-9 h-9", textClassName = "text-
       type="button"
       onClick={() => openTeamDepthChart(team)}
       title={`View ${team} depth chart`}
-      className="group flex items-center gap-2 min-w-0 rounded-lg px-1 -mx-1 py-0.5 hover:bg-[var(--surface2)]/80 transition-colors duration-150"
+      className="group flex items-center gap-2 shrink-0 rounded-lg px-1 -mx-1 py-0.5 hover:bg-[var(--surface2)]/80 transition-colors duration-150"
     >
       <img
         src={nflTeamLogoUrl(team)}

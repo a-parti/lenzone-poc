@@ -77,6 +77,13 @@ function isLiveGame(byTeamWeek, team, week) {
 // at a glance, not blend into the same tint.
 const LIVE_ROW_CLASS = "bg-amber-400/10 -mx-1.5 px-1.5 rounded border-l-2 border-amber-400";
 
+// Fixed-width columns (avatar / # / name+health / score / position / team) so every row lines up
+// vertically regardless of name length -- a plain flex row only pins the LAST item to the edge, not
+// the ones before it. Health status sits right next to the name itself (not off in its own column
+// at the far end of the row) since it's a fact about that specific player, not a roster-wide stat
+// like the columns after it.
+const ROW_GRID = "grid grid-cols-[20px_26px_minmax(0,1fr)_76px_34px_40px] items-center gap-1.5";
+
 export default function RosterList({ roster, startingSlots, irSlotCount = 0, playersDB, weekProjections, scoringSettings, fallbackField, playersPoints, byTeamWeek, week }) {
   const reserve = roster.reserve || [];
   const bench = roster.players.filter(id => !roster.starters.includes(id) && !reserve.includes(id));
@@ -102,24 +109,22 @@ export default function RosterList({ roster, startingSlots, irSlotCount = 0, pla
               </div>
             );
           }
-          const { name, position, injuryStatus, team } = playerLabel(playersDB, id);
+          const { name, position, injuryStatus, team, number } = playerLabel(playersDB, id);
           const live = isLiveGame(byTeamWeek, team, week);
           return (
-            <div key={i} className={`flex items-center justify-between text-sm gap-2 py-0.5 ${live ? LIVE_ROW_CLASS : ""}`}>
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="text-[10px] font-mono text-[var(--muted)] w-9 shrink-0">{slot}</span>
-                <PlayerAvatar playerId={id} position={position} />
-                <div className="flex flex-col min-w-0">
+            <div key={i} className={`${ROW_GRID} text-sm py-0.5 ${live ? LIVE_ROW_CLASS : ""}`}>
+              <PlayerAvatar playerId={id} position={position} />
+              <span className="text-[10px] font-mono text-[var(--muted)] text-center">{number != null ? `#${number}` : ""}</span>
+              <div className="flex flex-col min-w-0">
+                <div className="flex items-center gap-1 min-w-0">
                   <PlayerNameButton playerId={id} name={name} position={position} className="text-[var(--text)] truncate" />
-                  <GameBadge nflTeam={team} week={week} byTeamWeek={byTeamWeek} />
+                  <InjuryBadge status={injuryStatus} />
                 </div>
+                <GameBadge nflTeam={team} week={week} byTeamWeek={byTeamWeek} />
               </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <ProjectedPts id={id} weekProjections={weekProjections} scoringSettings={scoringSettings} fallbackField={fallbackField} playersPoints={playersPoints} isLive={live} />
-                <PositionBadge position={position} />
-                <NflTeamTag team={team} />
-                <InjuryBadge status={injuryStatus} />
-              </div>
+              <ProjectedPts id={id} weekProjections={weekProjections} scoringSettings={scoringSettings} fallbackField={fallbackField} playersPoints={playersPoints} isLive={live} />
+              <div className="flex justify-center"><PositionBadge position={position} /></div>
+              <div className="flex justify-center"><NflTeamTag team={team} /></div>
             </div>
           );
         })}
@@ -134,23 +139,22 @@ export default function RosterList({ roster, startingSlots, irSlotCount = 0, pla
               if (!id) {
                 return <p key={i} className="text-[var(--muted)] italic text-sm">Empty</p>;
               }
-              const { name, position, injuryStatus, team } = playerLabel(playersDB, id);
+              const { name, position, injuryStatus, team, number } = playerLabel(playersDB, id);
               const live = isLiveGame(byTeamWeek, team, week);
               return (
-                <div key={id} className={`flex items-center justify-between text-sm gap-2 py-0.5 ${live ? LIVE_ROW_CLASS : ""}`}>
-                  <div className="flex items-center gap-2 min-w-0">
-                    <PlayerAvatar playerId={id} position={position} />
-                    <div className="flex flex-col min-w-0">
+                <div key={id} className={`${ROW_GRID} text-sm py-0.5 ${live ? LIVE_ROW_CLASS : ""}`}>
+                  <PlayerAvatar playerId={id} position={position} />
+                  <span className="text-[10px] font-mono text-[var(--muted)] text-center">{number != null ? `#${number}` : ""}</span>
+                  <div className="flex flex-col min-w-0">
+                    <div className="flex items-center gap-1 min-w-0">
                       <PlayerNameButton playerId={id} name={name} position={position} className="text-[var(--text2)] truncate" />
-                      <GameBadge nflTeam={team} week={week} byTeamWeek={byTeamWeek} />
+                      <InjuryBadge status={injuryStatus} />
                     </div>
+                    <GameBadge nflTeam={team} week={week} byTeamWeek={byTeamWeek} />
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <ProjectedPts id={id} weekProjections={weekProjections} scoringSettings={scoringSettings} fallbackField={fallbackField} playersPoints={playersPoints} isLive={live} />
-                    <PositionBadge position={position} />
-                <NflTeamTag team={team} />
-                    <InjuryBadge status={injuryStatus} />
-                  </div>
+                  <ProjectedPts id={id} weekProjections={weekProjections} scoringSettings={scoringSettings} fallbackField={fallbackField} playersPoints={playersPoints} isLive={live} />
+                  <div className="flex justify-center"><PositionBadge position={position} /></div>
+                  <div className="flex justify-center"><NflTeamTag team={team} /></div>
                 </div>
               );
             })}
@@ -162,23 +166,22 @@ export default function RosterList({ roster, startingSlots, irSlotCount = 0, pla
       <div className="space-y-1">
         {bench.length === 0 && <p className="text-[var(--muted)] italic text-sm">Empty</p>}
         {bench.map(id => {
-          const { name, position, injuryStatus, team } = playerLabel(playersDB, id);
+          const { name, position, injuryStatus, team, number } = playerLabel(playersDB, id);
           const live = isLiveGame(byTeamWeek, team, week);
           return (
-            <div key={id} className={`flex items-center justify-between text-sm gap-2 py-0.5 ${live ? LIVE_ROW_CLASS : ""}`}>
-              <div className="flex items-center gap-2 min-w-0">
-                <PlayerAvatar playerId={id} position={position} />
-                <div className="flex flex-col min-w-0">
+            <div key={id} className={`${ROW_GRID} text-sm py-0.5 ${live ? LIVE_ROW_CLASS : ""}`}>
+              <PlayerAvatar playerId={id} position={position} />
+              <span className="text-[10px] font-mono text-[var(--muted)] text-center">{number != null ? `#${number}` : ""}</span>
+              <div className="flex flex-col min-w-0">
+                <div className="flex items-center gap-1 min-w-0">
                   <PlayerNameButton playerId={id} name={name} position={position} className="text-[var(--text2)] truncate" />
-                  <GameBadge nflTeam={team} week={week} byTeamWeek={byTeamWeek} />
+                  <InjuryBadge status={injuryStatus} />
                 </div>
+                <GameBadge nflTeam={team} week={week} byTeamWeek={byTeamWeek} />
               </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <ProjectedPts id={id} weekProjections={weekProjections} scoringSettings={scoringSettings} fallbackField={fallbackField} playersPoints={playersPoints} isLive={live} />
-                <PositionBadge position={position} />
-                <NflTeamTag team={team} />
-                <InjuryBadge status={injuryStatus} />
-              </div>
+              <ProjectedPts id={id} weekProjections={weekProjections} scoringSettings={scoringSettings} fallbackField={fallbackField} playersPoints={playersPoints} isLive={live} />
+              <div className="flex justify-center"><PositionBadge position={position} /></div>
+              <div className="flex justify-center"><NflTeamTag team={team} /></div>
             </div>
           );
         })}

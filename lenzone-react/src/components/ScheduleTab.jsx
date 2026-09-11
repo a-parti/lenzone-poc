@@ -1,30 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import TeamName from './TeamName';
 import { useRosterModal } from '../context/RosterModalContext';
-import { CONF_STYLES } from '../lib/theme';
+import { CONF_STYLES, SCORE_COLOR } from '../lib/theme';
 import { computeBlendedRosterScore, scoringFieldFor } from '../lib/players';
 
-// Real final score once Sleeper has one for that week; otherwise the same per-player blended
-// real+projected total used everywhere else in the app (real stat if a player's game already has
-// one, their pregame projection otherwise) computed from that week's own roster snapshot -- so a
-// played week shows its real score and every other week shows an honest "still projected" number
-// instead of nothing.
-function weekScore(season, confData, manager, week, weekProjectionsByWeek) {
-  const real = season.scoreByWeek[week]?.[manager];
-  if (real > 0) return { value: real, isReal: true };
+// Real final score once that week is actually over (week <= latestCompletedWeek, the same cutoff
+// used by the Matchups tab); otherwise the same per-player blended real+projected total used
+// everywhere else in the app (real stat if a player's game already posted one, their pregame
+// projection otherwise), computed from that week's own roster snapshot -- so a played week shows
+// its real score, the current in-progress week shows a live-blended one, and every future week
+// shows an honest "still projected" number instead of nothing. Matches buildMatchupInfo's
+// final/live/projected states in App.jsx so this view never disagrees with the Matchups tab.
+function weekScore(season, confData, manager, week, weekProjectionsByWeek, latestCompletedWeek) {
+  const isFinalWeek = week <= latestCompletedWeek;
+  if (isFinalWeek) {
+    const real = season.scoreByWeek[week]?.[manager];
+    if (real == null) return null;
+    return { value: real, state: 'final' };
+  }
   const snapshot = season.rosterSnapshotByWeek[week]?.[manager];
   if (!snapshot) return null;
   const fallbackField = scoringFieldFor(confData?.receptionPoints || 0);
   const blended = computeBlendedRosterScore(snapshot, weekProjectionsByWeek?.[week] || {}, confData?.scoringSettings, fallbackField);
   if (blended?.total == null) return null;
-  return { value: blended.total, isReal: false };
+  const isLive = (blended.lockedFraction ?? 0) > 0;
+  return { value: blended.total, state: isLive ? 'live' : 'proj' };
 }
 
 function ScoreTag({ score }) {
   if (!score) return null;
   return (
-    <span className={`text-xs font-mono shrink-0 ${score.isReal ? "font-bold text-[var(--text)]" : "text-[var(--proj)]"}`}>
-      {score.value.toFixed(1)}{!score.isReal && " proj"}
+    <span className={`text-xs font-mono font-bold shrink-0 ${SCORE_COLOR[score.state]}`}>
+      {score.value.toFixed(1)}{score.state === 'proj' && " proj"}{score.state === 'live' && " live"}
     </span>
   );
 }
@@ -114,7 +121,7 @@ function TradeDeadlineMarker({ week }) {
   );
 }
 
-export default function ScheduleTab({ afcSeason, nfcSeason, crossSchedule, afcManagers, nfcManagers, afcData, nfcData, weekProjectionsByWeek, afcTradeDeadlineWeek, nfcTradeDeadlineWeek, focusManager, focusConf, onGoToMatchup, currentWeek }) {
+export default function ScheduleTab({ afcSeason, nfcSeason, crossSchedule, afcManagers, nfcManagers, afcData, nfcData, weekProjectionsByWeek, afcTradeDeadlineWeek, nfcTradeDeadlineWeek, focusManager, focusConf, onGoToMatchup, currentWeek, latestCompletedWeek }) {
   const [conf, setConf] = useState(focusConf || 'AFC');
   const [team, setTeam] = useState(focusManager || '');
   const { openRoster } = useRosterModal();
@@ -197,10 +204,10 @@ export default function ScheduleTab({ afcSeason, nfcSeason, crossSchedule, afcMa
                 interOppConf={interOppConf}
                 onGoToMatchup={onGoToMatchup ? (w) => onGoToMatchup(w, team, conf) : null}
                 isCurrentWeek={week === currentWeek}
-                intraMyScore={intraOpponent ? weekScore(season, myConfData, team, week, weekProjectionsByWeek) : null}
-                intraOppScore={intraOpponent ? weekScore(season, myConfData, intraOpponent, week, weekProjectionsByWeek) : null}
-                interMyScore={interOpponent ? weekScore(season, myConfData, team, week, weekProjectionsByWeek) : null}
-                interOppScore={interOpponent ? weekScore(interOppSeason, interOppConfData, interOpponent, week, weekProjectionsByWeek) : null}
+                intraMyScore={intraOpponent ? weekScore(season, myConfData, team, week, weekProjectionsByWeek, latestCompletedWeek) : null}
+                intraOppScore={intraOpponent ? weekScore(season, myConfData, intraOpponent, week, weekProjectionsByWeek, latestCompletedWeek) : null}
+                interMyScore={interOpponent ? weekScore(season, myConfData, team, week, weekProjectionsByWeek, latestCompletedWeek) : null}
+                interOppScore={interOpponent ? weekScore(interOppSeason, interOppConfData, interOpponent, week, weekProjectionsByWeek, latestCompletedWeek) : null}
               />
               {tradeDeadlineWeek === week && <TradeDeadlineMarker week={week} />}
             </React.Fragment>

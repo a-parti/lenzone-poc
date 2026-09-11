@@ -29,16 +29,23 @@ export default function AnimatedLogo({ sizeClass = "w-14 h-14", showGlow = false
     return () => clearTimeout(timeoutId);
   }, []);
 
-  const handleMouseMove = (e) => {
-    const rect = zoneRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const dx = (e.clientX - (rect.left + rect.width / 2)) / (rect.width / 2);
-    const dy = (e.clientY - (rect.top + rect.height / 2)) / (rect.height / 2);
-    setTilt({
-      x: Math.max(-1, Math.min(1, dx)) * 14,
-      y: Math.max(-1, Math.min(1, dy)) * -14
-    });
-  };
+  // Tracks the cursor across the WHOLE page (window listener), not just while hovering the logo
+  // itself -- it should lean toward you no matter where on the page your mouse actually is, like
+  // eyes following you around a room, not just react when you happen to be right on top of it.
+  useEffect(() => {
+    const handleWindowMouseMove = (e) => {
+      const rect = zoneRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const dx = (e.clientX - (rect.left + rect.width / 2)) / (window.innerWidth / 2);
+      const dy = (e.clientY - (rect.top + rect.height / 2)) / (window.innerHeight / 2);
+      setTilt({
+        x: Math.max(-1, Math.min(1, dx)) * 16,
+        y: Math.max(-1, Math.min(1, dy)) * -16
+      });
+    };
+    window.addEventListener('mousemove', handleWindowMouseMove);
+    return () => window.removeEventListener('mousemove', handleWindowMouseMove);
+  }, []);
 
   const fireClick = () => {
     setClicked(true);
@@ -50,8 +57,6 @@ export default function AnimatedLogo({ sizeClass = "w-14 h-14", showGlow = false
     <div
       ref={zoneRef}
       className="inline-block transition-transform duration-150 ease-out"
-      onMouseMove={handleMouseMove}
-      onMouseLeave={() => setTilt({ x: 0, y: 0 })}
       style={{ transform: `perspective(400px) rotateY(${tilt.x}deg) rotateX(${tilt.y}deg)` }}
     >
       <div

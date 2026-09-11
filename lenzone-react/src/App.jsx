@@ -572,11 +572,10 @@ export default function App() {
     const level = n > 0 ? BASE_SOUND_VOLUME / n : BASE_SOUND_VOLUME;
     activeAudiosRef.current.forEach(a => { a.volume = level; });
   };
-  const triggerTeamEasterEgg = (manager, swatch) => {
-    if (swatch) setTeamBurst({ nonce: Date.now(), color: swatch });
+  // Resolving is async (a HEAD check for that manager's exclusive file) -- fine to fire and forget,
+  // it just plays whenever the check resolves a moment later.
+  const playTeamSound = (manager) => {
     if (soundMuted) return;
-    // Resolving is async (a HEAD check for that manager's exclusive file) -- fine here since nothing
-    // else is waiting on it, it just plays whenever the check resolves a moment later.
     resolveEasterEggSoundUrl(manager).then((soundUrl) => {
       if (!soundUrl || soundMuted) return;
       try {
@@ -591,6 +590,22 @@ export default function App() {
       } catch {}
     });
   };
+  const triggerTeamEasterEgg = (manager, swatch) => {
+    if (swatch) setTeamBurst({ nonce: Date.now(), color: swatch });
+    playTeamSound(manager);
+  };
+  // Plays the remembered team's welcome sound once on a fresh page load too, not just when
+  // actively picking a team from the dropdown -- otherwise a returning viewer whose team is
+  // restored from localStorage never hears it at all. Browsers generally block audio.play() before
+  // any user gesture has happened on the page, so this can still be silently blocked on some loads
+  // (playTeamSound already swallows that) -- it's given a real chance to play, not guaranteed audible.
+  const playedWelcomeSoundRef = useRef(false);
+  useEffect(() => {
+    if (playedWelcomeSoundRef.current || !myTeamManager) return;
+    playedWelcomeSoundRef.current = true;
+    playTeamSound(myTeamManager);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myTeamManager]);
 
   const [afcSeason, setAfcSeason] = useState({ scoreByWeek: {}, scheduleByWeek: {}, rosterSnapshotByWeek: {}, latestCompletedWeek: 0 });
   const [nfcSeason, setNfcSeason] = useState({ scoreByWeek: {}, scheduleByWeek: {}, rosterSnapshotByWeek: {}, latestCompletedWeek: 0 });

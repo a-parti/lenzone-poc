@@ -296,33 +296,22 @@ html {
   animation: title-shine 5s linear infinite;
   box-shadow: 0 0 8px 1px color-mix(in srgb, var(--accent), transparent 55%);
 }
-/* Big Home-page logo shown before a team is picked -- leans cartoonish (squash & stretch) rather
-   than a rigid spin. The ring never fully rotates (it has open gaps in the art meant to frame the
-   ball at ONE fixed orientation -- spinning it independently drifted those gaps out of alignment
-   with the ball and looked like a broken overlap); instead it just breathes in place. The ball
-   spins AND morphs its squash/stretch in the same cycle, like jelly, which is also what visually
-   sells the motion since the ring itself stays put. Soft rotating+pulsing rainbow glow behind both
-   (same 8-stop palette as the title/picker glow) so the empty pre-pick moment feels alive. */
-@keyframes big-logo-ring-morph {
-  0%, 100% { transform: scale(1, 1); }
-  50% { transform: scale(1.045, 0.955); }
+/* AnimatedLogo's ring+ball -- both use this SAME class so they spin together as one rigid unit
+   (the ring has open gaps in the art meant to frame the ball at one fixed orientation; spinning
+   them independently drifts those gaps out of alignment with the ball and looks like a broken
+   overlap). A gentle scale pulse layered on the rotation keeps it feeling alive rather than a flat
+   mechanical spin. Hovering (via the .group wrapper AnimatedLogo puts around both images) speeds
+   it up. */
+@keyframes big-logo-spin {
+  0% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(180deg) scale(1.06); }
+  100% { transform: rotate(360deg) scale(1); }
 }
-@keyframes big-logo-ball-morph-spin {
-  0%   { transform: rotate(0deg)   scale(1, 1); }
-  12%  { transform: rotate(43deg)  scale(1.14, 0.86); }
-  25%  { transform: rotate(90deg)  scale(0.88, 1.12); }
-  37%  { transform: rotate(133deg) scale(1.12, 0.88); }
-  50%  { transform: rotate(180deg) scale(0.86, 1.14); }
-  62%  { transform: rotate(223deg) scale(1.12, 0.88); }
-  75%  { transform: rotate(270deg) scale(0.88, 1.12); }
-  87%  { transform: rotate(313deg) scale(1.14, 0.86); }
-  100% { transform: rotate(360deg) scale(1, 1); }
+.big-logo-spin {
+  animation: big-logo-spin 4s linear infinite;
 }
-.big-logo-ring {
-  animation: big-logo-ring-morph 3s ease-in-out infinite;
-}
-.big-logo-ball {
-  animation: big-logo-ball-morph-spin 3s ease-in-out infinite;
+.group:hover .big-logo-spin {
+  animation-duration: 1.1s;
 }
 @keyframes big-logo-glow-spin {
   0% { transform: rotate(0deg) scale(1); }

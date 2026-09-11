@@ -58,7 +58,7 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
   return (
     <div className="grid grid-cols-2 gap-4 text-xs py-1.5">
       <div
-        className={`${ROSTER_ROW_FLEX} min-w-0 rounded ${onSelectGame && my ? "cursor-pointer" : ""} ${myHighlighted ? "bg-amber-400/10 ring-1 ring-amber-400/50" : ""}`}
+        className={`${ROSTER_ROW_FLEX} min-w-0 rounded ${onSelectGame && my ? "cursor-pointer" : ""} ${myHighlighted ? "bg-violet-400/20 ring-2 ring-violet-400/70" : ""}`}
         onClick={my ? handleRowClick(my.team) : undefined}
       >
         {my ? (
@@ -92,7 +92,7 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
           because it's now visually first (leftmost) -- its free space collects on ITS right,
           pushing the packed team/name/position/avatar group to the outer edge instead. */}
       <div
-        className={`${ROSTER_ROW_FLEX} flex-row-reverse min-w-0 rounded ${onSelectGame && opp ? "cursor-pointer" : ""} ${oppHighlighted ? "bg-amber-400/10 ring-1 ring-amber-400/50" : ""}`}
+        className={`${ROSTER_ROW_FLEX} flex-row-reverse min-w-0 rounded ${onSelectGame && opp ? "cursor-pointer" : ""} ${oppHighlighted ? "bg-violet-400/20 ring-2 ring-violet-400/70" : ""}`}
         onClick={opp ? handleRowClick(opp.team) : undefined}
       >
         {opp ? (

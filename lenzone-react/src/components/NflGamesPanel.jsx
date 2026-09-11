@@ -126,19 +126,23 @@ export default function NflGamesPanel({ games, week, myTeamNflTeams, myPlayersBy
               tabIndex={onToggleGame ? 0 : undefined}
               onClick={onToggleGame ? () => onToggleGame({ home: g.home, away: g.away }) : undefined}
               onKeyDown={onToggleGame ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggleGame({ home: g.home, away: g.away }); } } : undefined}
-              className={`rounded-xl px-4 py-3 border transition-all duration-150 ${onToggleGame ? "cursor-pointer" : ""} ${
+              className={`rounded-xl px-4 py-3 border-2 transition-all duration-150 ${onToggleGame ? "cursor-pointer" : ""} ${
                 // A game with one of your players gets a different color per status -- amber while
                 // it's actually live (most urgent), accent while it just hasn't kicked off yet, a
                 // plain neutral surface once it's final (nothing left to watch there) -- so glancing
                 // at the list alone tells you which of your players' games still need watching.
                 // Games with none of your players stay neutral throughout. A clicked-to-highlight
-                // game gets its own ring regardless of status.
+                // game gets violet -- a THIRD color, distinct from both the amber/accent statuses
+                // here and reused exactly (same hue) on the matching player rows in the roster
+                // comparisons below (see myHighlighted/oppHighlighted in ManagerMatchupRow.jsx) --
+                // so "this game is selected" reads as one consistent highlight across both surfaces
+                // instead of two different colors for the same action.
                 isSelected
-                  ? "bg-[var(--accent)]/15 border-[var(--accent)] ring-1 ring-[var(--accent)]"
+                  ? "bg-violet-400/20 border-violet-400 ring-2 ring-violet-400/70"
                   : involvesMyTeam && !isFinal
                     ? isLive
-                      ? "bg-amber-400/10 border-amber-400/60"
-                      : "bg-[var(--accent)]/10 border-[var(--accent)]/60"
+                      ? "bg-amber-400/15 border-amber-400"
+                      : "bg-[var(--accent)]/15 border-[var(--accent)]"
                     : "bg-[var(--surface2)]/50 border-transparent"
               }`}
             >

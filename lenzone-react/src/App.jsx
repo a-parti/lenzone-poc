@@ -465,12 +465,13 @@ export default function App() {
   const [afcLeagueId, setAfcLeagueId] = useState(() => localStorage.getItem('lenzone_afc_league_id') || AFC_LEAGUE_ID);
   const [nfcLeagueId, setNfcLeagueId] = useState(() => localStorage.getItem('lenzone_nfc_league_id') || NFC_LEAGUE_ID);
   // Deep-linkable: the current tab lives in the URL hash (shareable/bookmarkable, and survives a
-  // reload) rather than only in memory. Falls back to the last tab you were on, then Home.
-  const [activeTab, setActiveTabState] = useState(() => tabFromHash() || localStorage.getItem('lenzone_last_tab') || "home");
+  // reload) rather than only in memory. A bare visit to the root URL (no hash at all) always lands
+  // on Home -- it used to fall back to whatever tab localStorage remembered from your last visit,
+  // which meant the bare domain silently stopped going Home once you'd ever navigated anywhere else.
+  const [activeTab, setActiveTabState] = useState(() => tabFromHash() || "home");
   const setActiveTab = (id) => {
     setActiveTabState(id);
     window.history.pushState(null, '', `#${id}`);
-    localStorage.setItem('lenzone_last_tab', id);
   };
   // Back/forward browser navigation.
   useEffect(() => {

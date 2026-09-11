@@ -112,17 +112,24 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
         {!isFinal && !isLive && showScores && <span className="text-xs font-bold text-[var(--proj)] uppercase tracking-wider">Projected</span>}
       </div>
 
-      <div className="flex items-center gap-2 mb-1">
-        <div className="flex-1 flex flex-col items-end gap-1 min-w-0">
-          <TeamName manager={myTeam} conf={myConf} className="font-semibold truncate w-full justify-end" />
-          <span className={`font-mono text-lg font-bold leading-none ${showScores ? bigColor : "text-[var(--muted)]"}`}>
+      {/* Below sm, each side gets the FULL card width on its own row instead of squeezing into a
+          half-width column next to the other team -- that's what was truncating names like
+          "TheRealHousehusbandsOfIB" down to a couple of characters on a phone. */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 sm:gap-2 mb-1">
+        <div className="flex items-center justify-between sm:flex-col sm:items-end sm:justify-start gap-2 sm:gap-1 min-w-0 flex-1">
+          <TeamName manager={myTeam} conf={myConf} className="font-semibold truncate sm:w-full sm:justify-end" />
+          <span className={`font-mono text-lg font-bold leading-none shrink-0 ${showScores ? bigColor : "text-[var(--muted)]"}`}>
             {showScores && bigMy != null ? bigMy.toFixed(1) : "--"}
           </span>
         </div>
-        <span className="text-xs font-bold text-[var(--muted)] bg-[var(--surface)] px-2 py-1 rounded shrink-0">VS</span>
-        <div className="flex-1 flex flex-col items-start gap-1 min-w-0">
-          <TeamName manager={opponent} conf={oppConf} className="font-semibold truncate w-full" />
-          <span className={`font-mono text-lg font-bold leading-none ${showScores ? bigColor : "text-[var(--muted)]"}`}>
+        <div className="flex items-center gap-2 sm:contents">
+          <div className="flex-1 h-px bg-[var(--border)]/60 sm:hidden" />
+          <span className="text-xs font-bold text-[var(--muted)] bg-[var(--surface)] px-2 py-1 rounded shrink-0">VS</span>
+          <div className="flex-1 h-px bg-[var(--border)]/60 sm:hidden" />
+        </div>
+        <div className="flex items-center justify-between sm:flex-col sm:items-start sm:justify-start gap-2 sm:gap-1 min-w-0 flex-1">
+          <TeamName manager={opponent} conf={oppConf} className="font-semibold truncate sm:w-full" />
+          <span className={`font-mono text-lg font-bold leading-none shrink-0 ${showScores ? bigColor : "text-[var(--muted)]"}`}>
             {showScores && bigOpp != null ? bigOpp.toFixed(1) : "--"}
           </span>
         </div>

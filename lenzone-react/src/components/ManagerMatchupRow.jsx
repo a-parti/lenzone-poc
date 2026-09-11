@@ -8,12 +8,16 @@ import PlayerAvatar from './PlayerAvatar';
 import PlayerNameButton from './PlayerNameButton';
 import TeamName from './TeamName';
 
-// Fixed-width columns (avatar / # / name / position / team / injury / score) so every row in a
-// side lines up vertically regardless of how long a name or how many digits a score is -- a plain
-// flex row with an ml-auto score only pins the LAST item to the edge, it doesn't align the ones in
-// between. Also drops the old plain-text slot label ("QB") that duplicated the colored position
-// tag sitting right next to it -- the tag alone is enough now.
-const ROSTER_ROW_GRID = "grid grid-cols-[20px_26px_minmax(0,1fr)_34px_40px_46px] items-center gap-1.5";
+// A CSS grid with the name column as a flexible 1fr track looks aligned in theory, but a 1fr
+// TRACK always claims the full leftover width regardless of how short its content is -- so a short
+// name like "Malik Willis" leaves a big dead gap between the name and the position/team tags that
+// follow, instead of the tags sitting right next to it. A flex row with a fixed (not flexible)
+// name width avoids that: the tags always sit a consistent, small gap after the name, and any
+// truly leftover space collects in one place -- right before the score, via ml-auto -- which reads
+// as a normal right-aligned column rather than a random gap mid-row. Also drops the old plain-text
+// slot label ("QB") that duplicated the colored position tag sitting right next to it.
+const ROSTER_ROW_FLEX = "flex items-center gap-1.5";
+const ROSTER_NAME_WIDTH = "w-[100px] shrink-0";
 
 function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, playersDB, byTeamWeek, week, highlightTeams }) {
   const my = myId && myId !== '0' ? playerLabel(playersDB, myId) : null;
@@ -24,47 +28,52 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
   const oppDisplayPts = oppIsActual ? oppPts : oppProj;
   const myLive = my && byTeamWeek?.[my.team]?.[week]?.state === 'in';
   const oppLive = opp && byTeamWeek?.[opp.team]?.[week]?.state === 'in';
-  const myColor = SCORE_COLOR[scoreState({ hasActual: myIsActual, isLive: myLive })];
-  const oppColor = SCORE_COLOR[scoreState({ hasActual: oppIsActual, isLive: oppLive })];
+  const myColor = SCORE_COLOR[scoreState({ hasActual: myIsActual, isLive: myLive, actual: myPts, projected: myProj })];
+  const oppColor = SCORE_COLOR[scoreState({ hasActual: oppIsActual, isLive: oppLive, actual: oppPts, projected: oppProj })];
   const myHighlighted = my && highlightTeams?.has(my.team);
   const oppHighlighted = opp && highlightTeams?.has(opp.team);
   return (
     <div className="grid grid-cols-2 gap-4 text-xs py-1.5">
-      <div className={`${ROSTER_ROW_GRID} min-w-0 rounded ${myHighlighted ? "bg-amber-400/10 ring-1 ring-amber-400/50" : ""}`}>
+      <div className={`${ROSTER_ROW_FLEX} min-w-0 rounded ${myHighlighted ? "bg-amber-400/10 ring-1 ring-amber-400/50" : ""}`}>
         {my ? (
           <>
-            <PlayerAvatar playerId={myId} position={my.position} className="w-5 h-5" />
-            <span className="text-[9px] font-mono text-[var(--muted)] text-center">{my.number != null ? `#${my.number}` : ""}</span>
-            <div className="flex flex-col min-w-0">
+            <PlayerAvatar playerId={myId} position={my.position} className="w-5 h-5 shrink-0" />
+            <span className="text-[9px] font-mono text-[var(--muted)] w-5 text-center shrink-0">{my.number != null ? `#${my.number}` : ""}</span>
+            <div className={`flex flex-col ${ROSTER_NAME_WIDTH}`}>
               <div className="flex items-center gap-1 min-w-0">
                 <PlayerNameButton playerId={myId} name={my.name} position={my.position} className="text-[var(--text2)] truncate" />
                 <InjuryBadge status={my.injuryStatus} />
               </div>
               <GameBadge nflTeam={my.team} week={week} byTeamWeek={byTeamWeek} />
             </div>
-            <div className="flex justify-center"><PositionBadge position={my.position} /></div>
-            <div className="flex justify-center"><NflTeamTag team={my.team} /></div>
-            {myDisplayPts != null && <span className={`font-mono font-bold text-sm text-right ${myColor}`}>{myDisplayPts.toFixed(2)}</span>}
+            <PositionBadge position={my.position} />
+            <NflTeamTag team={my.team} />
+            {myDisplayPts != null && (
+              <span className="font-mono text-right ml-auto shrink-0 whitespace-nowrap">
+                <span className={`font-bold text-sm ${myColor}`}>{myDisplayPts.toFixed(2)}</span>
+                {myIsActual && myProj != null && <span className="text-[10px] text-[var(--proj)] ml-1">({myProj.toFixed(2)})</span>}
+              </span>
+            )}
           </>
-        ) : <span className="text-[var(--muted)] italic col-span-5">Empty</span>}
+        ) : <span className="text-[var(--muted)] italic">Empty</span>}
       </div>
-      <div className={`${ROSTER_ROW_GRID} min-w-0 rounded ${oppHighlighted ? "bg-amber-400/10 ring-1 ring-amber-400/50" : ""}`}>
+      <div className={`${ROSTER_ROW_FLEX} min-w-0 rounded ${oppHighlighted ? "bg-amber-400/10 ring-1 ring-amber-400/50" : ""}`}>
         {opp ? (
           <>
-            <PlayerAvatar playerId={oppId} position={opp.position} className="w-5 h-5" />
-            <span className="text-[9px] font-mono text-[var(--muted)] text-center">{opp.number != null ? `#${opp.number}` : ""}</span>
-            <div className="flex flex-col min-w-0">
+            <PlayerAvatar playerId={oppId} position={opp.position} className="w-5 h-5 shrink-0" />
+            <span className="text-[9px] font-mono text-[var(--muted)] w-5 text-center shrink-0">{opp.number != null ? `#${opp.number}` : ""}</span>
+            <div className={`flex flex-col ${ROSTER_NAME_WIDTH}`}>
               <div className="flex items-center gap-1 min-w-0">
                 <PlayerNameButton playerId={oppId} name={opp.name} position={opp.position} className="text-[var(--text2)] truncate" />
                 <InjuryBadge status={opp.injuryStatus} />
               </div>
               <GameBadge nflTeam={opp.team} week={week} byTeamWeek={byTeamWeek} />
             </div>
-            <div className="flex justify-center"><PositionBadge position={opp.position} /></div>
-            <div className="flex justify-center"><NflTeamTag team={opp.team} /></div>
-            {oppDisplayPts != null && <span className={`font-mono font-bold text-sm text-right ${oppColor}`}>{oppDisplayPts.toFixed(2)}</span>}
+            <PositionBadge position={opp.position} />
+            <NflTeamTag team={opp.team} />
+            {oppDisplayPts != null && <span className={`font-mono font-bold text-sm text-right ml-auto shrink-0 ${oppColor}`}>{oppDisplayPts.toFixed(2)}</span>}
           </>
-        ) : <span className="text-[var(--muted)] italic col-span-5">Empty</span>}
+        ) : <span className="text-[var(--muted)] italic">Empty</span>}
       </div>
     </div>
   );
@@ -108,7 +117,7 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
   }
   const {
     opponent, myScore, oppScore, myLiveScore, oppLiveScore, isFinal, isLive, myWinPct, winPctIsRough, myHasData, oppHasData, mySnapshot, oppSnapshot,
-    myScoringSettings, myFallbackField, oppScoringSettings, oppFallbackField
+    myScoringSettings, myFallbackField, oppScoringSettings, oppFallbackField, myProjected, oppProjected
   } = info;
   const showWinPct = !isFinal && myWinPct !== null;
   const showScores = isFinal || myHasData || oppHasData;
@@ -117,7 +126,10 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
   // secondary caption underneath, only while there's still uncertainty left (live or pregame).
   const bigMy = isFinal ? myScore : isLive ? (myLiveScore ?? 0) : myScore;
   const bigOpp = isFinal ? oppScore : isLive ? (oppLiveScore ?? 0) : oppScore;
-  const bigColor = SCORE_COLOR[scoreState({ hasActual: isFinal || isLive, isLive })];
+  // Each side's final score is colored by whether IT beat ITS OWN pregame projection -- not a flat
+  // "final = green" -- so a final score can read red if that team came in under its projection.
+  const myBigColor = SCORE_COLOR[scoreState({ hasActual: isFinal || isLive, isLive, actual: isFinal ? myScore : null, projected: myProjected })];
+  const oppBigColor = SCORE_COLOR[scoreState({ hasActual: isFinal || isLive, isLive, actual: isFinal ? oppScore : null, projected: oppProjected })];
   const showCaption = isLive && showScores;
   const [showRosters, setShowRosters] = useState(false);
   return (
@@ -125,12 +137,6 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
       <div className="flex items-center justify-between mb-1.5">
         <span className="tracking-wider text-xs uppercase font-semibold text-[var(--muted)]">{label}</span>
         {isFinal && <span className="text-[10px] font-semibold text-[var(--pos)]">Final</span>}
-        {isLive && (
-          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--live)]">
-            <span className="w-1.5 h-1.5 rounded-full bg-[var(--live)] animate-pulse" />
-            Live
-          </span>
-        )}
         {!isFinal && !isLive && showScores && <span className="text-[10px] font-semibold text-[var(--proj)]">Projected</span>}
       </div>
 
@@ -140,8 +146,13 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 sm:gap-2">
         <div className="flex items-center justify-between sm:flex-col sm:items-end sm:justify-start gap-2 sm:gap-0.5 min-w-0 flex-1">
           <TeamName manager={myTeam} conf={myConf} className="font-semibold truncate sm:w-full sm:justify-end" />
-          <span className={`font-mono text-lg font-bold leading-none shrink-0 ${showScores ? bigColor : "text-[var(--muted)]"}`}>
-            {showScores && bigMy != null ? bigMy.toFixed(1) : "--"}
+          <span className="font-mono leading-none shrink-0 whitespace-nowrap">
+            <span className={`text-lg font-bold ${showScores ? myBigColor : "text-[var(--muted)]"}`}>
+              {showScores && bigMy != null ? bigMy.toFixed(2) : "--"}
+            </span>
+            {showCaption && myScore != null && (
+              <span className="text-xs text-[var(--proj)] ml-1">({myScore.toFixed(2)} proj)</span>
+            )}
           </span>
         </div>
         <div className="flex items-center gap-2 sm:contents">
@@ -151,18 +162,16 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
         </div>
         <div className="flex items-center justify-between sm:flex-col sm:items-start sm:justify-start gap-2 sm:gap-0.5 min-w-0 flex-1">
           <TeamName manager={opponent} conf={oppConf} className="font-semibold truncate sm:w-full" />
-          <span className={`font-mono text-lg font-bold leading-none shrink-0 ${showScores ? bigColor : "text-[var(--muted)]"}`}>
-            {showScores && bigOpp != null ? bigOpp.toFixed(1) : "--"}
+          <span className="font-mono leading-none shrink-0 whitespace-nowrap">
+            <span className={`text-lg font-bold ${showScores ? oppBigColor : "text-[var(--muted)]"}`}>
+              {showScores && bigOpp != null ? bigOpp.toFixed(2) : "--"}
+            </span>
+            {showCaption && oppScore != null && (
+              <span className="text-xs text-[var(--proj)] ml-1">({oppScore.toFixed(2)} proj)</span>
+            )}
           </span>
         </div>
       </div>
-      {showCaption && (
-        <div className="flex items-center gap-2 mt-1">
-          <span className="flex-1 text-right font-mono text-sm text-[var(--proj)]">{myScore != null ? `${myScore.toFixed(1)} proj` : ""}</span>
-          <span className="w-7 shrink-0" />
-          <span className="flex-1 text-left font-mono text-sm text-[var(--proj)]">{oppScore != null ? `${oppScore.toFixed(1)} proj` : ""}</span>
-        </div>
-      )}
 
       {showWinPct && (
         <div className="flex items-center gap-2 mt-1.5" title={winPctIsRough ? "Rough estimate -- limited data so far this week" : undefined}>

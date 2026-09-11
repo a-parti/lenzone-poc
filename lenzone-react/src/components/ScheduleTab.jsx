@@ -2,7 +2,22 @@ import React, { useState, useEffect } from 'react';
 import TeamName from './TeamName';
 import { useRosterModal } from '../context/RosterModalContext';
 import { CONF_STYLES, SCORE_COLOR } from '../lib/theme';
-import { computeBlendedRosterScore, scoringFieldFor } from '../lib/players';
+import { computeBlendedRosterScore, projectedPoints, scoringFieldFor } from '../lib/players';
+
+// The pregame projection for a week that's already final -- ignores any real stats in the
+// snapshot, purely summing each starter's pregame projection, so a final score can be compared
+// against what was expected of it (beat/missed projection) rather than just shown as a flat color.
+function pregameProjection(snapshot, weekProjections, scoringSettings, fallbackField) {
+  if (!snapshot?.starters) return null;
+  let total = 0;
+  let any = false;
+  snapshot.starters.forEach(id => {
+    if (!id || id === '0') return;
+    const val = projectedPoints(weekProjections, id, scoringSettings, fallbackField);
+    if (val != null) { total += val; any = true; }
+  });
+  return any ? total : null;
+}
 
 // Real final score once that week is actually over (week <= latestCompletedWeek, the same cutoff
 // used by the Matchups tab); otherwise the same per-player blended real+projected total used
@@ -13,14 +28,17 @@ import { computeBlendedRosterScore, scoringFieldFor } from '../lib/players';
 // final/live/projected states in App.jsx so this view never disagrees with the Matchups tab.
 function weekScore(season, confData, manager, week, weekProjectionsByWeek, latestCompletedWeek) {
   const isFinalWeek = week <= latestCompletedWeek;
+  const fallbackField = scoringFieldFor(confData?.receptionPoints || 0);
+  const snapshot = season.rosterSnapshotByWeek[week]?.[manager];
   if (isFinalWeek) {
     const real = season.scoreByWeek[week]?.[manager];
     if (real == null) return null;
-    return { value: real, state: 'final' };
+    // Compared against its own pregame projection so a final score reads green/red by whether it
+    // beat expectations, not a flat "it's over" color.
+    const projected = pregameProjection(snapshot, weekProjectionsByWeek?.[week] || {}, confData?.scoringSettings, fallbackField);
+    return { value: real, state: (projected != null && real < projected) ? 'final-neg' : 'final-pos', projected };
   }
-  const snapshot = season.rosterSnapshotByWeek[week]?.[manager];
   if (!snapshot) return null;
-  const fallbackField = scoringFieldFor(confData?.receptionPoints || 0);
   const blended = computeBlendedRosterScore(snapshot, weekProjectionsByWeek?.[week] || {}, confData?.scoringSettings, fallbackField);
   if (blended?.total == null) return null;
   const isLive = (blended.lockedFraction ?? 0) > 0;
@@ -31,7 +49,7 @@ function ScoreTag({ score }) {
   if (!score) return null;
   return (
     <span className={`text-xs font-mono font-bold shrink-0 ${SCORE_COLOR[score.state]}`}>
-      {score.value.toFixed(1)}{score.state === 'proj' && " proj"}{score.state === 'live' && " live"}
+      {score.value.toFixed(2)}{score.state === 'proj' && " proj"}{score.state === 'live' && " live"}
     </span>
   );
 }

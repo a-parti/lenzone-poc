@@ -3,20 +3,26 @@ import { playerLabel, projectedPoints } from '../lib/players';
 import { useTeamLogo } from '../context/TeamLogoContext';
 import { Zoomable } from '../context/ImageLightboxContext';
 import WeeklyHighlights from './WeeklyHighlights';
+import PlayerHighlights from './PlayerHighlights';
 import ManagerMatchupRow from './ManagerMatchupRow';
 import NflGamesPanel from './NflGamesPanel';
 
 export default function CurrentWeekView({
   onGoToMatchup, selectedWeek, isWeekFinal, weeklyAwards, nflGames, myTeamNflTeams,
   myTeamManager, myTeamIntra, myTeamInter, myTeamConf, myTeamRoster, myTeamConfData, myTeamFallbackField, myTeamPlayersPoints,
-  playersDB, weekProjections, byTeamWeek, afcSlots, nfcSlots, afcOwners, nfcOwners
+  playersDB, weekProjections, byTeamWeek, afcSlots, nfcSlots, afcData, nfcData, afcSeason, nfcSeason
 }) {
   const goToManagerMatchup = (manager) => onGoToMatchup(manager);
   const logoUrl = useTeamLogo(myTeamManager);
-  // Clicking a game in the NFL games panel below highlights any player in it, in your own
-  // matchups card above -- a Set for O(1) lookup against each player's real NFL team.
-  const [selectedGame, setSelectedGame] = React.useState(null);
-  const highlightTeams = selectedGame ? new Set([selectedGame.home, selectedGame.away]) : null;
+  // Clicking a game in the NFL games panel below highlights any players from it, in your own
+  // matchups card above -- multiple games can be selected at once. A Set for O(1) lookup against
+  // each player's real NFL team.
+  const [selectedGames, setSelectedGames] = React.useState([]);
+  const toggleGame = (game) => setSelectedGames(prev => {
+    const exists = prev.some(g => g.home === game.home && g.away === game.away);
+    return exists ? prev.filter(g => !(g.home === game.home && g.away === game.away)) : [...prev, game];
+  });
+  const highlightTeams = selectedGames.length > 0 ? new Set(selectedGames.flatMap(g => [g.home, g.away])) : null;
   const myPlayersByNflTeam = useMemo(() => {
     const map = new Map();
     (myTeamRoster?.players || []).forEach(pid => {
@@ -42,6 +48,10 @@ export default function CurrentWeekView({
         <WeeklyHighlights
           awards={weeklyAwards} week={selectedWeek} isWeekFinal={isWeekFinal}
           onSelectManager={goToManagerMatchup}
+        />
+        <PlayerHighlights
+          afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
+          week={selectedWeek} weekProjections={weekProjections} playersDB={playersDB}
         />
       </div>
 
@@ -77,8 +87,8 @@ export default function CurrentWeekView({
 
       <NflGamesPanel
         games={nflGames} week={selectedWeek} myTeamNflTeams={myTeamNflTeams} myPlayersByNflTeam={myPlayersByNflTeam}
-        playersDB={playersDB} afcOwners={afcOwners} nfcOwners={nfcOwners}
-        selectedGame={selectedGame} onSelectGame={setSelectedGame}
+        playersDB={playersDB} afcData={afcData} nfcData={nfcData}
+        selectedGames={selectedGames} onToggleGame={toggleGame} onClearGames={() => setSelectedGames([])}
       />
     </div>
   );

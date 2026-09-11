@@ -9,7 +9,7 @@ function MyPlayersLine({ team, players, isLive }) {
       <span className="font-bold text-[var(--text2)]">{team}:</span>
       {players.map((p, i) => {
         const hasActual = p.realPts != null;
-        const ptsColor = hasActual ? SCORE_COLOR[scoreState({ hasActual: true, isLive })] : "text-[var(--proj)]";
+        const ptsColor = hasActual ? SCORE_COLOR[scoreState({ hasActual: true, isLive, actual: p.realPts, projected: p.projPts })] : "text-[var(--proj)]";
         return (
           <React.Fragment key={p.playerId}>
             <span className={`inline-flex items-center gap-1 ${p.isBench ? "opacity-60" : ""}`}>
@@ -19,7 +19,7 @@ function MyPlayersLine({ team, players, isLive }) {
               <PlayerNameButton playerId={p.playerId} name={p.name} position={p.position} className={`font-medium ${p.isBench ? "text-[var(--text2)]" : "text-[var(--accent)]"}`} />
               <span className="text-[var(--muted)]">({p.position}{p.number != null ? ` - #${p.number}` : ""} - </span>
               {(hasActual || p.projPts != null) && (
-                <span className={`font-semibold ${ptsColor}`}>{hasActual ? p.realPts.toFixed(1) : `${p.projPts.toFixed(1)} proj`}</span>
+                <span className={`font-semibold ${ptsColor}`}>{hasActual ? p.realPts.toFixed(2) : `${p.projPts.toFixed(2)} proj`}</span>
               )}
               <span className="text-[var(--muted)]">)</span>
               <InjuryBadge status={p.injuryStatus} />
@@ -32,31 +32,37 @@ function MyPlayersLine({ team, players, isLive }) {
   );
 }
 
-// How many players ROSTERED ANYWHERE in the league (both conferences combined, not just your own
-// team) belong to each real NFL team -- lets a game with none of YOUR players still surface "6
-// rostered" so it's obvious there's league-relevant action worth clicking into.
-function countRosteredByTeam(playersDB, afcOwners, nfcOwners) {
+// How many STARTING lineup spots (both conferences combined, bench excluded) belong to each real
+// NFL team this week -- a bench-inclusive count was confusing (a number with no visible meaning
+// next to a team logo); "how many starters are in this game" is the number that's actually
+// actionable -- it tells you how many fantasy lineups this game can swing right now.
+function countStartersByTeam(playersDB, afcData, nfcData) {
   const counts = {};
   if (!playersDB) return counts;
-  const ids = new Set([...Object.keys(afcOwners || {}), ...Object.keys(nfcOwners || {})]);
-  ids.forEach(pid => {
+  const starterIds = [
+    ...(afcData?.rosters || []).flatMap(r => r.starters || []),
+    ...(nfcData?.rosters || []).flatMap(r => r.starters || [])
+  ];
+  starterIds.forEach(pid => {
+    if (!pid || pid === '0') return;
     const team = playersDB[pid]?.team;
     if (!team) return;
-    const n = (afcOwners?.[pid] ? 1 : 0) + (nfcOwners?.[pid] ? 1 : 0);
-    counts[team] = (counts[team] || 0) + n;
+    counts[team] = (counts[team] || 0) + 1;
   });
   return counts;
 }
 
-// Real NFL games for the selected week, current/upcoming only (a finished game has nothing left to
-// watch). Kickoff time + live state come from ESPN's public scoreboard where available (Sleeper's
+// All real NFL games for the selected week, including ones already final -- a played game can
+// still be clicked to highlight its players (e.g. reviewing who's in a Thursday-night game after
+// the fact), so hiding it once it's over would remove exactly the games someone might want to
+// select. Kickoff time + live state come from ESPN's public scoreboard where available (Sleeper's
 // own schedule feed only has a date); otherwise falls back to the date, never a fabricated time.
 // Shared by the Home "This Week" landing page and the Matchups tab's own "This Week" view so the
 // two never drift into showing different things for the same week.
-export default function NflGamesPanel({ games, week, myTeamNflTeams, myPlayersByNflTeam, playersDB, afcOwners, nfcOwners, selectedGame, onSelectGame }) {
-  const rosteredCounts = useMemo(() => countRosteredByTeam(playersDB, afcOwners, nfcOwners), [playersDB, afcOwners, nfcOwners]);
+export default function NflGamesPanel({ games, week, myTeamNflTeams, myPlayersByNflTeam, playersDB, afcData, nfcData, selectedGames, onToggleGame, onClearGames }) {
+  const starterCounts = useMemo(() => countStartersByTeam(playersDB, afcData, nfcData), [playersDB, afcData, nfcData]);
   const weekGames = (games || [])
-    .filter(g => g.week === week && g.home && g.away && g.state !== 'post' && g.status !== 'complete')
+    .filter(g => g.week === week && g.home && g.away)
     .sort((a, b) => (a.kickoff || a.date || "").localeCompare(b.kickoff || b.date || ""));
   const scrollRef = useRef(null);
   const focusRowRef = useRef(null);
@@ -72,22 +78,27 @@ export default function NflGamesPanel({ games, week, myTeamNflTeams, myPlayersBy
   if (weekGames.length === 0) return null;
   const now = Date.now();
   const liveIdx = weekGames.findIndex(g => g.state === 'in');
-  const nextIdx = liveIdx >= 0 ? liveIdx : weekGames.findIndex(g => !g.kickoff || new Date(g.kickoff).getTime() >= now);
+  const nextIdx = liveIdx >= 0 ? liveIdx : weekGames.findIndex(g => {
+    if (g.state === 'post' || g.status === 'complete') return false;
+    return !g.kickoff || new Date(g.kickoff).getTime() >= now;
+  });
   return (
     <div className="bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)] rounded-2xl p-6">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-1">
         <p className="tracking-wider text-xs uppercase font-semibold text-[var(--muted)]">NFL Games &middot; Week {week}</p>
-        {selectedGame && (
-          <button type="button" onClick={() => onSelectGame?.(null)} className="text-[10px] font-semibold text-[var(--accent)] hover:text-[var(--accent-ink)]">
-            Clear Highlight
+        {selectedGames?.length > 0 && (
+          <button type="button" onClick={() => onClearGames?.()} className="text-[10px] font-semibold text-[var(--accent)] hover:text-[var(--accent-ink)]">
+            Clear Highlight{selectedGames.length > 1 ? ` (${selectedGames.length})` : ""}
           </button>
         )}
       </div>
+      <p className="text-[10px] text-[var(--muted)] mb-3">Small numbers = fantasy starters league-wide on that team this week.</p>
       <div ref={scrollRef} className="space-y-2 max-h-[28rem] overflow-y-auto scroll-thin pr-1">
         {weekGames.map((g, idx) => {
           const involvesMyTeam = myTeamNflTeams?.has(g.home) || myTeamNflTeams?.has(g.away);
           const isLive = g.state === 'in';
-          const isSelected = selectedGame && selectedGame.home === g.home && selectedGame.away === g.away;
+          const isFinal = g.state === 'post' || g.status === 'complete';
+          const isSelected = selectedGames?.some(sg => sg.home === g.home && sg.away === g.away);
           const kickoffLabel = g.kickoff
             ? new Date(g.kickoff).toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' })
             : g.date
@@ -95,26 +106,26 @@ export default function NflGamesPanel({ games, week, myTeamNflTeams, myPlayersBy
               : '';
           const awayPlayers = myPlayersByNflTeam?.get(g.away);
           const homePlayers = myPlayersByNflTeam?.get(g.home);
-          const awayCount = rosteredCounts[g.away] || 0;
-          const homeCount = rosteredCounts[g.home] || 0;
+          const awayCount = starterCounts[g.away] || 0;
+          const homeCount = starterCounts[g.home] || 0;
           return (
             <div
               key={g.game_id}
               ref={idx === nextIdx ? focusRowRef : null}
-              role={onSelectGame ? "button" : undefined}
-              tabIndex={onSelectGame ? 0 : undefined}
-              onClick={onSelectGame ? () => onSelectGame(isSelected ? null : { home: g.home, away: g.away }) : undefined}
-              onKeyDown={onSelectGame ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectGame(isSelected ? null : { home: g.home, away: g.away }); } } : undefined}
-              className={`rounded-xl px-4 py-3 border transition-all duration-150 ${onSelectGame ? "cursor-pointer" : ""} ${
+              role={onToggleGame ? "button" : undefined}
+              tabIndex={onToggleGame ? 0 : undefined}
+              onClick={onToggleGame ? () => onToggleGame({ home: g.home, away: g.away }) : undefined}
+              onKeyDown={onToggleGame ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggleGame({ home: g.home, away: g.away }); } } : undefined}
+              className={`rounded-xl px-4 py-3 border transition-all duration-150 ${onToggleGame ? "cursor-pointer" : ""} ${
                 // A game with one of your players gets a different color per status -- amber while
-                // it's actually live (most urgent), accent while it just hasn't kicked off yet --
-                // so glancing at the list alone tells you which of your players' games still need
-                // watching. Games with none of your players stay neutral. Only live/upcoming games
-                // ever reach this row (finals are filtered out above), so there's no "final" state
-                // to color here. A clicked-to-highlight game gets its own ring regardless.
+                // it's actually live (most urgent), accent while it just hasn't kicked off yet, a
+                // plain neutral surface once it's final (nothing left to watch there) -- so glancing
+                // at the list alone tells you which of your players' games still need watching.
+                // Games with none of your players stay neutral throughout. A clicked-to-highlight
+                // game gets its own ring regardless of status.
                 isSelected
                   ? "bg-[var(--accent)]/15 border-[var(--accent)] ring-1 ring-[var(--accent)]"
-                  : involvesMyTeam
+                  : involvesMyTeam && !isFinal
                     ? isLive
                       ? "bg-amber-400/10 border-amber-400/60"
                       : "bg-[var(--accent)]/10 border-[var(--accent)]/60"
@@ -122,7 +133,7 @@ export default function NflGamesPanel({ games, week, myTeamNflTeams, myPlayersBy
               }`}
             >
               <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-sm">
-                <div className="flex items-center gap-1 min-w-0 flex-wrap" onClick={(e) => e.stopPropagation()} title="Players rostered somewhere in the league">
+                <div className="flex items-center gap-1 min-w-0 flex-wrap" onClick={(e) => e.stopPropagation()} title="Fantasy starters league-wide on this team this week">
                   <NflTeamLogo team={g.away} />
                   {awayCount > 0 && <span className="text-[9px] font-mono text-[var(--muted)] bg-[var(--surface2)]/70 rounded-full px-1.5 shrink-0">{awayCount}</span>}
                   <span className="text-[var(--muted)] shrink-0 text-xs">@</span>
@@ -130,7 +141,7 @@ export default function NflGamesPanel({ games, week, myTeamNflTeams, myPlayersBy
                   {homeCount > 0 && <span className="text-[9px] font-mono text-[var(--muted)] bg-[var(--surface2)]/70 rounded-full px-1.5 shrink-0">{homeCount}</span>}
                 </div>
                 <div className="flex items-center gap-2 shrink-0 ml-auto">
-                  {isLive && g.awayScore != null && g.homeScore != null && (
+                  {(isLive || isFinal) && g.awayScore != null && g.homeScore != null && (
                     <span className="font-mono tabular-nums font-bold text-[var(--text)]">{g.awayScore} - {g.homeScore}</span>
                   )}
                   {isLive ? (
@@ -140,9 +151,9 @@ export default function NflGamesPanel({ games, week, myTeamNflTeams, myPlayersBy
                     </span>
                   ) : (
                     <span className={`text-xs font-bold uppercase tracking-wider ${
-                      g.status === 'canceled' ? 'text-red-400' : 'text-[var(--muted)]'
+                      isFinal ? 'text-emerald-400' : g.status === 'canceled' ? 'text-red-400' : 'text-[var(--muted)]'
                     }`}>
-                      {g.status === 'canceled' ? 'Canceled' : kickoffLabel}
+                      {isFinal ? 'Final' : g.status === 'canceled' ? 'Canceled' : kickoffLabel}
                     </span>
                   )}
                 </div>

@@ -27,6 +27,7 @@ import CommandPalette from './components/CommandPalette';
 import ManagerMatchupRow from './components/ManagerMatchupRow';
 import NflGamesPanel from './components/NflGamesPanel';
 import WeeklyHighlights from './components/WeeklyHighlights';
+import PlayerHighlights from './components/PlayerHighlights';
 import { RosterModalProvider } from './context/RosterModalContext';
 import { PlayerModalProvider } from './context/PlayerModalContext';
 import PlayerModal from './components/PlayerModal';
@@ -211,7 +212,7 @@ function StandingsTable({ conf, rows }) {
                 </td>
                 <td className="py-3 px-4">{item.inConfRecord}</td>
                 <td className="py-3 px-4">{item.interConfRecord}</td>
-                <td className={`py-3 px-4 font-extrabold ${style.text}`}>{item.totalPts.toFixed(1)}</td>
+                <td className={`py-3 px-4 font-extrabold ${style.text}`}>{item.totalPts.toFixed(2)}</td>
                 <td className="py-3 px-4 font-mono">{item.pf.toFixed(2)}</td>
                 <td className="py-3 px-4 font-mono text-[var(--text2)]">{item.pa.toFixed(2)}</td>
                 <td className="py-3 px-4 font-mono">{item.playoffPct === null || item.playoffPct === undefined ? "--" : `${item.playoffPct.toFixed(0)}%`}</td>
@@ -243,7 +244,7 @@ function StandingsTable({ conf, rows }) {
               </div>
               <div>
                 <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">Pts</p>
-                <p className={`font-extrabold text-sm ${style.text}`}>{item.totalPts.toFixed(1)}</p>
+                <p className={`font-extrabold text-sm ${style.text}`}>{item.totalPts.toFixed(2)}</p>
               </div>
               <div>
                 <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">PF</p>
@@ -305,9 +306,9 @@ function ConferenceWarPanel({ weekRecord, seasonRecord, weekPoints, week, isWeek
           </div>
           {weekPoints.afcTotal != null ? (
             <p className="text-lg font-extrabold">
-              <span className={CONF_STYLES.AFC.text}>AFC {weekPoints.afcTotal.toFixed(1)}</span>
+              <span className={CONF_STYLES.AFC.text}>AFC {weekPoints.afcTotal.toFixed(2)}</span>
               <span className="text-[var(--muted)] mx-2">-</span>
-              <span className={CONF_STYLES.NFC.text}>{weekPoints.nfcTotal.toFixed(1)} NFC</span>
+              <span className={CONF_STYLES.NFC.text}>{weekPoints.nfcTotal.toFixed(2)} NFC</span>
             </p>
           ) : (
             <p className="text-sm text-[var(--muted)] italic">No data yet</p>
@@ -407,6 +408,7 @@ function buildMatchupInfo({
     myWinPct,
     winPctIsRough,
     myHasData: myHasData || myProjected != null, oppHasData: oppHasData || oppProjected != null,
+    myProjected, oppProjected,
     mySnapshot, oppSnapshot,
     myScoringSettings: myConfData.scoringSettings, myFallbackField,
     oppScoringSettings: oppConfData.scoringSettings, oppFallbackField
@@ -495,10 +497,15 @@ export default function App() {
   const [matchupsView, setMatchupsView] = useState("week");
   const [selectedWeek, setSelectedWeek] = useState(1);
   const [selectedManager, setSelectedManager] = useState("ALL");
-  // Clicking a game in the Matchups tab's NFL games panel highlights any player from that game
-  // across every matchup card on the page -- a Set for O(1) lookup against a player's real team.
-  const [matchupsHighlightGame, setMatchupsHighlightGame] = useState(null);
-  const matchupsHighlightTeams = matchupsHighlightGame ? new Set([matchupsHighlightGame.home, matchupsHighlightGame.away]) : null;
+  // Clicking a game in the Matchups tab's NFL games panel highlights any players from it across
+  // every matchup card on the page -- multiple games can be selected at once. A Set for O(1)
+  // lookup against a player's real team.
+  const [matchupsHighlightGames, setMatchupsHighlightGames] = useState([]);
+  const toggleMatchupsHighlightGame = (game) => setMatchupsHighlightGames(prev => {
+    const exists = prev.some(g => g.home === game.home && g.away === game.away);
+    return exists ? prev.filter(g => !(g.home === game.home && g.away === game.away)) : [...prev, game];
+  });
+  const matchupsHighlightTeams = matchupsHighlightGames.length > 0 ? new Set(matchupsHighlightGames.flatMap(g => [g.home, g.away])) : null;
   const [myTeamManager, setMyTeamManager] = useState(() => localStorage.getItem('lenzone_my_team') || null);
   const [loading, setLoading] = useState(false);
 
@@ -1117,6 +1124,7 @@ export default function App() {
             myTeamPlayersPoints={myTeamPlayersPoints} playersDB={playersDB} weekProjections={weekProjections}
             byTeamWeek={enrichedByTeamWeek}
             afcSlots={afcData.startingSlots || []} nfcSlots={nfcData.startingSlots || []}
+            afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
           />
         )}
 
@@ -1237,6 +1245,10 @@ export default function App() {
                 otherwise clicking a trophy for a manager outside the currently-filtered conference
                 just silently does nothing, since their card is filtered out of view. */}
             <WeeklyHighlights awards={weeklyAwards} week={selectedWeek} isWeekFinal={isSelectedWeekFinal} onSelectManager={goToMatchup} />
+            <PlayerHighlights
+              afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
+              week={selectedWeek} weekProjections={weekProjections} playersDB={playersDB}
+            />
 
             {showAfc && (
               <div className="space-y-3">
@@ -1291,8 +1303,9 @@ export default function App() {
             <div className="lg:sticky lg:top-4">
               <NflGamesPanel
                 games={enrichedNflGames} week={selectedWeek} myTeamNflTeams={myTeamNflTeams}
-                playersDB={playersDB} afcOwners={afcOwners} nfcOwners={nfcOwners}
-                selectedGame={matchupsHighlightGame} onSelectGame={setMatchupsHighlightGame}
+                playersDB={playersDB} afcData={afcData} nfcData={nfcData}
+                selectedGames={matchupsHighlightGames} onToggleGame={toggleMatchupsHighlightGame}
+                onClearGames={() => setMatchupsHighlightGames([])}
               />
             </div>
             </div>

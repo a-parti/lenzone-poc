@@ -57,13 +57,13 @@ function WeeklyScoringTable({ afcOwner, nfcOwner, afcSeason, nfcSeason, confData
               const projected = projectedPoints(weekProjectionsByWeek?.[w], playerId, confData?.scoringSettings, fallbackField);
               const game = team ? byTeamWeek?.[team]?.[w] : null;
               const isLive = game?.state === 'in';
-              const actualColor = hasActual ? SCORE_COLOR[scoreState({ hasActual: true, isLive })] : "text-[var(--muted)]";
+              const actualColor = hasActual ? SCORE_COLOR[scoreState({ hasActual: true, isLive, actual, projected })] : "text-[var(--muted)]";
               return (
                 <tr key={w} className="border-t border-[var(--border)]/40">
                   <td className="py-1 text-[var(--muted)] font-mono">{w}</td>
                   <td className="py-1 text-[var(--muted)] font-mono">{game ? `${game.isHome ? "vs" : "@"} ${game.opponent}` : "--"}</td>
-                  <td className="py-1 text-right font-mono font-semibold text-[var(--proj)]">{projected != null ? projected.toFixed(1) : "--"}</td>
-                  <td className={`py-1 text-right font-mono font-semibold ${actualColor}`}>{hasActual ? actual.toFixed(1) : "--"}</td>
+                  <td className="py-1 text-right font-mono font-semibold text-[var(--proj)]">{projected != null ? projected.toFixed(2) : "--"}</td>
+                  <td className={`py-1 text-right font-mono font-semibold ${actualColor}`}>{hasActual ? actual.toFixed(2) : "--"}</td>
                 </tr>
               );
             })}

@@ -139,7 +139,7 @@ function BigTeamLogo({ manager }) {
   const logoUrl = useTeamLogo(manager);
   if (!logoUrl) return null;
   return (
-    <div className="flex justify-center mt-6 animate-fade-in-up">
+    <div className="flex justify-center mb-4 animate-fade-in-up">
       <Zoomable
         src={logoUrl}
         alt={manager}
@@ -219,10 +219,9 @@ export default function HomeView({ setActiveTab, selectedWeek, afcManagers, nfcM
           against); once the nav list is about to appear below it, the picker eases upward to make
           room instead of the list just abruptly appearing under a still-centered picker. */}
       <div className={`transition-[margin-top] duration-500 ease-out ${myTeamManager ? "mt-16 sm:mt-20" : "mt-[26vh] sm:mt-[30vh]"}`}>
+        {myTeamManager && <BigTeamLogo manager={myTeamManager} />}
         <TeamPicker afcManagers={afcManagers} nfcManagers={nfcManagers} value={myTeamManager} onChange={onChooseMyTeam} variant="blend" />
       </div>
-
-      {myTeamManager && <BigTeamLogo manager={myTeamManager} />}
 
       {myTeamManager && (
         <NavListNumbered sections={sections} onSelect={setActiveTab} />

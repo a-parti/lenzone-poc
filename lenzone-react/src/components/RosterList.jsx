@@ -15,20 +15,20 @@ function ProjectedPts({ id, weekProjections, scoringSettings, fallbackField, pla
 
   if (hasReal) {
     const diff = proj != null ? real - proj : null;
-    const color = SCORE_COLOR[scoreState({ hasActual: true, isLive })];
+    const color = SCORE_COLOR[scoreState({ hasActual: true, isLive, actual: real, projected: proj })];
     return (
       <div className="flex flex-col items-end shrink-0 leading-none gap-1">
-        <span className={`font-mono font-bold text-sm ${color}`}>{real.toFixed(1)}</span>
+        <span className={`font-mono font-bold text-sm ${color}`}>{real.toFixed(2)}</span>
         {diff != null && (
           <span className={`font-mono text-xs font-semibold ${diff >= 0 ? "text-[var(--pos)]" : "text-[var(--neg)]"}`}>
-            {diff >= 0 ? "+" : ""}{diff.toFixed(1)} ({proj.toFixed(1)})
+            {diff >= 0 ? "+" : ""}{diff.toFixed(2)} ({proj.toFixed(2)})
           </span>
         )}
       </div>
     );
   }
   if (proj === null) return null;
-  return <span className="text-sm font-mono font-semibold text-[var(--proj)] shrink-0">{proj.toFixed(1)}</span>;
+  return <span className="text-sm font-mono font-semibold text-[var(--proj)] shrink-0">{proj.toFixed(2)}</span>;
 }
 
 // Team-level rollup of the same actual/projected/delta treatment as each player row: full squad
@@ -43,21 +43,21 @@ function TeamTotal({ starters, weekProjections, scoringSettings, fallbackField, 
   // The total is still "live" (moving) as long as any starter who's posted points is mid-game --
   // only once every one of those games is final does the total stop changing.
   const anyStarterLive = (starters || []).some(id => id && id !== '0' && isLiveGame(byTeamWeek, playerLabel(playersDB, id)?.team, week));
-  const postedColor = SCORE_COLOR[scoreState({ hasActual: anyPosted, isLive: anyStarterLive })];
+  const postedColor = SCORE_COLOR[scoreState({ hasActual: anyPosted, isLive: anyStarterLive, actual: actualPosted, projected: projectedPosted })];
   return (
     <div className="bg-[var(--bg)]/60 border border-[var(--border)]/60 rounded-lg px-3 py-2 mb-3 text-sm space-y-1.5">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
         <span className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">Team Projected Total</span>
-        <span className="font-mono font-bold text-base text-[var(--proj)]">{anyProj ? projectedAll.toFixed(1) : "--"}</span>
+        <span className="font-mono font-bold text-base text-[var(--proj)]">{anyProj ? projectedAll.toFixed(2) : "--"}</span>
       </div>
       {anyPosted && (
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
           <span className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)] shrink-0">Posted So Far</span>
           <span className="font-mono text-right">
-            <span className={`font-bold text-base ${postedColor}`}>{actualPosted.toFixed(1)}</span>
+            <span className={`font-bold text-base ${postedColor}`}>{actualPosted.toFixed(2)}</span>
             {diff != null && (
               <span className={`ml-1.5 text-xs font-semibold block sm:inline ${diff >= 0 ? "text-[var(--pos)]" : "text-[var(--neg)]"}`}>
-                ({diff >= 0 ? "+" : ""}{diff.toFixed(1)} vs {projectedPosted.toFixed(1)} proj)
+                ({diff >= 0 ? "+" : ""}{diff.toFixed(2)} vs {projectedPosted.toFixed(2)} proj)
               </span>
             )}
           </span>

@@ -198,3 +198,43 @@ function buildAcquisitionHistory(draft, transactions, rosterIdMap) {
 }
 
 export { buildOwnerMap, buildAcquisitionHistory, computeMoveCounts };
+
+// League-wide player "trophies" for a given week -- mirrors the team-level WeeklyHighlights
+// (High/Low Score, Closest, Blowout) but for individual REAL players rather than fantasy teams.
+// Scoped to starters only (both conferences combined, deduped since the same real player can start
+// for a manager in each conference independently) -- bench players don't score for anyone, so
+// including them would just be noise. AFC and NFC share the same real scoring_settings in this
+// league (verified: every offensive category matches), so either side's settings work for both.
+export function computePlayerHighlights(afcData, nfcData, afcSeason, nfcSeason, week, weekProjections) {
+  const scoringSettings = afcData?.scoringSettings || nfcData?.scoringSettings;
+  const fallbackField = scoringFieldFor(afcData?.receptionPoints ?? nfcData?.receptionPoints ?? 0);
+  const seen = new Map();
+
+  const ingest = (confData, season) => {
+    (confData?.rosters || []).forEach(r => {
+      const snapshot = season?.rosterSnapshotByWeek?.[week]?.[r.manager];
+      (r.starters || []).forEach((id, i) => {
+        if (!id || id === '0' || seen.has(id)) return;
+        const real = snapshot?.startersPoints?.[i];
+        const projected = projectedPoints(weekProjections, id, scoringSettings, fallbackField);
+        seen.set(id, { id, actual: real > 0 ? real : null, projected });
+      });
+    });
+  };
+  ingest(afcData, afcSeason);
+  ingest(nfcData, nfcSeason);
+
+  const entries = [...seen.values()];
+  const withProj = entries.filter(e => e.projected != null);
+  const withActual = entries.filter(e => e.actual != null);
+  const withBoth = entries.filter(e => e.actual != null && e.projected != null);
+  const maxBy = (list, fn) => list.length ? list.reduce((a, b) => (fn(b) > fn(a) ? b : a)) : null;
+  const minBy = (list, fn) => list.length ? list.reduce((a, b) => (fn(b) < fn(a) ? b : a)) : null;
+
+  return {
+    highestProjected: maxBy(withProj, e => e.projected),
+    highestActual: maxBy(withActual, e => e.actual),
+    biggestRiser: maxBy(withBoth, e => e.actual - e.projected),
+    biggestBust: minBy(withBoth, e => e.actual - e.projected)
+  };
+}

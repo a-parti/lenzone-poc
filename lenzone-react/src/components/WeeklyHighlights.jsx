@@ -14,7 +14,7 @@ function HighlightCard({ icon: Icon, label, name, nameManager, value, accent, on
         <Icon className={`w-4 h-4 ${accent}`} />
         <span className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">{label}</span>
       </div>
-      <p className={`font-bold text-sm truncate ${nameManager ? color.text : "text-[var(--text)]"}`}>{name}</p>
+      <p className={`font-bold text-sm ${nameManager ? color.text : "text-[var(--text)]"}`}>{name}</p>
       <p className={`text-xs font-mono ${accent}`}>{value}</p>
     </button>
   );
@@ -45,24 +45,24 @@ export default function WeeklyHighlights({ awards, week, isWeekFinal, onSelectMa
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
       <HighlightCard
-        icon={icon} label={`${prefix}High Score`} name={high.manager} value={`${high.points.toFixed(1)} pts`} accent="text-amber-400"
+        icon={icon} label={`${prefix}High Score`} name={high.manager} value={`${high.points.toFixed(2)} pts`} accent="text-amber-400"
         onClick={() => onSelectManager(high.manager)}
       />
       <HighlightCard
-        icon={TrendingDown} label={`${prefix}Low Score`} name={low.manager} value={`${low.points.toFixed(1)} pts`} accent="text-rose-400"
+        icon={TrendingDown} label={`${prefix}Low Score`} name={low.manager} value={`${low.points.toFixed(2)} pts`} accent="text-rose-400"
         onClick={() => onSelectManager(low.manager)}
       />
       {closest && (
         <HighlightCard
           icon={Zap} label={`${prefix}Closest Game`} name={`${closest.a} vs ${closest.b}`}
-          value={`${closest.margin.toFixed(1)} pt margin`} accent="text-blue-400"
+          value={`${closest.margin.toFixed(2)} pt margin`} accent="text-blue-400"
           onClick={() => onSelectManager(closest.a)}
         />
       )}
       {blowout && (
         <HighlightCard
           icon={Flame} label={`${prefix}Biggest Blowout`} name={`${blowout.a} vs ${blowout.b}`}
-          value={`${blowout.margin.toFixed(1)} pt margin`} accent="text-orange-400"
+          value={`${blowout.margin.toFixed(2)} pt margin`} accent="text-orange-400"
           onClick={() => onSelectManager(blowout.a)}
         />
       )}

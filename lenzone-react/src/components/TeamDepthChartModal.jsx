@@ -149,7 +149,7 @@ export default function TeamDepthChartModal({ playersDB, afcOwners, nfcOwners, w
                         )}
                       </div>
                       <span className="text-xs font-mono text-[var(--proj)] shrink-0 w-12 text-right">
-                        {proj != null ? `${proj.toFixed(1)}` : "--"}
+                        {proj != null ? `${proj.toFixed(2)}` : "--"}
                       </span>
                     </div>
                   );

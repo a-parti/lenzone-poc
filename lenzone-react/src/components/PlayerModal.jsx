@@ -120,7 +120,6 @@ export default function PlayerModal({
             onError={(e) => { e.target.style.display = 'none'; }}
           />
           <h2 className="text-xl font-bold text-[var(--text)]">{name}</h2>
-          {number != null && !isDefense && <p className="text-[var(--muted)] text-sm mb-2">#{number}</p>}
 
           <div className="flex items-center gap-2 mt-2 mb-3">
             <PositionBadge position={position} />

@@ -1,5 +1,16 @@
 @import "tailwindcss";
 
+/* Smoothly cross-fades every element's theme-driven colors whenever the scheme/mode changes
+   (random pick, override, manual swatch, or the light/dark toggle) instead of an instant, jarring
+   snap. Scoped to just color-ish properties -- transform/opacity-based animations elsewhere
+   (confetti, the logo spin, hover scales) are untouched. Element-specific Tailwind transition
+   utilities (e.g. `transition-colors duration-200` on buttons) still win over this on hover/etc,
+   since a class selector is more specific than this bare universal one -- this only fills in the
+   elements that currently have no transition of their own. */
+*, *::before, *::after {
+  transition: background-color 0.4s ease, border-color 0.4s ease, color 0.4s ease, fill 0.4s ease, stroke 0.4s ease, box-shadow 0.4s ease;
+}
+
 /* ---------------------------------------------------------------------------
    Color-scheme theme system
    Each scheme defines just 3 raw values (--bg, --text, --accent); every other

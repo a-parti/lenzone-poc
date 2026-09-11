@@ -20,6 +20,7 @@ import TeamDepthChartModal from './components/TeamDepthChartModal';
 import { TeamDepthChartProvider } from './context/TeamDepthChartContext';
 import TeamName from './components/TeamName';
 import ScheduleTab from './components/ScheduleTab';
+import SeasonGridTab from './components/SeasonGridTab';
 import HomeView from './components/HomeView';
 import CurrentWeekView from './components/CurrentWeekView';
 import CommandPalette from './components/CommandPalette';
@@ -359,10 +360,20 @@ function buildMatchupInfo({
   const mySnapshot = myConfSeason.rosterSnapshotByWeek[week]?.[manager];
   const oppSnapshot = oppConfSeason.rosterSnapshotByWeek[week]?.[opponent];
 
+  const myRoster = myConfData.rosters.find(r => r.manager === manager);
+  const oppRoster = oppConfData.rosters.find(r => r.manager === opponent);
   const myBlended = computeBlendedRosterScore(mySnapshot, weekProjections, myConfData.scoringSettings, myFallbackField);
   const oppBlended = computeBlendedRosterScore(oppSnapshot, weekProjections, oppConfData.scoringSettings, oppFallbackField);
-  const myProjected = myBlended?.total ?? computeRosterProjection(myConfData.rosters.find(r => r.manager === manager), weekProjections, myConfData.scoringSettings, myFallbackField);
-  const oppProjected = oppBlended?.total ?? computeRosterProjection(oppConfData.rosters.find(r => r.manager === opponent), weekProjections, oppConfData.scoringSettings, oppFallbackField);
+  const myProjected = myBlended?.total ?? computeRosterProjection(myRoster, weekProjections, myConfData.scoringSettings, myFallbackField);
+  const oppProjected = oppBlended?.total ?? computeRosterProjection(oppRoster, weekProjections, oppConfData.scoringSettings, oppFallbackField);
+  // Bench/IR player ids for the expanded roster comparison view -- sourced from each manager's
+  // CURRENT roster (Sleeper's per-week matchup payload only ever includes starters, not bench), so
+  // this is an approximation of "who was benched/on IR" for past weeks rather than a historical
+  // fact, same caveat as elsewhere in the app that leans on the live roster for weekly context.
+  const myIrIds = myRoster?.reserve || [];
+  const oppIrIds = oppRoster?.reserve || [];
+  const myBenchIds = (myRoster?.players || []).filter(id => !(mySnapshot?.starters || []).includes(id) && !myIrIds.includes(id));
+  const oppBenchIds = (oppRoster?.players || []).filter(id => !(oppSnapshot?.starters || []).includes(id) && !oppIrIds.includes(id));
 
   let myFinalScore, oppFinalScore, myWinPct, winPctIsRough;
   if (isFinal) {
@@ -409,6 +420,7 @@ function buildMatchupInfo({
     myHasData: myHasData || myProjected != null, oppHasData: oppHasData || oppProjected != null,
     myProjected, oppProjected,
     mySnapshot, oppSnapshot,
+    myBenchIds, oppBenchIds, myIrIds, oppIrIds,
     myScoringSettings: myConfData.scoringSettings, myFallbackField,
     oppScoringSettings: oppConfData.scoringSettings, oppFallbackField
   };
@@ -1050,7 +1062,7 @@ export default function App() {
     <TeamLogoProvider logoMap={teamLogoMap}>
     <PlayerPhotoProvider>
     <PlayerModalProvider>
-    <RosterModalProvider>
+    <RosterModalProvider onOpen={playTeamSound}>
     <TeamDepthChartProvider>
     <div className="min-h-screen bg-[var(--bg)] text-[var(--text)] p-4 md:p-8 pb-24 md:pb-8">
       {showLoginModal && (
@@ -1231,20 +1243,22 @@ export default function App() {
         {/* TAB: MATCHUPS (merged Weekly Matchups + Schedule -- same schedule/score data, two pivots) */}
         {activeTab === "matchups" && (
           <div className="space-y-8 max-w-7xl mx-auto w-full">
-            <div className="inline-flex rounded-full bg-[var(--surface2)] border border-[var(--border)] p-1 gap-1">
-              {[["week", "Weekly"], ["season", "Full Season"]].map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setMatchupsView(id)}
-                  className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all duration-200 ${
-                    matchupsView === id ? "bg-[var(--accent)] text-[var(--accent-text)]" : "text-[var(--text2)] hover:text-[var(--text)]"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+            {(matchupsView === "season" || matchupsView === "grid") && (
+              <div className="inline-flex rounded-full bg-[var(--surface2)] border border-[var(--border)] p-1 gap-1">
+                {[["week", "Weekly"], ["season", "Full Season"], ["grid", "Grid"]].map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setMatchupsView(id)}
+                    className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all duration-200 ${
+                      matchupsView === id ? "bg-[var(--accent)] text-[var(--accent-text)]" : "text-[var(--text2)] hover:text-[var(--text)]"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {matchupsView === "season" && (
               <ScheduleTab
@@ -1259,11 +1273,37 @@ export default function App() {
               />
             )}
 
+            {matchupsView === "grid" && (
+              <SeasonGridTab
+                afcSeason={afcSeason} nfcSeason={nfcSeason} crossSchedule={schedule}
+                afcManagers={afcManagers} nfcManagers={nfcManagers}
+                seasonWeeks={SEASON_WEEKS} currentWeek={nflState.week}
+                onGoToMatchup={(manager, week) => goToMatchup(manager, week)}
+              />
+            )}
+
             {matchupsView === "week" && (
               <>
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6 items-start">
             <div className="space-y-8 min-w-0">
             <div className="flex flex-wrap items-center gap-4 bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 p-4 rounded-xl">
+              <div>
+                <label className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)] block mb-1">View</label>
+                <div className="inline-flex rounded-full bg-[var(--surface2)] border border-[var(--border)] p-1 gap-1">
+                  {[["week", "Weekly"], ["season", "Full Season"], ["grid", "Grid"]].map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setMatchupsView(id)}
+                      className={`px-3 py-1 rounded-full text-xs font-bold transition-all duration-200 ${
+                        matchupsView === id ? "bg-[var(--accent)] text-[var(--accent-text)]" : "text-[var(--text2)] hover:text-[var(--text)]"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div>
                 <label className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)] block mb-1">Conference</label>
                 <ConfFilterToggle value={confFilter} onChange={setConfFilter} />

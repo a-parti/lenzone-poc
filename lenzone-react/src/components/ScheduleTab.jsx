@@ -2,54 +2,42 @@ import React, { useState, useEffect } from 'react';
 import TeamName from './TeamName';
 import { useRosterModal } from '../context/RosterModalContext';
 import { CONF_STYLES, SCORE_COLOR } from '../lib/theme';
-import { computeBlendedRosterScore, projectedPoints, scoringFieldFor } from '../lib/players';
-
-// The pregame projection, ignoring any real stats in the snapshot -- purely summing each
-// starter's pregame projection, so an actual (live or final) score can be compared against what
-// was expected of it, rather than shown with no context.
-function pregameProjection(snapshot, weekProjections, scoringSettings, fallbackField) {
-  if (!snapshot?.starters) return null;
-  let total = 0;
-  let any = false;
-  snapshot.starters.forEach(id => {
-    if (!id || id === '0') return;
-    const val = projectedPoints(weekProjections, id, scoringSettings, fallbackField);
-    if (val != null) { total += val; any = true; }
-  });
-  return any ? total : null;
-}
+import { computeBlendedRosterScore, computeRosterProjection, scoringFieldFor } from '../lib/players';
 
 // Real final score once that week is actually over (week <= latestCompletedWeek, the same cutoff
 // used by the Matchups tab); otherwise the same per-player blended real+projected total used
 // everywhere else in the app (real stat if a player's game already posted one, their pregame
 // projection otherwise), computed from that week's own roster snapshot -- so a played week shows
 // its real score, the current in-progress week shows a live-blended one, and every future week
-// shows an honest "still projected" number instead of nothing. Matches buildMatchupInfo's
-// final/live/projected states in App.jsx so this view never disagrees with the Matchups tab.
-// "Live" specifically means one of these starters' games is happening RIGHT NOW (byTeamWeek state
-// 'in') -- not just "some real stat already exists somewhere in this not-yet-final week", which
-// can just mean an earlier game already finished while the rest of the week hasn't happened yet.
+// shows an honest "still projected" number instead of nothing. The "projected" comparison figure
+// is the same blended total (falling back to the plain pregame roster projection when there's no
+// snapshot yet) that buildMatchupInfo in App.jsx uses for the Matchups tab, so this view never
+// disagrees with it. "Live" specifically means one of these starters' games is happening RIGHT NOW
+// (byTeamWeek state 'in') -- not just "some real stat already exists somewhere in this not-yet-
+// final week", which can just mean an earlier game already finished while the rest of the week
+// hasn't happened yet.
 function weekScore(season, confData, manager, week, weekProjectionsByWeek, latestCompletedWeek, playersDB, byTeamWeek) {
   const isFinalWeek = week <= latestCompletedWeek;
   const fallbackField = scoringFieldFor(confData?.receptionPoints || 0);
+  const weekProjections = weekProjectionsByWeek?.[week] || {};
   const snapshot = season.rosterSnapshotByWeek[week]?.[manager];
-  const projected = pregameProjection(snapshot, weekProjectionsByWeek?.[week] || {}, confData?.scoringSettings, fallbackField);
+  const blended = computeBlendedRosterScore(snapshot, weekProjections, confData?.scoringSettings, fallbackField);
+  const roster = confData?.rosters?.find(r => r.manager === manager);
+  const projected = blended?.total ?? computeRosterProjection(roster, weekProjections, confData?.scoringSettings, fallbackField);
   if (isFinalWeek) {
     const real = season.scoreByWeek[week]?.[manager];
     if (real == null) return null;
-    // Compared against its own pregame projection so a final score reads green/red by whether it
-    // beat expectations, not a flat "it's over" color.
+    // Compared against its own projection so a final score reads green/red by whether it beat
+    // expectations, not a flat "it's over" color.
     return { value: real, projected, state: (projected != null && real < projected) ? 'final-neg' : 'final-pos' };
   }
-  if (!snapshot) return projected != null ? { value: projected, projected: null, state: 'proj' } : null;
-  const blended = computeBlendedRosterScore(snapshot, weekProjectionsByWeek?.[week] || {}, confData?.scoringSettings, fallbackField);
-  if (blended?.total == null) return projected != null ? { value: projected, projected: null, state: 'proj' } : null;
+  if (!snapshot || blended?.total == null) return projected != null ? { value: projected, projected: null, state: 'proj' } : null;
   const isLive = (snapshot.starters || []).some(id => {
     if (!id || id === '0') return false;
     const team = playersDB?.[id]?.team;
     return team && byTeamWeek?.[team]?.[week]?.state === 'in';
   });
-  if (!isLive) return { value: projected ?? blended.total, projected: null, state: 'proj' };
+  if (!isLive) return { value: projected, projected: null, state: 'proj' };
   return { value: blended.total, projected, state: 'live' };
 }
 

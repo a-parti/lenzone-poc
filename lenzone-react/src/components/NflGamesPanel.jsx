@@ -39,6 +39,34 @@ function MyPlayersLine({ team, players, isLive }) {
 // own schedule feed only has a date); otherwise falls back to the date, never a fabricated time.
 // Shared by the Home "This Week" landing page and the Matchups tab's own "This Week" view so the
 // two never drift into showing different things for the same week.
+function dayKeyOf(g) {
+  if (g.kickoff) return new Date(g.kickoff).toDateString();
+  return g.date || null;
+}
+function dayLabelOf(g) {
+  if (g.kickoff) return new Date(g.kickoff).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+  return g.date ? new Date(`${g.date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' }) : '';
+}
+function timeKeyOf(g) {
+  return g.kickoff || g.date || null;
+}
+
+// A thick divider (with the day spelled out) between distinct days, a thin one between distinct
+// kickoff times on the same day -- so a lone Wednesday/Thursday game visually stands apart, and a
+// block of same-time Sunday games reads as one group instead of a run of identical-looking rows.
+function GameDivider({ isNewDay, label }) {
+  if (isNewDay) {
+    return (
+      <div className="flex items-center gap-3 pt-1">
+        <div className="flex-1 h-px bg-[var(--border2)]" />
+        <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text2)] shrink-0">{label}</span>
+        <div className="flex-1 h-px bg-[var(--border2)]" />
+      </div>
+    );
+  }
+  return <div className="h-px bg-[var(--border)]/50 mx-2" />;
+}
+
 export default function NflGamesPanel({ games, week, myTeamNflTeams, myPlayersByNflTeam, selectedGames, onToggleGame, onClearGames, compactCounts }) {
   const weekGames = (games || [])
     .filter(g => g.week === week && g.home && g.away)
@@ -73,6 +101,9 @@ export default function NflGamesPanel({ games, week, myTeamNflTeams, myPlayersBy
       </div>
       <div ref={scrollRef} className="space-y-2 max-h-[28rem] overflow-y-auto scroll-thin pr-1 mt-3">
         {weekGames.map((g, idx) => {
+          const prev = idx > 0 ? weekGames[idx - 1] : null;
+          const isNewDay = prev ? dayKeyOf(g) !== dayKeyOf(prev) : false;
+          const isNewTime = prev && !isNewDay ? timeKeyOf(g) !== timeKeyOf(prev) : false;
           const involvesMyTeam = myTeamNflTeams?.has(g.home) || myTeamNflTeams?.has(g.away);
           const isLive = g.state === 'in';
           const isFinal = g.state === 'post' || g.status === 'complete';
@@ -87,8 +118,9 @@ export default function NflGamesPanel({ games, week, myTeamNflTeams, myPlayersBy
           const awayCount = awayPlayers?.length || 0;
           const homeCount = homePlayers?.length || 0;
           return (
-            <div
-              key={g.game_id}
+            <React.Fragment key={g.game_id}>
+              {(isNewDay || isNewTime) && <GameDivider isNewDay={isNewDay} label={dayLabelOf(g)} />}
+              <div
               ref={idx === nextIdx ? focusRowRef : null}
               role={onToggleGame ? "button" : undefined}
               tabIndex={onToggleGame ? 0 : undefined}
@@ -150,7 +182,8 @@ export default function NflGamesPanel({ games, week, myTeamNflTeams, myPlayersBy
                   {homePlayers?.length > 0 && <MyPlayersLine team={g.home} players={homePlayers} isLive={isLive} />}
                 </div>
               )}
-            </div>
+              </div>
+            </React.Fragment>
           );
         })}
       </div>

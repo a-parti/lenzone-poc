@@ -118,14 +118,40 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
   );
 }
 
-function MatchupRosterComparison({ mySlots, oppSlots, mySnapshot, oppSnapshot, playersDB, weekProjections, myScoringSettings, myFallbackField, oppScoringSettings, oppFallbackField, byTeamWeek, week, highlightTeams, onSelectGame }) {
+// A faded, thin-divided sub-section (Bench / IR) below the starters -- same row component, just
+// visually dimmed and set off by a labeled divider so it reads as "these guys aren't scoring for
+// you" without hiding them entirely.
+function RosterSubSection({ title, rows, rowProps }) {
+  if (rows === 0) return null;
+  return (
+    <div className="pt-2">
+      <div className="flex items-center gap-2 pt-1 pb-1">
+        <div className="flex-1 h-px bg-[var(--border2)]" />
+        <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--muted)] shrink-0">{title}</span>
+        <div className="flex-1 h-px bg-[var(--border2)]" />
+      </div>
+      <div className="opacity-55 divide-y divide-[var(--border)]/40">
+        {Array.from({ length: rows }).map((_, i) => <RosterCompareRow key={i} {...rowProps(i)} />)}
+      </div>
+    </div>
+  );
+}
+
+function MatchupRosterComparison({
+  mySlots, oppSlots, mySnapshot, oppSnapshot, playersDB, weekProjections, myScoringSettings, myFallbackField,
+  oppScoringSettings, oppFallbackField, byTeamWeek, week, highlightTeams, onSelectGame,
+  myBenchIds = [], oppBenchIds = [], myIrIds = [], oppIrIds = []
+}) {
   if (!mySnapshot && !oppSnapshot) {
     return <p className="text-xs text-[var(--muted)] italic mt-2">No roster data available for this matchup yet.</p>;
   }
-  const rows = Math.max(mySlots.length, oppSlots.length, mySnapshot?.starters?.length || 0, oppSnapshot?.starters?.length || 0);
+  const starterRows = Math.max(mySlots.length, oppSlots.length, mySnapshot?.starters?.length || 0, oppSnapshot?.starters?.length || 0);
+  const benchRows = Math.max(myBenchIds.length, oppBenchIds.length);
+  const irRows = Math.max(myIrIds.length, oppIrIds.length);
+  const shared = { playersDB, byTeamWeek, week, highlightTeams, onSelectGame };
   return (
     <div className="mt-3 pt-3 border-t border-[var(--border)]/60 divide-y divide-[var(--border)]/40">
-      {Array.from({ length: rows }).map((_, i) => {
+      {Array.from({ length: starterRows }).map((_, i) => {
         const myId = mySnapshot?.starters?.[i];
         const oppId = oppSnapshot?.starters?.[i];
         return (
@@ -138,10 +164,42 @@ function MatchupRosterComparison({ mySlots, oppSlots, mySnapshot, oppSnapshot, p
             oppPts={oppSnapshot?.startersPoints?.[i]}
             myProj={projectedPoints(weekProjections, myId, myScoringSettings, myFallbackField)}
             oppProj={projectedPoints(weekProjections, oppId, oppScoringSettings, oppFallbackField)}
-            playersDB={playersDB} byTeamWeek={byTeamWeek} week={week} highlightTeams={highlightTeams} onSelectGame={onSelectGame}
+            {...shared}
           />
         );
       })}
+      <RosterSubSection
+        title="Bench"
+        rows={benchRows}
+        rowProps={(i) => {
+          const myId = myBenchIds[i];
+          const oppId = oppBenchIds[i];
+          return {
+            myId, oppId,
+            myPts: myId ? mySnapshot?.playersPoints?.[myId] : undefined,
+            oppPts: oppId ? oppSnapshot?.playersPoints?.[oppId] : undefined,
+            myProj: projectedPoints(weekProjections, myId, myScoringSettings, myFallbackField),
+            oppProj: projectedPoints(weekProjections, oppId, oppScoringSettings, oppFallbackField),
+            ...shared
+          };
+        }}
+      />
+      <RosterSubSection
+        title="IR"
+        rows={irRows}
+        rowProps={(i) => {
+          const myId = myIrIds[i];
+          const oppId = oppIrIds[i];
+          return {
+            myId, oppId,
+            myPts: myId ? mySnapshot?.playersPoints?.[myId] : undefined,
+            oppPts: oppId ? oppSnapshot?.playersPoints?.[oppId] : undefined,
+            myProj: projectedPoints(weekProjections, myId, myScoringSettings, myFallbackField),
+            oppProj: projectedPoints(weekProjections, oppId, oppScoringSettings, oppFallbackField),
+            ...shared
+          };
+        }}
+      />
     </div>
   );
 }
@@ -156,7 +214,8 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
   }
   const {
     opponent, myScore, oppScore, myLiveScore, oppLiveScore, isFinal, isLive, myWinPct, winPctIsRough, myHasData, oppHasData, mySnapshot, oppSnapshot,
-    myScoringSettings, myFallbackField, oppScoringSettings, oppFallbackField, myProjected, oppProjected
+    myScoringSettings, myFallbackField, oppScoringSettings, oppFallbackField, myProjected, oppProjected,
+    myBenchIds, oppBenchIds, myIrIds, oppIrIds
   } = info;
   const showWinPct = !isFinal && myWinPct !== null;
   const showScores = isFinal || myHasData || oppHasData;
@@ -246,6 +305,7 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
           myScoringSettings={myScoringSettings} myFallbackField={myFallbackField}
           oppScoringSettings={oppScoringSettings} oppFallbackField={oppFallbackField}
           byTeamWeek={byTeamWeek} week={week} highlightTeams={highlightTeams} onSelectGame={onSelectGame}
+          myBenchIds={myBenchIds} oppBenchIds={oppBenchIds} myIrIds={myIrIds} oppIrIds={oppIrIds}
         />
       )}
     </div>

@@ -6,8 +6,9 @@ import PlayerAvatar from './PlayerAvatar';
 import PlayerNameButton from './PlayerNameButton';
 
 // Once a player has a real posted score for the week, show it alongside their pregame projection
-// and a clear +/- delta (beat/missed projection) -- both numbers captured, not just one or the other.
-// Before that, just the projection (blue).
+// -- both numbers already say everything a +/- delta would (it's just their difference), so the
+// delta is left out rather than showing the same information three ways in a few square inches.
+// Before a real score exists, just the projection (blue).
 function ProjectedPts({ id, weekProjections, scoringSettings, fallbackField, playersPoints, isLive, gameFinal }) {
   const real = playersPoints?.[id];
   // A real 0 is indistinguishable from "hasn't played yet" by the number alone (Sleeper's live
@@ -17,17 +18,12 @@ function ProjectedPts({ id, weekProjections, scoringSettings, fallbackField, pla
   const proj = weekProjections ? projectedPoints(weekProjections, id, scoringSettings, fallbackField) : null;
 
   if (hasReal) {
-    const diff = proj != null ? real - proj : null;
     const color = SCORE_COLOR[scoreState({ hasActual: true, isLive, actual: real, projected: proj })];
     return (
-      <div className="flex flex-col items-end shrink-0 leading-none gap-1">
-        <span className={`font-mono font-bold text-sm ${color}`}>{real.toFixed(2)}</span>
-        {diff != null && (
-          <span className={`font-mono text-xs font-semibold ${diff >= 0 ? "text-[var(--pos)]" : "text-[var(--neg)]"}`}>
-            {diff >= 0 ? "+" : ""}{diff.toFixed(2)} ({proj.toFixed(2)})
-          </span>
-        )}
-      </div>
+      <span className="font-mono text-right shrink-0 whitespace-nowrap">
+        <span className={`font-bold text-sm ${color}`}>{real.toFixed(2)}</span>
+        {proj != null && <span className="text-xs text-[var(--proj)] ml-1">({proj.toFixed(2)})</span>}
+      </span>
     );
   }
   if (proj === null) return null;
@@ -42,7 +38,6 @@ function TeamTotal({ starters, weekProjections, scoringSettings, fallbackField, 
   const anyProj = projectedAll != null;
   const anyPosted = actualPosted != null;
   if (!anyProj && !anyPosted) return null;
-  const diff = anyPosted ? actualPosted - projectedPosted : null;
   // The total is still "live" (moving) as long as any starter who's posted points is mid-game --
   // only once every one of those games is final does the total stop changing.
   const anyStarterLive = (starters || []).some(id => id && id !== '0' && isLiveGame(byTeamWeek, playerLabel(playersDB, id)?.team, week));
@@ -58,11 +53,7 @@ function TeamTotal({ starters, weekProjections, scoringSettings, fallbackField, 
           <span className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)] shrink-0">Posted So Far</span>
           <span className="font-mono text-right">
             <span className={`font-bold text-base ${postedColor}`}>{actualPosted.toFixed(2)}</span>
-            {diff != null && (
-              <span className={`ml-1.5 text-xs font-semibold block sm:inline ${diff >= 0 ? "text-[var(--pos)]" : "text-[var(--neg)]"}`}>
-                ({diff >= 0 ? "+" : ""}{diff.toFixed(2)} vs {projectedPosted.toFixed(2)} proj)
-              </span>
-            )}
+            <span className="ml-1.5 text-xs text-[var(--proj)]">({projectedPosted.toFixed(2)})</span>
           </span>
         </div>
       )}

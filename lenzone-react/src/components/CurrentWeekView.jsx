@@ -23,7 +23,19 @@ export default function CurrentWeekView({
     const exists = prev.some(g => g.home === game.home && g.away === game.away);
     return exists ? prev.filter(g => !(g.home === game.home && g.away === game.away)) : [...prev, game];
   });
-  const highlightTeams = selectedGames.length > 0 ? new Set(selectedGames.flatMap(g => [g.home, g.away])) : null;
+  // Live games are always highlighted, even with nothing manually selected -- a game actually in
+  // progress right now is worth calling out on its own, not just something you have to think to
+  // go click.
+  const liveTeams = useMemo(() => {
+    const teams = new Set();
+    (nflGames || []).forEach(g => {
+      if (g.week === selectedWeek && g.state === 'in' && g.home && g.away) { teams.add(g.home); teams.add(g.away); }
+    });
+    return teams;
+  }, [nflGames, selectedWeek]);
+  const highlightTeams = (selectedGames.length > 0 || liveTeams.size > 0)
+    ? new Set([...selectedGames.flatMap(g => [g.home, g.away]), ...liveTeams])
+    : null;
   const myPlayersByNflTeam = useMemo(() => {
     const map = new Map();
     (myTeamRoster?.players || []).forEach(pid => {

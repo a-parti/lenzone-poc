@@ -82,24 +82,31 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
           </>
         ) : <span className="text-[var(--muted)] italic">Empty</span>}
       </div>
+      {/* Mirrored (flex-row-reverse) so this side reads right-to-left: avatar/position hug the
+          outer edge, score sits closest to the VS divider -- both teams' scores end up converging
+          toward the middle instead of my score at center and the opponent's way out at the far
+          right. Same fixed-width elements as the "my" side in the same DOM order, just reversed
+          visually, so the columns still line up row to row. mr-auto (not ml-auto) on the score
+          because it's now visually first (leftmost) -- its free space collects on ITS right,
+          pushing the packed team/name/position/avatar group to the outer edge instead. */}
       <div
-        className={`${ROSTER_ROW_FLEX} min-w-0 rounded ${onSelectGame && opp ? "cursor-pointer" : ""} ${oppHighlighted ? "bg-amber-400/10 ring-1 ring-amber-400/50" : ""}`}
+        className={`${ROSTER_ROW_FLEX} flex-row-reverse min-w-0 rounded ${onSelectGame && opp ? "cursor-pointer" : ""} ${oppHighlighted ? "bg-amber-400/10 ring-1 ring-amber-400/50" : ""}`}
         onClick={opp ? handleRowClick(opp.team) : undefined}
       >
         {opp ? (
           <>
             <PlayerAvatar playerId={oppId} position={opp.position} className="w-5 h-5 shrink-0" />
             <div className="w-9 shrink-0 flex justify-center"><PositionBadge position={opp.position} /></div>
-            <div className={`flex flex-col ${ROSTER_NAME_WIDTH}`}>
+            <div className={`flex flex-col items-end text-right ${ROSTER_NAME_WIDTH}`}>
               <div className="flex items-center gap-1 min-w-0">
-                <PlayerNameButton playerId={oppId} name={opp.name} position={opp.position} className="text-[var(--text2)] truncate" />
                 <InjuryBadge status={opp.injuryStatus} />
+                <PlayerNameButton playerId={oppId} name={opp.name} position={opp.position} className="text-[var(--text2)] truncate" />
               </div>
               <GameBadge nflTeam={opp.team} week={week} byTeamWeek={byTeamWeek} />
             </div>
-            <div className="ml-1 shrink-0"><NflTeamTag team={opp.team} number={opp.number} /></div>
+            <div className="shrink-0"><NflTeamTag team={opp.team} number={opp.number} /></div>
             {oppDisplayPts != null && (
-              <span className="font-mono text-right ml-auto shrink-0 whitespace-nowrap">
+              <span className="font-mono text-left mr-auto shrink-0 whitespace-nowrap">
                 <span className={`font-bold text-base ${oppColor}`}>{oppDisplayPts.toFixed(2)}</span>
                 {oppIsActual && oppProj != null && <span className="text-xs text-[var(--proj)] ml-1">({oppProj.toFixed(2)})</span>}
               </span>

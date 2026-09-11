@@ -504,7 +504,6 @@ export default function App() {
     const exists = prev.some(g => g.home === game.home && g.away === game.away);
     return exists ? prev.filter(g => !(g.home === game.home && g.away === game.away)) : [...prev, game];
   });
-  const matchupsHighlightTeams = matchupsHighlightGames.length > 0 ? new Set(matchupsHighlightGames.flatMap(g => [g.home, g.away])) : null;
   const [myTeamManager, setMyTeamManager] = useState(() => localStorage.getItem('lenzone_my_team') || null);
   const [loading, setLoading] = useState(false);
 
@@ -853,6 +852,19 @@ export default function App() {
       return info ? { ...g, ...info } : g;
     });
   }, [nflSchedule.games, weekKickoffInfo]);
+
+  // Live games are always highlighted on the Matchups tab too, even with nothing manually
+  // selected -- a game actually in progress right now is worth calling out on its own.
+  const matchupsLiveTeams = useMemo(() => {
+    const teams = new Set();
+    enrichedNflGames.forEach(g => {
+      if (g.week === selectedWeek && g.state === 'in' && g.home && g.away) { teams.add(g.home); teams.add(g.away); }
+    });
+    return teams;
+  }, [enrichedNflGames, selectedWeek]);
+  const matchupsHighlightTeams = (matchupsHighlightGames.length > 0 || matchupsLiveTeams.size > 0)
+    ? new Set([...matchupsHighlightGames.flatMap(g => [g.home, g.away]), ...matchupsLiveTeams])
+    : null;
 
   const afcDraftSlots = getDraftSlotMap(afcDraft, afcData.rosterIdMap);
   const nfcDraftSlots = getDraftSlotMap(nfcDraft, nfcData.rosterIdMap);

@@ -9,7 +9,8 @@ import {
 import { fetchWeekKickoffInfo } from './lib/espnApi';
 import {
   computeStats, buildHistory, simulateCombinedPlayoffOdds, computeCrossRecords, computeCrossWeekRecord,
-  computeWeeklyAwards, computeProjectedTrophies, buildConferenceList, rankConference, winProbability, roughWinProbability, computePointsAgainst, computeInConfRecord
+  computeWeeklyAwards, computeProjectedTrophies, buildConferenceList, rankConference, winProbability, roughWinProbability, computePointsAgainst, computeInConfRecord,
+  computeBenchPointsAward
 } from './lib/statsMath';
 import RosterTab from './components/RosterTab';
 import ActivityTab from './components/ActivityTab';
@@ -1014,6 +1015,7 @@ export default function App() {
     });
   }
   const weeklyAwards = computeWeeklyAwards(afcSeason, nfcSeason, selectedWeek, isSelectedWeekFinal ? null : projectedScoreByManager);
+  const benchPointsAward = computeBenchPointsAward(afcData, nfcData, afcSeason, nfcSeason, selectedWeek);
   const weekRecord = isSelectedWeekFinal
     ? computeCrossWeekRecord(weekCrossPairs, afcSeason.scoreByWeek[selectedWeek] || {}, nfcSeason.scoreByWeek[selectedWeek] || {})
     : { afcWins: 0, nfcWins: 0, ties: 0, counted: 0 };
@@ -1372,7 +1374,7 @@ export default function App() {
             {/* goToMatchup (not setSelectedManager alone) resets the conference filter to ALL first --
                 otherwise clicking a trophy for a manager outside the currently-filtered conference
                 just silently does nothing, since their card is filtered out of view. */}
-            <WeeklyHighlights awards={weeklyAwards} week={selectedWeek} isWeekFinal={isSelectedWeekFinal} onSelectManager={goToMatchup} />
+            <WeeklyHighlights awards={weeklyAwards} benchPointsAward={benchPointsAward} week={selectedWeek} isWeekFinal={isSelectedWeekFinal} onSelectManager={goToMatchup} />
             <PlayerHighlights
               afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
               week={selectedWeek} weekProjections={weekProjections} playersDB={playersDB}

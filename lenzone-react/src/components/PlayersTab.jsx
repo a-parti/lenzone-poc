@@ -199,7 +199,7 @@ export default function PlayersTab({ afcData, nfcData, afcDraft, nfcDraft, afcTr
                 <tr key={r.id} className="hover:bg-[var(--surface2)]/30 transition-all duration-200">
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-2">
-                      <PlayerNameButton playerId={r.id} name={r.name} position={r.position} className="font-semibold text-[var(--text)]" />
+                      <PlayerNameButton playerId={r.id} name={r.name} position={r.position} className="font-bold text-[var(--text)]" />
                       <NflTeamTag team={r.nflTeam} number={r.number} />
                       <InjuryBadge status={r.injuryStatus} />
                     </div>

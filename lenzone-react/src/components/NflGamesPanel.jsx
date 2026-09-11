@@ -16,7 +16,7 @@ function MyPlayersLine({ team, players, isLive }) {
               {p.isBench && (
                 <span className="text-[9px] font-bold uppercase px-1 rounded bg-[var(--surface2)] text-[var(--muted)] border border-[var(--border)]">Bench</span>
               )}
-              <PlayerNameButton playerId={p.playerId} name={p.name} position={p.position} className={`font-medium ${p.isBench ? "text-[var(--text2)]" : "text-[var(--accent)]"}`} />
+              <PlayerNameButton playerId={p.playerId} name={p.name} position={p.position} className={`font-bold ${p.isBench ? "text-[var(--text2)]" : "text-[var(--accent)]"}`} />
               <span className="text-[var(--muted)]">({p.position}{p.number != null ? ` - #${p.number}` : ""} - </span>
               {(hasActual || p.projPts != null) && (
                 <span className={`font-semibold ${ptsColor}`}>{hasActual ? p.realPts.toFixed(2) : `${p.projPts.toFixed(2)} proj`}</span>

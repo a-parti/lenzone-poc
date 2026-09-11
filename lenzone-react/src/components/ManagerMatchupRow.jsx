@@ -63,11 +63,11 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
       >
         {my ? (
           <>
-            <PlayerAvatar playerId={myId} position={my.position} className="w-5 h-5 shrink-0" />
+            <PlayerAvatar playerId={myId} position={my.position} className="w-10 h-10 shrink-0" />
             <div className="w-9 shrink-0 flex justify-center"><PositionBadge position={my.position} /></div>
             <div className={`flex flex-col ${ROSTER_NAME_WIDTH}`}>
               <div className="flex items-center gap-1 min-w-0">
-                <PlayerNameButton playerId={myId} name={my.name} position={my.position} className="text-[var(--text2)] truncate" />
+                <PlayerNameButton playerId={myId} name={my.name} position={my.position} className="font-bold text-[var(--text2)] truncate" />
                 <InjuryBadge status={my.injuryStatus} />
               </div>
               <GameBadge nflTeam={my.team} week={week} byTeamWeek={byTeamWeek} />
@@ -97,12 +97,12 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
       >
         {opp ? (
           <>
-            <PlayerAvatar playerId={oppId} position={opp.position} className="w-5 h-5 shrink-0" />
+            <PlayerAvatar playerId={oppId} position={opp.position} className="w-10 h-10 shrink-0" />
             <div className="w-9 shrink-0 flex justify-center"><PositionBadge position={opp.position} /></div>
             <div className={`flex flex-col items-end text-right ${ROSTER_NAME_WIDTH}`}>
               <div className="flex items-center gap-1 min-w-0">
                 <InjuryBadge status={opp.injuryStatus} />
-                <PlayerNameButton playerId={oppId} name={opp.name} position={opp.position} className="text-[var(--text2)] truncate" />
+                <PlayerNameButton playerId={oppId} name={opp.name} position={opp.position} className="font-bold text-[var(--text2)] truncate" />
               </div>
               <GameBadge nflTeam={opp.team} week={week} byTeamWeek={byTeamWeek} />
             </div>

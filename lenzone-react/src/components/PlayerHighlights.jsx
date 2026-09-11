@@ -3,6 +3,7 @@ import { TrendingUp, Rocket, Skull, Target } from 'lucide-react';
 import { computePlayerHighlights, playerLabel } from '../lib/players';
 import { usePlayerModal } from '../context/PlayerModalContext';
 import { PositionBadge, NflTeamTag } from './shared';
+import PlayerAvatar from './PlayerAvatar';
 
 // Explicit sign rather than a hardcoded "+" prefix -- a hardcoded prefix reads as "+-2.97" for a
 // negative value, which is exactly the kind of value this shows for a miss.
@@ -14,22 +15,34 @@ export function PlayerCard({ icon: Icon, label, entry, playersDB, value, accent,
   if (!entry) return null;
   const { name, position, team, number } = playerLabel(playersDB, entry.id);
   return (
-    <button
-      type="button"
+    // A real <button>, not a div -- but the avatar inside (PlayerAvatar -> Zoomable) renders its
+    // OWN <button> for click-to-enlarge, and a <button> can't legally contain another <button>
+    // (breaks hydration). role="button" on a div gives the same clickability/keyboard semantics
+    // without that HTML nesting violation; Zoomable's own click handler already stops propagation,
+    // so clicking the avatar opens the lightbox instead of also firing this card's onClick.
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
-      className="text-left bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-4 hover:border-[var(--border2)] hover:scale-[1.01] transition-all duration-200 w-full"
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(); } }}
+      className="text-left bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-4 hover:border-[var(--border2)] hover:scale-[1.01] transition-all duration-200 w-full cursor-pointer"
     >
       <div className="flex items-center gap-2 mb-2">
         <Icon className={`w-4 h-4 ${accent}`} />
         <span className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">{label}</span>
       </div>
-      <p className="font-bold text-sm text-[var(--text)]">{name}</p>
-      <div className="flex items-center gap-1.5 mt-1 mb-1">
-        <PositionBadge position={position} />
-        {team && <NflTeamTag team={team} number={number} />}
+      <div className="flex items-center gap-2.5">
+        <PlayerAvatar playerId={entry.id} position={position} className="w-12 h-12" />
+        <div className="min-w-0">
+          <p className="font-bold text-sm text-[var(--text)] truncate">{name}</p>
+          <div className="flex items-center gap-1.5 mt-1 mb-1">
+            <PositionBadge position={position} />
+            {team && <NflTeamTag team={team} number={number} />}
+          </div>
+          <p className={`text-xs font-mono ${accent}`}>{value}</p>
+        </div>
       </div>
-      <p className={`text-xs font-mono ${accent}`}>{value}</p>
-    </button>
+    </div>
   );
 }
 

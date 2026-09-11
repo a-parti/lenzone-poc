@@ -18,7 +18,7 @@ function DraftPickCard({ p, conf, rosterIdMap, playersDB }) {
     <div className={`bg-[var(--surface)]/60 backdrop-blur-md border ${color.border} rounded-lg p-3 hover:border-[var(--border2)] transition-all duration-200`}>
       <div className="flex items-start justify-between gap-2 mb-1.5">
         <div className="flex items-center gap-2 min-w-0">
-          <PlayerAvatar playerId={p.player_id} position={p.metadata?.position} className="w-10 h-10" />
+          <PlayerAvatar playerId={p.player_id} position={p.metadata?.position} className="w-14 h-14" />
           <PlayerNameButton playerId={p.player_id} name={playerName} position={p.metadata?.position} className="font-bold text-[var(--text)] text-base leading-tight truncate" />
         </div>
         <span className="text-xs font-extrabold text-[var(--text)] bg-[var(--surface2)] px-2 py-0.5 rounded shrink-0">

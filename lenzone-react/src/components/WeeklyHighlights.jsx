@@ -1,9 +1,14 @@
 import React from 'react';
-import { Trophy, Award, TrendingDown, Zap, Flame } from 'lucide-react';
+import { Trophy, Award, TrendingDown, Zap, Flame, Frown } from 'lucide-react';
 import { useTeamColor } from '../context/TeamColorContext';
+import { useTeamLogo } from '../context/TeamLogoContext';
 
+// nameManager is the one real manager this card is "about" for logo purposes -- for the two-team
+// cards (Closest Game, Biggest Blowout) that's just the first team listed, since showing both
+// teams' logos in the same tight card is more clutter than payoff.
 function HighlightCard({ icon: Icon, label, name, nameManager, value, accent, onClick }) {
   const color = useTeamColor(nameManager);
+  const logoUrl = useTeamLogo(nameManager);
   return (
     <button
       type="button"
@@ -14,8 +19,13 @@ function HighlightCard({ icon: Icon, label, name, nameManager, value, accent, on
         <Icon className={`w-4 h-4 ${accent}`} />
         <span className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">{label}</span>
       </div>
-      <p className={`font-bold text-sm ${nameManager ? color.text : "text-[var(--text)]"}`}>{name}</p>
-      <p className={`text-xs font-mono ${accent}`}>{value}</p>
+      <div className="flex items-center gap-2.5">
+        {logoUrl && <img src={logoUrl} alt="" className="w-12 h-12 rounded-full object-cover shrink-0" />}
+        <div className="min-w-0">
+          <p className={`font-bold text-sm ${nameManager ? color.text : "text-[var(--text)]"} truncate`}>{name}</p>
+          <p className={`text-xs font-mono ${accent}`}>{value}</p>
+        </div>
+      </div>
     </button>
   );
 }
@@ -24,7 +34,7 @@ function HighlightCard({ icon: Icon, label, name, nameManager, value, accent, on
 // by the blended projected-final numbers (not a partial leaderboard of whoever's ahead right now) --
 // so it's clear these aren't real trophies yet. Once the week is fully complete, they flip to the
 // real Trophy icon and the actual final numbers. Clicking a card jumps the matchup grid to that manager.
-export default function WeeklyHighlights({ awards, week, isWeekFinal, onSelectManager }) {
+export default function WeeklyHighlights({ awards, benchPointsAward, week, isWeekFinal, onSelectManager }) {
   if (!awards) {
     return (
       <div className="bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-4 text-sm text-[var(--muted)] italic">
@@ -45,25 +55,32 @@ export default function WeeklyHighlights({ awards, week, isWeekFinal, onSelectMa
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
       <HighlightCard
-        icon={icon} label={`${prefix}High Score`} name={high.manager} value={`${high.points.toFixed(2)} pts`} accent="text-amber-400"
+        icon={icon} label={`${prefix}High Score`} name={high.manager} nameManager={high.manager} value={`${high.points.toFixed(2)} pts`} accent="text-amber-400"
         onClick={() => onSelectManager(high.manager)}
       />
       <HighlightCard
-        icon={TrendingDown} label={`${prefix}Low Score`} name={low.manager} value={`${low.points.toFixed(2)} pts`} accent="text-rose-400"
+        icon={TrendingDown} label={`${prefix}Low Score`} name={low.manager} nameManager={low.manager} value={`${low.points.toFixed(2)} pts`} accent="text-rose-400"
         onClick={() => onSelectManager(low.manager)}
       />
       {closest && (
         <HighlightCard
-          icon={Zap} label={`${prefix}Closest Game`} name={`${closest.a} vs ${closest.b}`}
+          icon={Zap} label={`${prefix}Closest Game`} name={`${closest.a} vs ${closest.b}`} nameManager={closest.a}
           value={`${closest.margin.toFixed(2)} pt margin`} accent="text-blue-400"
           onClick={() => onSelectManager(closest.a)}
         />
       )}
       {blowout && (
         <HighlightCard
-          icon={Flame} label={`${prefix}Biggest Blowout`} name={`${blowout.a} vs ${blowout.b}`}
+          icon={Flame} label={`${prefix}Biggest Blowout`} name={`${blowout.a} vs ${blowout.b}`} nameManager={blowout.a}
           value={`${blowout.margin.toFixed(2)} pt margin`} accent="text-orange-400"
           onClick={() => onSelectManager(blowout.a)}
+        />
+      )}
+      {benchPointsAward && (
+        <HighlightCard
+          icon={Frown} label="Most Points Left on Bench" name={benchPointsAward.manager} nameManager={benchPointsAward.manager}
+          value={`${benchPointsAward.points.toFixed(2)} pts benched`} accent="text-violet-400"
+          onClick={() => onSelectManager(benchPointsAward.manager)}
         />
       )}
     </div>

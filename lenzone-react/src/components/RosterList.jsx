@@ -76,7 +76,7 @@ const LIVE_ROW_CLASS = "bg-amber-400/10 -mx-1.5 px-1.5 rounded border-l-2 border
 // at the far end of the row) since it's a fact about that specific player, not a roster-wide stat
 // like the columns after it. Jersey number folds into the team tag ("MIA #2") instead of its own
 // column, freeing width for the name.
-const ROW_GRID = "grid grid-cols-[20px_34px_minmax(0,1fr)_76px_56px] items-center gap-1.5";
+const ROW_GRID = "grid grid-cols-[40px_34px_minmax(0,1fr)_76px_56px] items-center gap-1.5";
 
 export default function RosterList({ roster, startingSlots, irSlotCount = 0, playersDB, weekProjections, scoringSettings, fallbackField, playersPoints, byTeamWeek, week }) {
   const reserve = roster.reserve || [];
@@ -108,11 +108,11 @@ export default function RosterList({ roster, startingSlots, irSlotCount = 0, pla
           const final = byTeamWeek?.[team]?.[week]?.state === 'post';
           return (
             <div key={i} className={`${ROW_GRID} text-sm py-0.5 ${live ? LIVE_ROW_CLASS : ""}`}>
-              <PlayerAvatar playerId={id} position={position} />
+              <PlayerAvatar playerId={id} position={position} className="w-10 h-10" />
               <div className="flex justify-center"><PositionBadge position={position} /></div>
               <div className="flex flex-col min-w-0">
                 <div className="flex items-center gap-1 min-w-0">
-                  <PlayerNameButton playerId={id} name={name} position={position} className="text-[var(--text)] truncate" />
+                  <PlayerNameButton playerId={id} name={name} position={position} className="font-bold text-[var(--text)] truncate" />
                   <InjuryBadge status={injuryStatus} />
                 </div>
                 <GameBadge nflTeam={team} week={week} byTeamWeek={byTeamWeek} />
@@ -138,11 +138,11 @@ export default function RosterList({ roster, startingSlots, irSlotCount = 0, pla
               const final = byTeamWeek?.[team]?.[week]?.state === 'post';
               return (
                 <div key={id} className={`${ROW_GRID} text-sm py-0.5 ${live ? LIVE_ROW_CLASS : ""}`}>
-                  <PlayerAvatar playerId={id} position={position} />
+                  <PlayerAvatar playerId={id} position={position} className="w-10 h-10" />
                   <div className="flex justify-center"><PositionBadge position={position} /></div>
                   <div className="flex flex-col min-w-0">
                     <div className="flex items-center gap-1 min-w-0">
-                      <PlayerNameButton playerId={id} name={name} position={position} className="text-[var(--text2)] truncate" />
+                      <PlayerNameButton playerId={id} name={name} position={position} className="font-bold text-[var(--text2)] truncate" />
                       <InjuryBadge status={injuryStatus} />
                     </div>
                     <GameBadge nflTeam={team} week={week} byTeamWeek={byTeamWeek} />
@@ -165,11 +165,11 @@ export default function RosterList({ roster, startingSlots, irSlotCount = 0, pla
           const final = byTeamWeek?.[team]?.[week]?.state === 'post';
           return (
             <div key={id} className={`${ROW_GRID} text-sm py-0.5 ${live ? LIVE_ROW_CLASS : ""}`}>
-              <PlayerAvatar playerId={id} position={position} />
+              <PlayerAvatar playerId={id} position={position} className="w-10 h-10" />
               <div className="flex justify-center"><PositionBadge position={position} /></div>
               <div className="flex flex-col min-w-0">
                 <div className="flex items-center gap-1 min-w-0">
-                  <PlayerNameButton playerId={id} name={name} position={position} className="text-[var(--text2)] truncate" />
+                  <PlayerNameButton playerId={id} name={name} position={position} className="font-bold text-[var(--text2)] truncate" />
                   <InjuryBadge status={injuryStatus} />
                 </div>
                 <GameBadge nflTeam={team} week={week} byTeamWeek={byTeamWeek} />

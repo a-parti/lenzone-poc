@@ -295,6 +295,30 @@ export function computeWeeklyAwards(afcSeason, nfcSeason, week, projectedScoreBy
   return { highScore, lowScore, closest, blowout, projectedClosest, projectedBlowout, projectedHighScore, projectedLowScore };
 }
 
+// The classic fantasy-regret stat: whoever's benched (non-IR) players racked up the most REAL
+// points this week that never counted for them. Real posted points only (no projections folded
+// in, unlike the other awards) since the whole point is what already, definitely happened.
+export function computeBenchPointsAward(afcData, nfcData, afcSeason, nfcSeason, week) {
+  const entries = [];
+  const ingest = (confData, season) => {
+    (confData?.rosters || []).forEach(r => {
+      const snapshot = season?.rosterSnapshotByWeek?.[week]?.[r.manager];
+      if (!snapshot) return;
+      const irIds = r.reserve || [];
+      const benchIds = (r.players || []).filter(id => !(snapshot.starters || []).includes(id) && !irIds.includes(id));
+      const points = benchIds.reduce((sum, id) => {
+        const pts = snapshot.playersPoints?.[id];
+        return sum + (pts > 0 ? pts : 0);
+      }, 0);
+      if (points > 0) entries.push({ manager: r.manager, points });
+    });
+  };
+  ingest(afcData, afcSeason);
+  ingest(nfcData, nfcSeason);
+  if (entries.length === 0) return null;
+  return [...entries].sort((a, b) => b.points - a.points)[0];
+}
+
 // "Trophies" = the cross-conference matchup wins tally for the week (real once final, blended
 // live+projected otherwise -- pass whichever `matchupRecord` fits) PLUS the weekly award
 // categories (High Score / Low Score / Closest Game / Biggest Blowout) shown as trophy/award

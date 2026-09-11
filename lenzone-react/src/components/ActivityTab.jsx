@@ -121,9 +121,9 @@ export default function ActivityTab({ afcTransactions, nfcTransactions, afcRoste
                       const { name, position, team: nflTeam, number, injuryStatus } = playerLabel(playersDB, playerId);
                       return (
                         <div key={`add-${playerId}`} className="flex items-center gap-2 text-sm">
-                          <PlayerAvatar playerId={playerId} position={position} className="w-8 h-8" />
+                          <PlayerAvatar playerId={playerId} position={position} className="w-12 h-12" />
                           <span className="text-emerald-400 font-semibold shrink-0">+</span>
-                          <PlayerNameButton playerId={playerId} name={name} position={position} className="text-emerald-400 font-semibold truncate min-w-0" />
+                          <PlayerNameButton playerId={playerId} name={name} position={position} className="text-emerald-400 font-bold truncate min-w-0" />
                           <div className="flex items-center gap-1.5 shrink-0">
                             <PositionBadge position={position} />
                             <NflTeamTag team={nflTeam} number={number} />
@@ -136,9 +136,9 @@ export default function ActivityTab({ afcTransactions, nfcTransactions, afcRoste
                       const { name, position, team: nflTeam, number, injuryStatus } = playerLabel(playersDB, playerId);
                       return (
                         <div key={`drop-${playerId}`} className="flex items-center gap-2 text-sm">
-                          <PlayerAvatar playerId={playerId} position={position} className="w-8 h-8" />
+                          <PlayerAvatar playerId={playerId} position={position} className="w-12 h-12" />
                           <span className="text-rose-400 font-semibold shrink-0">-</span>
-                          <PlayerNameButton playerId={playerId} name={name} position={position} className="text-rose-400 font-semibold truncate min-w-0" />
+                          <PlayerNameButton playerId={playerId} name={name} position={position} className="text-rose-400 font-bold truncate min-w-0" />
                           <div className="flex items-center gap-1.5 shrink-0">
                             <PositionBadge position={position} />
                             <NflTeamTag team={nflTeam} number={number} />

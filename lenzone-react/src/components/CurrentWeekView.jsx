@@ -4,6 +4,7 @@ import { useTeamLogo } from '../context/TeamLogoContext';
 import { Zoomable } from '../context/ImageLightboxContext';
 import WeeklyHighlights from './WeeklyHighlights';
 import PlayerHighlights from './PlayerHighlights';
+import TopByPositionHighlights from './TopByPositionHighlights';
 import MyPlayerHighlights from './MyPlayerHighlights';
 import ManagerMatchupRow from './ManagerMatchupRow';
 import NflGamesPanel from './NflGamesPanel';
@@ -65,6 +66,10 @@ export default function CurrentWeekView({
         <PlayerHighlights
           afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
           week={selectedWeek} weekProjections={weekProjections} playersDB={playersDB}
+        />
+        <TopByPositionHighlights
+          afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
+          week={selectedWeek} playersDB={playersDB}
         />
       </div>
 

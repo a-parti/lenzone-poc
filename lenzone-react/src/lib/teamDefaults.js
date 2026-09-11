@@ -13,6 +13,7 @@ export const DEFAULT_TEAM_SCHEME_OVERRIDES = {
   "AFC:1127736754682888192": { scheme: "nfl-buf" },   // Daejon Mustard, allegedly
   "AFC:1395250624269914112": { scheme: "nfl-lar" },   // WorldSeriesChamps2026
   "AFC:1268691355266207744": { scheme: "nfl-lac" },   // TheyKilledKenny
+  "AFC:1268671474101649408": { scheme: "nfl-lac" },   // TheRealHousehusbandsOfIB (Kenny)
   "NFC:639719795276718080": { scheme: "nfl-sf" },     // EricWonHisOtherLeague
   "NFC:1268635156139229184": { scheme: "nfl-cin" },   // Pharoah of Fan Football
   "NFC:1398462206726647808": { scheme: "nfl-cle" },   // VizzyYardLine

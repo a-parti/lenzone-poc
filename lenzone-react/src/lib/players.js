@@ -262,3 +262,40 @@ export function computeMyPlayerHighlights(roster, playersPoints, weekProjections
     });
   return summarizePlayerEntries(entries);
 }
+
+const TOP_BY_POSITION_SLOTS = ['QB', 'RB', 'WR', 'TE', 'K', 'DEF'];
+
+// Top 5 REAL performers at each position this week, across every ROSTERED player in both
+// conferences (starters and bench alike -- unlike computePlayerHighlights, this is a league-wide
+// leaderboard of who actually balled out at each position, not just who helped/hurt a fantasy
+// team, so a big bench performance still counts). Real posted points only, never projections --
+// a position with nobody past kickoff yet just comes back empty for that slot. Deduped by player
+// id (the same real player can be rostered once per conference).
+export function computeTopByPosition(afcData, nfcData, afcSeason, nfcSeason, week, playersDB) {
+  const seen = new Map();
+  const ingest = (confData, season) => {
+    (confData?.rosters || []).forEach(r => {
+      const snapshot = season?.rosterSnapshotByWeek?.[week]?.[r.manager];
+      if (!snapshot) return;
+      (r.players || []).forEach(id => {
+        if (!id || id === '0' || seen.has(id)) return;
+        const points = snapshot.playersPoints?.[id];
+        if (!(points > 0)) return;
+        const position = playersDB?.[id]?.position;
+        if (!position) return;
+        seen.set(id, { id, position, points });
+      });
+    });
+  };
+  ingest(afcData, afcSeason);
+  ingest(nfcData, nfcSeason);
+
+  const byPosition = {};
+  TOP_BY_POSITION_SLOTS.forEach(pos => { byPosition[pos] = []; });
+  seen.forEach(entry => { if (byPosition[entry.position]) byPosition[entry.position].push(entry); });
+  TOP_BY_POSITION_SLOTS.forEach(pos => {
+    byPosition[pos].sort((a, b) => b.points - a.points);
+    byPosition[pos] = byPosition[pos].slice(0, 5);
+  });
+  return byPosition;
+}

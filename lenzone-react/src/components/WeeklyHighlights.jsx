@@ -22,7 +22,11 @@ function HighlightCard({ icon: Icon, label, name, nameManager, value, accent, on
       <div className="flex items-center gap-2.5">
         {logoUrl && <img src={logoUrl} alt="" className="w-12 h-12 rounded-full object-cover shrink-0" />}
         <div className="min-w-0">
-          <p className={`font-bold text-sm ${nameManager ? color.text : "text-[var(--text)]"} truncate`}>{name}</p>
+          {/* line-clamp-2, not truncate -- the two-team cards (Closest Game, Biggest Blowout) show
+              "TeamA vs TeamB", which routinely runs longer than the single-manager cards now that
+              the logo eats into the card's width; wrapping to a second line reads a lot better than
+              an ellipsis chopping one of the two team names in half. */}
+          <p className={`font-bold text-sm leading-snug line-clamp-2 ${nameManager ? color.text : "text-[var(--text)]"}`}>{name}</p>
           <p className={`text-xs font-mono ${accent}`}>{value}</p>
         </div>
       </div>

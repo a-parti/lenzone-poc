@@ -34,6 +34,7 @@ import DancingStickmen from './components/DancingStickmen';
 import NflGamesPanel from './components/NflGamesPanel';
 import WeeklyHighlights from './components/WeeklyHighlights';
 import PlayerHighlights from './components/PlayerHighlights';
+import TopByPositionHighlights from './components/TopByPositionHighlights';
 import { RosterModalProvider } from './context/RosterModalContext';
 import { PlayerModalProvider } from './context/PlayerModalContext';
 import PlayerModal from './components/PlayerModal';
@@ -1378,6 +1379,10 @@ export default function App() {
             <PlayerHighlights
               afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
               week={selectedWeek} weekProjections={weekProjections} playersDB={playersDB}
+            />
+            <TopByPositionHighlights
+              afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
+              week={selectedWeek} playersDB={playersDB}
             />
 
             {showAfc && (

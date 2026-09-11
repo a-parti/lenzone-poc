@@ -606,27 +606,32 @@ export default function App() {
     if (swatch) setTeamBurst({ nonce: Date.now(), color: swatch });
     playTeamSound(manager);
   };
-  // Plays the remembered team's welcome sound once per page load too, not just when actively
-  // picking a team from the dropdown -- otherwise a returning viewer whose team is restored from
-  // localStorage never hears it at all. Browsers flatly block audio.play() before the page has
-  // seen ANY user gesture (click/key/touch) -- calling it immediately on mount was silently
-  // swallowed every time on a fresh load, since nothing had happened yet. Waiting for the first
-  // such gesture anywhere on the page (capture phase, so it fires before that gesture's own click
-  // handler, e.g. picking a different team) satisfies that requirement, so it actually plays.
-  const playedWelcomeSoundRef = useRef(false);
+  // Plays the remembered team's welcome sound every time you land on the Home tab -- a fresh page
+  // load (which starts on Home by default), and also every subsequent trip back to Home within the
+  // same session -- not just once ever, so a team that was already selected before still greets you
+  // each time you're back on the landing page. Browsers flatly block audio.play() before the page
+  // has seen ANY user gesture (click/key/touch) -- navigator.userActivation.hasBeenActive (Chrome/
+  // Edge) tells us whether that's already happened; where it's unsupported (Firefox/Safari) we just
+  // assume it hasn't and wait for one, which costs at most one extra click before the sound is
+  // heard rather than being silently swallowed forever like a bare on-mount call was.
   useEffect(() => {
-    if (playedWelcomeSoundRef.current || !myTeamManager) return;
+    if (activeTab !== "home" || !myTeamManager) return;
+    if (typeof navigator !== 'undefined' && navigator.userActivation?.hasBeenActive) {
+      playTeamSound(myTeamManager);
+      return;
+    }
     const events = ['pointerdown', 'keydown', 'touchstart'];
+    let fired = false;
     const fire = () => {
-      if (playedWelcomeSoundRef.current) return;
-      playedWelcomeSoundRef.current = true;
+      if (fired) return;
+      fired = true;
       playTeamSound(myTeamManager);
       events.forEach(e => window.removeEventListener(e, fire, true));
     };
     events.forEach(e => window.addEventListener(e, fire, true));
     return () => events.forEach(e => window.removeEventListener(e, fire, true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [myTeamManager]);
+  }, [activeTab, myTeamManager]);
 
   const [afcSeason, setAfcSeason] = useState({ scoreByWeek: {}, scheduleByWeek: {}, rosterSnapshotByWeek: {}, latestCompletedWeek: 0 });
   const [nfcSeason, setNfcSeason] = useState({ scoreByWeek: {}, scheduleByWeek: {}, rosterSnapshotByWeek: {}, latestCompletedWeek: 0 });

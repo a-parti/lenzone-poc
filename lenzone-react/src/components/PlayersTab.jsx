@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { PositionBadge, InjuryBadge, SkeletonRows } from './shared';
+import { PositionBadge, InjuryBadge, NflTeamTag, SkeletonRows } from './shared';
 import TeamName from './TeamName';
 import { playerLabel, buildOwnerMap, buildAcquisitionHistory } from '../lib/players';
 import PlayerNameButton from './PlayerNameButton';
@@ -58,12 +58,13 @@ export default function PlayersTab({ afcData, nfcData, afcDraft, nfcDraft, afcTr
 
   const rows = useMemo(() => {
     const buildRow = (id) => {
-      const { name, position, team, injuryStatus, depthChart } = playerLabel(playersDB, id);
+      const { name, position, team, number, injuryStatus, depthChart } = playerLabel(playersDB, id);
       return {
         id,
         name: playersDB[id] ? name : `Player ${id}`,
         position,
         nflTeam: team,
+        number,
         injuryStatus,
         depthChart,
         afcOwner: afcOwners[id] || null,
@@ -199,7 +200,7 @@ export default function PlayersTab({ afcData, nfcData, afcDraft, nfcDraft, afcTr
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-2">
                       <PlayerNameButton playerId={r.id} name={r.name} position={r.position} className="font-semibold text-[var(--text)]" />
-                      <span className="text-xs text-[var(--muted)]">{r.nflTeam}</span>
+                      <NflTeamTag team={r.nflTeam} number={r.number} />
                       <InjuryBadge status={r.injuryStatus} />
                     </div>
                   </td>

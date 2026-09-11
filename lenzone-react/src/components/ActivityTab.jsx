@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CONF_STYLES } from '../lib/theme';
-import { ConfFilterToggle, PositionBadge, InjuryBadge, SkeletonRows } from './shared';
+import { ConfFilterToggle, PositionBadge, InjuryBadge, NflTeamTag, SkeletonRows } from './shared';
 import { playerLabel } from '../lib/players';
 import TeamName from './TeamName';
 import PlayerAvatar from './PlayerAvatar';
@@ -101,7 +101,7 @@ export default function ActivityTab({ afcTransactions, nfcTransactions, afcRoste
                   <TeamName manager={team.manager} conf={t.conf} className="font-bold text-sm mb-2 block" />
                   <div className="space-y-1">
                     {team.adds.map(playerId => {
-                      const { name, position, injuryStatus } = playerLabel(playersDB, playerId);
+                      const { name, position, team: nflTeam, number, injuryStatus } = playerLabel(playersDB, playerId);
                       return (
                         <div key={`add-${playerId}`} className="flex items-center gap-2 text-sm">
                           <PlayerAvatar playerId={playerId} position={position} className="w-8 h-8" />
@@ -109,13 +109,14 @@ export default function ActivityTab({ afcTransactions, nfcTransactions, afcRoste
                           <PlayerNameButton playerId={playerId} name={name} position={position} className="text-emerald-400 font-semibold truncate min-w-0" />
                           <div className="flex items-center gap-1.5 shrink-0">
                             <PositionBadge position={position} />
+                            <NflTeamTag team={nflTeam} number={number} />
                             <InjuryBadge status={injuryStatus} />
                           </div>
                         </div>
                       );
                     })}
                     {team.drops.map(playerId => {
-                      const { name, position, injuryStatus } = playerLabel(playersDB, playerId);
+                      const { name, position, team: nflTeam, number, injuryStatus } = playerLabel(playersDB, playerId);
                       return (
                         <div key={`drop-${playerId}`} className="flex items-center gap-2 text-sm">
                           <PlayerAvatar playerId={playerId} position={position} className="w-8 h-8" />
@@ -123,6 +124,7 @@ export default function ActivityTab({ afcTransactions, nfcTransactions, afcRoste
                           <PlayerNameButton playerId={playerId} name={name} position={position} className="text-rose-400 font-semibold truncate min-w-0" />
                           <div className="flex items-center gap-1.5 shrink-0">
                             <PositionBadge position={position} />
+                            <NflTeamTag team={nflTeam} number={number} />
                             <InjuryBadge status={injuryStatus} />
                           </div>
                         </div>

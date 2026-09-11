@@ -12,7 +12,7 @@ export function signed(n) {
 
 export function PlayerCard({ icon: Icon, label, entry, playersDB, value, accent, onClick }) {
   if (!entry) return null;
-  const { name, position, team } = playerLabel(playersDB, entry.id);
+  const { name, position, team, number } = playerLabel(playersDB, entry.id);
   return (
     <button
       type="button"
@@ -26,7 +26,7 @@ export function PlayerCard({ icon: Icon, label, entry, playersDB, value, accent,
       <p className="font-bold text-sm text-[var(--text)]">{name}</p>
       <div className="flex items-center gap-1.5 mt-1 mb-1">
         <PositionBadge position={position} />
-        {team && <NflTeamTag team={team} />}
+        {team && <NflTeamTag team={team} number={number} />}
       </div>
       <p className={`text-xs font-mono ${accent}`}>{value}</p>
     </button>

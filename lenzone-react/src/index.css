@@ -297,39 +297,55 @@ html {
   box-shadow: 0 0 8px 1px color-mix(in srgb, var(--accent), transparent 55%);
 }
 /* AnimatedLogo's ring (iris) and ball (football) spin independently, in opposite directions and at
-   different speeds, each morphing its own squash/stretch through the cycle -- deliberately
-   cartoonish/goofy rather than a clean mechanical spin (this does drift the ring art's gaps out of
-   fixed alignment with the ball at times, which reads as part of the fun here rather than broken).
-   Hovering (via the .group wrapper AnimatedLogo puts around both images) speeds both up. */
-@keyframes big-logo-ring-spin {
-  0%   { transform: rotate(0deg)   scale(1, 1); }
-  25%  { transform: rotate(90deg)  scale(1.1, 0.9); }
-  50%  { transform: rotate(180deg) scale(0.9, 1.1); }
-  75%  { transform: rotate(270deg) scale(1.1, 0.9); }
-  100% { transform: rotate(360deg) scale(1, 1); }
+   a constant speed -- deliberately cartoonish/goofy rather than a clean mechanical spin (this does
+   drift the ring art's gaps out of fixed alignment with the ball at times, which reads as part of
+   the fun here rather than broken). Rotation and the squash/stretch morph are two SEPARATE
+   animations on two nested elements rather than baked into one keyframe together -- combining both
+   into discrete percentage stops made the rotation itself look stepwise/jerky (each stop has to
+   reach an exact rotation AND an exact scale at the same instant, fighting the eased timing instead
+   of just spinning smoothly). Splitting them lets rotation stay perfectly smooth (linear, no
+   stops) while the morph breathes independently. The cursor doesn't change spin speed at all --
+   instead --morph-amt (set inline by AnimatedLogo from cursor DISTANCE, closer = bigger) scales how
+   dramatic the squash/stretch is, so proximity reads as "more alive" rather than "spinning faster". */
+@keyframes big-logo-ring-rotate {
+  to { transform: rotate(360deg); }
 }
 .big-logo-ring {
-  animation: big-logo-ring-spin 5s linear infinite;
+  animation: big-logo-ring-rotate 6s linear infinite;
 }
-.group:hover .big-logo-ring {
-  animation-duration: 1.8s;
-}
-@keyframes big-logo-ball-spin {
-  0%   { transform: rotate(0deg)    scale(1, 1); }
-  12%  { transform: rotate(-43deg)  scale(1.16, 0.84); }
-  25%  { transform: rotate(-90deg)  scale(0.84, 1.16); }
-  37%  { transform: rotate(-133deg) scale(1.16, 0.84); }
-  50%  { transform: rotate(-180deg) scale(0.84, 1.16); }
-  62%  { transform: rotate(-223deg) scale(1.16, 0.84); }
-  75%  { transform: rotate(-270deg) scale(0.84, 1.16); }
-  87%  { transform: rotate(-313deg) scale(1.16, 0.84); }
-  100% { transform: rotate(-360deg) scale(1, 1); }
+@keyframes big-logo-ball-rotate {
+  to { transform: rotate(-360deg); }
 }
 .big-logo-ball {
-  animation: big-logo-ball-spin 2.4s ease-in-out infinite;
+  animation: big-logo-ball-rotate 4.5s linear infinite;
 }
+@keyframes big-logo-morph {
+  0%, 100% { transform: scale(1, 1); }
+  50% { transform: scale(calc(1 - var(--morph-amt, 0.12)), calc(1 + var(--morph-amt, 0.12))); }
+}
+.big-logo-morph {
+  animation: big-logo-morph 1.6s ease-in-out infinite;
+}
+/* Direct hover (unlike proximity, which only affects morph) dramatically slows BOTH spins down --
+   the opposite of speeding up -- like it's paying closer attention to you. */
+.group:hover .big-logo-ring,
 .group:hover .big-logo-ball {
-  animation-duration: 0.9s;
+  animation-duration: 14s;
+}
+/* Random occasional flourishes, independent of the cursor entirely (see AnimatedLogo's two
+   separately-scheduled random timers) -- a sudden speed burst (both spins rev way up briefly) and
+   a side-to-side head-wobble, so it doesn't feel like it's on a single predictable loop. */
+.big-logo-burst .big-logo-ring,
+.big-logo-burst .big-logo-ball {
+  animation-duration: 0.4s !important;
+}
+@keyframes big-logo-wobble {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-12deg); }
+  75% { transform: rotate(12deg); }
+}
+.big-logo-wobble {
+  animation: big-logo-wobble 0.6s ease-in-out;
 }
 @keyframes big-logo-glow-spin {
   0% { transform: rotate(0deg) scale(1); }

@@ -1079,9 +1079,9 @@ export default function App() {
         <header className="max-w-7xl mx-auto bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-2xl px-5 py-3 mb-8 shadow-xl">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <div className="group flex items-center gap-2.5 shrink-0">
-              <AnimatedLogo sizeClass="w-14 h-14" onClick={() => setActiveTab("home")} />
+              <AnimatedLogo sizeClass="w-16 h-16 sm:w-[4.5rem] sm:h-[4.5rem]" onClick={() => setActiveTab("home")} />
               <button type="button" onClick={() => setActiveTab("home")} className="text-left">
-                <h1 className="lenzone-title font-display text-xl font-extrabold tracking-tight bg-clip-text text-transparent">
+                <h1 className="lenzone-title font-display text-2xl sm:text-[1.75rem] font-extrabold tracking-tight bg-clip-text text-transparent">
                   LENZONE 2026
                 </h1>
               </button>

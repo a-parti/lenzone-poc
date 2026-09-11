@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { PositionBadge, InjuryBadge, SkeletonRows } from './shared';
+import { PositionBadge, InjuryBadge, NflTeamTag, SkeletonRows } from './shared';
 import TeamName from './TeamName';
 import PlayerAvatar from './PlayerAvatar';
 import PlayerNameButton from './PlayerNameButton';
@@ -11,9 +11,9 @@ function DraftPickCard({ p, conf, rosterIdMap, playersDB }) {
   const manager = rosterIdMap[p.roster_id] || `Roster ${p.roster_id}`;
   const color = useTeamColor(manager);
   const playerName = `${p.metadata?.first_name || ''} ${p.metadata?.last_name || ''}`.trim();
-  // Current injury status (not the draft-day metadata snapshot) -- reflects the player's real,
-  // present-day status.
-  const injuryStatus = playersDB ? playerLabel(playersDB, p.player_id).injuryStatus : null;
+  // Current injury status/team/number (not the draft-day metadata snapshot) -- reflects the
+  // player's real, present-day info.
+  const live = playersDB ? playerLabel(playersDB, p.player_id) : null;
   return (
     <div className={`bg-[var(--surface)]/60 backdrop-blur-md border ${color.border} rounded-lg p-3 hover:border-[var(--border2)] transition-all duration-200`}>
       <div className="flex items-start justify-between gap-2 mb-1.5">
@@ -27,8 +27,8 @@ function DraftPickCard({ p, conf, rosterIdMap, playersDB }) {
       </div>
       <div className="flex items-center gap-2 mb-1.5">
         <PositionBadge position={p.metadata?.position} />
-        <span className="text-xs text-[var(--muted)]">{p.metadata?.team}</span>
-        <InjuryBadge status={injuryStatus} />
+        <NflTeamTag team={live?.team || p.metadata?.team} number={live?.number} />
+        <InjuryBadge status={live?.injuryStatus} />
       </div>
       <TeamName manager={manager} conf={conf} className="text-xs font-semibold truncate block" />
     </div>

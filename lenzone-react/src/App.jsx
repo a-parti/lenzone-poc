@@ -17,6 +17,8 @@ import ActivityTab from './components/ActivityTab';
 import DraftBoardTab from './components/DraftBoardTab';
 import PlayersTab from './components/PlayersTab';
 import RosterModal from './components/RosterModal';
+import TeamDepthChartModal from './components/TeamDepthChartModal';
+import { TeamDepthChartProvider } from './context/TeamDepthChartContext';
 import TeamName from './components/TeamName';
 import ScheduleTab from './components/ScheduleTab';
 import HomeView from './components/HomeView';
@@ -542,6 +544,9 @@ export default function App() {
     setSoundMuted(prev => {
       const next = !prev;
       localStorage.setItem('lenzone_sound_muted', String(next));
+      // Muting only used to block FUTURE plays -- anything already mid-playback when you hit mute
+      // just kept going to the end of its clip. Stop those immediately too.
+      if (next) activeAudiosRef.current.forEach(a => a.pause());
       return next;
     });
   };
@@ -745,11 +750,16 @@ export default function App() {
     }
     const conf = afcManagers.includes(manager) ? "AFC" : nfcManagers.includes(manager) ? "NFC" : null;
     // Only the conference filter focuses on your own side -- the Matchups "Filter Manager" dropdown
-    // deliberately stays on "All Managers" so picking your team doesn't also narrow the matchup
-    // list down to just your own games.
+    // resets to "All Managers" (never to your own team) every time "I am" changes, so a manual
+    // filter pick from a PREVIOUS identity doesn't linger and quietly scope the matchup list to
+    // someone you're no longer looking at things as.
     if (manager && conf) {
       setConfFilter(conf);
     }
+    setSelectedManager("ALL");
+    // Players > Player Search keeps its own internal filter state and doesn't otherwise know "I am"
+    // changed -- remounting it (via a key tied to myTeamManager, see the Players tab render) is what
+    // actually resets it back to All/All instead of leaving a stale manager/position filter behind.
   };
 
   // Once real roster data has loaded, focus the Standings/Matchups conference filter on the
@@ -970,6 +980,7 @@ export default function App() {
     <PlayerPhotoProvider>
     <PlayerModalProvider>
     <RosterModalProvider>
+    <TeamDepthChartProvider>
     <div className="min-h-screen bg-[var(--bg)] text-[var(--text)] p-4 md:p-8 pb-24 md:pb-8">
       {showLoginModal && (
         <AdminLoginModal onClose={() => setShowLoginModal(false)} onSuccess={handleLoginSuccess} />
@@ -986,6 +997,10 @@ export default function App() {
         playersDB={playersDB} afcOwners={afcOwners} nfcOwners={nfcOwners} afcHistory={afcHistory} nfcHistory={nfcHistory}
         selectedWeek={selectedWeek} weekProjectionsByWeek={weekProjectionsByWeek} seasonWeeks={SEASON_WEEKS} latestCompletedWeek={latestCompletedWeek}
         afcSeason={afcSeason} nfcSeason={nfcSeason} afcData={afcData} nfcData={nfcData} byTeamWeek={enrichedByTeamWeek}
+      />
+      <TeamDepthChartModal
+        playersDB={playersDB} afcOwners={afcOwners} nfcOwners={nfcOwners}
+        weekProjections={weekProjections} selectedWeek={selectedWeek}
       />
 
       {/* Header Banner -- hidden on Home, which is deliberately just the "I am" picker + radial menu */}
@@ -1286,7 +1301,11 @@ export default function App() {
             {playersSubTab === "search" && (
               // Player Search deliberately defaults to All/All rather than your own team -- unlike
               // Rosters/Activity below, browsing players isn't "your team" scoped by default.
+              // key={myTeamManager} force-remounts (and so resets its own internal filter state)
+              // every time "I am" changes, rather than leaving a manually-picked team/position
+              // filter from a PREVIOUS identity lingering in memory.
               <PlayersTab
+                key={myTeamManager}
                 afcData={afcData}
                 nfcData={nfcData}
                 afcDraft={afcDraft}
@@ -1431,6 +1450,7 @@ Full Standings & Scoreboard: https://lenzone.vercel.app`}
       </nav>
       )}
     </div>
+    </TeamDepthChartProvider>
     </RosterModalProvider>
     </PlayerModalProvider>
     </PlayerPhotoProvider>

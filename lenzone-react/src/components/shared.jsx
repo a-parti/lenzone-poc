@@ -3,6 +3,7 @@ import { Sun, Moon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { positionStyle } from '../lib/theme';
 import { nflTeamColor, readableTextOn } from '../lib/nflTeams';
 import { ALL_SCHEMES, useTheme } from '../context/ThemeContext';
+import { useTeamDepthChart } from '../context/TeamDepthChartContext';
 
 // Shared across every full-screen modal so Escape always closes whichever one is open, without
 // each modal component re-implementing its own key listener.
@@ -85,15 +86,19 @@ export function GameBadge({ nflTeam, week, byTeamWeek }) {
 // Small colored 3-letter NFL team tag (real team brand colors from nflTeams.js), meant to sit next
 // to a PositionBadge -- e.g. "QB" + "MIA" in Miami's teal.
 export function NflTeamTag({ team }) {
+  const { openTeamDepthChart } = useTeamDepthChart();
   if (!team) return null;
   const c = nflTeamColor(team);
   return (
-    <span
-      className="text-[10px] font-bold px-1.5 py-0.5 rounded border"
+    <button
+      type="button"
+      onClick={() => openTeamDepthChart(team)}
+      title={`View ${team} depth chart`}
+      className="text-[10px] font-bold px-1.5 py-0.5 rounded border hover:brightness-110 transition-all duration-150"
       style={c ? { color: readableTextOn(c.primary), backgroundColor: c.primary, borderColor: c.secondary } : undefined}
     >
       {team}
-    </span>
+    </button>
   );
 }
 

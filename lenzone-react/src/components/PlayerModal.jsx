@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { usePlayerModal } from '../context/PlayerModalContext';
 import { playerLabel, projectedPoints, scoringFieldFor } from '../lib/players';
@@ -7,6 +7,7 @@ import { PositionBadge, InjuryBadge, GameBadge, NflTeamTag, useEscapeKey } from 
 import { Zoomable } from '../context/ImageLightboxContext';
 import { CONF_STYLES } from '../lib/theme';
 import TeamName from './TeamName';
+import { nextModalZ } from '../lib/modalStack';
 
 function ConferenceHistory({ label, badgeClass, owner, history }) {
   return (
@@ -76,6 +77,11 @@ export default function PlayerModal({
 }) {
   const { target, closePlayer } = usePlayerModal();
   useEscapeKey(closePlayer);
+  // Claims a fresh top-of-stack z-index each time this opens, so it renders above whatever else
+  // was already open (e.g. opened from inside a depth chart or roster card) instead of the two
+  // fighting over a shared fixed z-index by DOM order alone.
+  const [z, setZ] = useState(60);
+  useEffect(() => { if (target) setZ(nextModalZ()); }, [target]);
   if (!target) return null;
 
   const { playerId, position } = target;
@@ -90,7 +96,7 @@ export default function PlayerModal({
     : `https://sleepercdn.com/content/nfl/players/${playerId}.jpg`;
 
   return (
-    <div className="fixed inset-0 z-[60] bg-[var(--bg)]/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={closePlayer}>
+    <div className="fixed inset-0 bg-[var(--bg)]/80 backdrop-blur-sm flex items-center justify-center p-4" style={{ zIndex: z }} onClick={closePlayer}>
       <div
         className="bg-[var(--surface)]/95 border border-[var(--border)]/80 rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto scroll-thin shadow-2xl relative"
         onClick={(e) => e.stopPropagation()}

@@ -3,44 +3,75 @@ import { Volume2, VolumeX, Sun, Moon } from 'lucide-react';
 import { TeamPicker } from './shared';
 import { useTheme } from '../context/ThemeContext';
 
-// Easter egg: a short confetti burst in a team's real brand color, fired only for managers with an
+// Easter egg: a short burst in a team's real brand color, fired only for managers with an
 // admin-configured default (lib/teamDefaults.js) -- everyone else gets the normal picker with no
-// extra flourish. Pure CSS transforms/opacity (see the .confetti-piece keyframes in index.css), no
-// animation library needed for ~20 particles.
+// extra flourish. One of a few different animation STYLES is picked at random each time so it's
+// not the exact same confetti burst every single pick. Pure CSS transforms/opacity (see the
+// matching keyframes in index.css), no animation library needed for a couple dozen particles.
+const BURST_STYLES = ["confetti", "sparkle", "rings", "streamers"];
+
 function ConfettiBurst({ burst }) {
+  const style = useMemo(() => BURST_STYLES[Math.floor(Math.random() * BURST_STYLES.length)], [burst?.nonce]);
+
   const pieces = useMemo(() => {
     if (!burst) return [];
-    return Array.from({ length: 22 }, (_, i) => {
-      const angle = (i / 22) * 2 * Math.PI + Math.random() * 0.4;
-      const distance = 90 + Math.random() * 90;
+    if (style === "rings") {
+      // Just a few concentric expanding rings, staggered -- not "many small particles" like the
+      // others, so it's generated separately below with its own count/shape.
+      return Array.from({ length: 3 }, (_, i) => ({ id: i, delay: i * 0.15 }));
+    }
+    const count = style === "streamers" ? 16 : 24;
+    return Array.from({ length: count }, (_, i) => {
+      const angle = (i / count) * 2 * Math.PI + Math.random() * 0.4;
+      const distance = style === "sparkle" ? 40 + Math.random() * 50 : 90 + Math.random() * 90;
+      const fallBias = style === "streamers" ? 60 + Math.random() * 40 : 0; // streamers drift downward, not just outward
       return {
         id: i,
         dx: Math.cos(angle) * distance,
-        dy: Math.sin(angle) * distance - 40,
+        dy: Math.sin(angle) * distance - 40 + fallBias,
         rotate: Math.random() * 720 - 360,
-        delay: Math.random() * 0.12,
-        size: 6 + Math.random() * 6
+        delay: Math.random() * (style === "streamers" ? 0.2 : 0.12),
+        size: style === "sparkle" ? 4 + Math.random() * 5 : 6 + Math.random() * 6
       };
     });
-  }, [burst?.nonce]);
+  }, [burst?.nonce, style]);
 
   const [visible, setVisible] = useState(false);
   useEffect(() => {
     if (!burst) return;
     setVisible(true);
-    const t = setTimeout(() => setVisible(false), 1100);
+    const duration = style === "streamers" ? 1500 : style === "rings" ? 1000 : 1100;
+    const t = setTimeout(() => setVisible(false), duration);
     return () => clearTimeout(t);
-  }, [burst?.nonce]);
+  }, [burst?.nonce, style]);
 
   if (!burst || !visible) return null;
+
+  if (style === "rings") {
+    return (
+      <div className="pointer-events-none absolute inset-0 flex items-start justify-center overflow-visible" aria-hidden="true">
+        {pieces.map(p => (
+          <span
+            key={p.id}
+            className="ring-piece absolute rounded-full border-2"
+            style={{ top: 40, width: 24, height: 24, borderColor: burst.color, animationDelay: `${p.delay}s` }}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  const pieceClass = style === "sparkle" ? "sparkle-piece rounded-full" : style === "streamers" ? "streamer-piece rounded-sm" : "confetti-piece rounded-sm";
   return (
     <div className="pointer-events-none absolute inset-0 flex items-start justify-center overflow-visible" aria-hidden="true">
       {pieces.map(p => (
         <span
           key={p.id}
-          className="confetti-piece absolute rounded-sm"
+          className={`absolute ${pieceClass}`}
           style={{
-            top: 40, width: p.size, height: p.size,
+            top: 40,
+            width: style === "streamers" ? p.size * 0.6 : p.size,
+            height: style === "streamers" ? p.size * 2.4 : p.size,
             backgroundColor: burst.color,
             animationDelay: `${p.delay}s`,
             '--dx': `${p.dx}px`, '--dy': `${p.dy}px`, '--rot': `${p.rotate}deg`

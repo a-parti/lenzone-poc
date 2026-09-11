@@ -2,6 +2,32 @@ import React, { useState, useEffect } from 'react';
 import TeamName from './TeamName';
 import { useRosterModal } from '../context/RosterModalContext';
 import { CONF_STYLES } from '../lib/theme';
+import { computeBlendedRosterScore, scoringFieldFor } from '../lib/players';
+
+// Real final score once Sleeper has one for that week; otherwise the same per-player blended
+// real+projected total used everywhere else in the app (real stat if a player's game already has
+// one, their pregame projection otherwise) computed from that week's own roster snapshot -- so a
+// played week shows its real score and every other week shows an honest "still projected" number
+// instead of nothing.
+function weekScore(season, confData, manager, week, weekProjectionsByWeek) {
+  const real = season.scoreByWeek[week]?.[manager];
+  if (real > 0) return { value: real, isReal: true };
+  const snapshot = season.rosterSnapshotByWeek[week]?.[manager];
+  if (!snapshot) return null;
+  const fallbackField = scoringFieldFor(confData?.receptionPoints || 0);
+  const blended = computeBlendedRosterScore(snapshot, weekProjectionsByWeek?.[week] || {}, confData?.scoringSettings, fallbackField);
+  if (blended?.total == null) return null;
+  return { value: blended.total, isReal: false };
+}
+
+function ScoreTag({ score }) {
+  if (!score) return null;
+  return (
+    <span className={`text-xs font-mono shrink-0 ${score.isReal ? "font-bold text-[var(--text)]" : "text-[var(--proj)]"}`}>
+      {score.value.toFixed(1)}{!score.isReal && " proj"}
+    </span>
+  );
+}
 
 const SEASON_WEEKS = 14;
 
@@ -11,7 +37,7 @@ function findOpponent(pairs, manager) {
   return pair[0] === manager ? pair[1] : pair[0];
 }
 
-function ScheduleWeekRow({ week, intraOpponent, myConf, interOpponent, interOppConf, onGoToMatchup, isCurrentWeek }) {
+function ScheduleWeekRow({ week, intraOpponent, myConf, interOpponent, interOppConf, onGoToMatchup, isCurrentWeek, intraMyScore, intraOppScore, interMyScore, interOppScore }) {
   return (
     <div className={`bg-[var(--surface)]/60 backdrop-blur-md border rounded-xl p-4 transition-all duration-200 ${
       isCurrentWeek ? "border-[var(--accent)] ring-1 ring-[var(--accent)]/50" : "border-[var(--border)]/80 hover:border-[var(--border2)]"
@@ -38,7 +64,16 @@ function ScheduleWeekRow({ week, intraOpponent, myConf, interOpponent, interOppC
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider bg-[var(--surface2)] text-[var(--text)] border border-[var(--border2)] shrink-0 w-16 text-center">Intra</span>
           <span className="text-[10px] font-bold text-[var(--muted)] bg-[var(--bg)] px-2 py-1 rounded shrink-0">VS</span>
           {intraOpponent ? (
-            <TeamName manager={intraOpponent} conf={myConf} className="font-semibold" />
+            <>
+              <TeamName manager={intraOpponent} conf={myConf} className="font-semibold" />
+              {(intraMyScore || intraOppScore) && (
+                <span className="ml-auto flex items-center gap-1.5">
+                  <ScoreTag score={intraMyScore} />
+                  <span className="text-[var(--muted)] text-xs">-</span>
+                  <ScoreTag score={intraOppScore} />
+                </span>
+              )}
+            </>
           ) : (
             <span className="text-[var(--muted)] italic">No matchup yet</span>
           )}
@@ -48,7 +83,16 @@ function ScheduleWeekRow({ week, intraOpponent, myConf, interOpponent, interOppC
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider bg-[var(--surface2)] text-[var(--text)] border border-[var(--border2)] shrink-0 w-16 text-center">Inter</span>
           <span className="text-[10px] font-bold text-[var(--muted)] bg-[var(--bg)] px-2 py-1 rounded shrink-0">VS</span>
           {interOpponent ? (
-            <TeamName manager={interOpponent} conf={interOppConf} className="font-semibold" />
+            <>
+              <TeamName manager={interOpponent} conf={interOppConf} className="font-semibold" />
+              {(interMyScore || interOppScore) && (
+                <span className="ml-auto flex items-center gap-1.5">
+                  <ScoreTag score={interMyScore} />
+                  <span className="text-[var(--muted)] text-xs">-</span>
+                  <ScoreTag score={interOppScore} />
+                </span>
+              )}
+            </>
           ) : (
             <span className="text-[var(--muted)] italic">No matchup yet</span>
           )}
@@ -70,13 +114,14 @@ function TradeDeadlineMarker({ week }) {
   );
 }
 
-export default function ScheduleTab({ afcSeason, nfcSeason, crossSchedule, afcManagers, nfcManagers, afcTradeDeadlineWeek, nfcTradeDeadlineWeek, focusManager, focusConf, onGoToMatchup, currentWeek }) {
+export default function ScheduleTab({ afcSeason, nfcSeason, crossSchedule, afcManagers, nfcManagers, afcData, nfcData, weekProjectionsByWeek, afcTradeDeadlineWeek, nfcTradeDeadlineWeek, focusManager, focusConf, onGoToMatchup, currentWeek }) {
   const [conf, setConf] = useState(focusConf || 'AFC');
   const [team, setTeam] = useState(focusManager || '');
   const { openRoster } = useRosterModal();
 
   const teamOptions = conf === 'NFC' ? nfcManagers : afcManagers;
   const tradeDeadlineWeek = conf === 'NFC' ? nfcTradeDeadlineWeek : afcTradeDeadlineWeek;
+  const myConfData = conf === 'NFC' ? nfcData : afcData;
 
   useEffect(() => {
     if (focusManager && focusConf) {
@@ -140,6 +185,8 @@ export default function ScheduleTab({ afcSeason, nfcSeason, crossSchedule, afcMa
           const crossMatch = crossSchedule.find(m => m.week === week && (m.afcTeam === team || m.nfcTeam === team));
           const interOpponent = crossMatch ? (crossMatch.afcTeam === team ? crossMatch.nfcTeam : crossMatch.afcTeam) : null;
           const interOppConf = conf === 'AFC' ? 'NFC' : 'AFC';
+          const interOppConfData = interOppConf === 'NFC' ? nfcData : afcData;
+          const interOppSeason = interOppConf === 'NFC' ? nfcSeason : afcSeason;
           return (
             <React.Fragment key={week}>
               <ScheduleWeekRow
@@ -150,6 +197,10 @@ export default function ScheduleTab({ afcSeason, nfcSeason, crossSchedule, afcMa
                 interOppConf={interOppConf}
                 onGoToMatchup={onGoToMatchup ? (w) => onGoToMatchup(w, team, conf) : null}
                 isCurrentWeek={week === currentWeek}
+                intraMyScore={intraOpponent ? weekScore(season, myConfData, team, week, weekProjectionsByWeek) : null}
+                intraOppScore={intraOpponent ? weekScore(season, myConfData, intraOpponent, week, weekProjectionsByWeek) : null}
+                interMyScore={interOpponent ? weekScore(season, myConfData, team, week, weekProjectionsByWeek) : null}
+                interOppScore={interOpponent ? weekScore(interOppSeason, interOppConfData, interOpponent, week, weekProjectionsByWeek) : null}
               />
               {tradeDeadlineWeek === week && <TradeDeadlineMarker week={week} />}
             </React.Fragment>

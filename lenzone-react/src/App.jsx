@@ -1153,6 +1153,7 @@ export default function App() {
               <ScheduleTab
                 afcSeason={afcSeason} nfcSeason={nfcSeason} crossSchedule={schedule}
                 afcManagers={afcManagers} nfcManagers={nfcManagers}
+                afcData={afcData} nfcData={nfcData} weekProjectionsByWeek={weekProjectionsByWeek}
                 afcTradeDeadlineWeek={afcData.tradeDeadlineWeek} nfcTradeDeadlineWeek={nfcData.tradeDeadlineWeek}
                 focusManager={myTeamManager} focusConf={myTeamConf} currentWeek={nflState.week}
                 onGoToMatchup={(week, manager) => goToMatchup(manager, week)}
@@ -1193,7 +1194,10 @@ export default function App() {
               </div>
             </div>
 
-            <WeeklyHighlights awards={weeklyAwards} week={selectedWeek} isWeekFinal={isSelectedWeekFinal} onSelectManager={setSelectedManager} />
+            {/* goToMatchup (not setSelectedManager alone) resets the conference filter to ALL first --
+                otherwise clicking a trophy for a manager outside the currently-filtered conference
+                just silently does nothing, since their card is filtered out of view. */}
+            <WeeklyHighlights awards={weeklyAwards} week={selectedWeek} isWeekFinal={isSelectedWeekFinal} onSelectManager={goToMatchup} />
 
             {showAfc && (
               <div className="space-y-3">

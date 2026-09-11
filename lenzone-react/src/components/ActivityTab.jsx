@@ -18,6 +18,14 @@ function normalize(txns, rosterIdMap, confLabel, types) {
       };
       if (t.adds) Object.entries(t.adds).forEach(([playerId, rosterId]) => bump(rosterId).adds.push(playerId));
       if (t.drops) Object.entries(t.drops).forEach(([playerId, rosterId]) => bump(rosterId).drops.push(playerId));
+      // FAAB spent -- only meaningful for waiver claims (Sleeper's own field, verified live against
+      // both leagues: a FAAB-bidding league puts the real dollar amount here, e.g. waiver_bid: 2). A
+      // free agent add always costs nothing, and a priority-based (non-FAAB) waiver league still has
+      // no bid to show -- both read as a plain $0 rather than omitting the figure, so "did this cost
+      // anything" is always visible at a glance instead of only sometimes.
+      if (t.type === 'waiver' || t.type === 'free_agent') {
+        Object.values(byManager).forEach(team => { team.faab = t.type === 'waiver' ? (t.settings?.waiver_bid || 0) : 0; });
+      }
 
       return {
         id: t.transaction_id,
@@ -98,7 +106,16 @@ export default function ActivityTab({ afcTransactions, nfcTransactions, afcRoste
             <div className={`grid gap-3 ${t.teams.length > 1 ? 'sm:grid-cols-2' : ''}`}>
               {t.teams.map(team => (
                 <div key={team.manager} className="bg-[var(--bg)]/60 border border-[var(--border)]/60 rounded-lg p-3">
-                  <TeamName manager={team.manager} conf={t.conf} className="font-bold text-sm mb-2 block" />
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <TeamName manager={team.manager} conf={t.conf} className="font-bold text-sm" />
+                    {team.faab != null && (
+                      <span className={`text-[10px] font-bold font-mono px-1.5 py-0.5 rounded shrink-0 ${
+                        team.faab > 0 ? "bg-amber-400/15 text-amber-400" : "bg-[var(--surface2)] text-[var(--muted)]"
+                      }`}>
+                        {team.faab > 0 ? `$${team.faab} FAAB` : "$0"}
+                      </span>
+                    )}
+                  </div>
                   <div className="space-y-1">
                     {team.adds.map(playerId => {
                       const { name, position, team: nflTeam, number, injuryStatus } = playerLabel(playersDB, playerId);

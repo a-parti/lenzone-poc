@@ -3,13 +3,14 @@ import lenzoneLogoRing from '../assets/lenzone-logo-ring.png';
 import lenzoneLogoBall from '../assets/lenzone-logo-ball.png';
 
 // The app's ring+football mark, read as a cartoon eye (the ring is the iris, the ball the pupil).
-// Ring and ball spin together as ONE rigid unit (same rate/direction) so the ring art's fixed
-// alignment with the ball never drifts (an earlier version spun them independently and looked
-// broken). Layered interactions, each on its own nested element so their transforms don't fight:
-// the outer zone tilts the whole thing toward the cursor, the middle layer reacts to hover (spins
-// faster, via the .group CSS hook) and click (a squash-and-stretch "boing"), and the ball blinks
-// shut every few seconds like an actual eye. Shared by the big Home pre-pick placeholder and the
-// small header logo on every other page, so it's the same living mark everywhere, not two designs.
+// Ring and ball spin independently -- different rates, opposite directions, each morphing its own
+// squash/stretch -- deliberately goofy/cartoonish rather than a clean mechanical spin. Layered
+// interactions, each on its own nested element so their transforms don't fight: the outer zone
+// tilts the whole thing toward the cursor (tracked across the whole page, not just on hover), the
+// middle layer reacts to hover (both spins speed up, via the .group CSS hook) and click (a
+// squash-and-stretch "boing"), and the ball blinks shut every few seconds like an actual eye.
+// Shared by the big Home pre-pick placeholder and the small header logo on every other page, so
+// it's the same living mark everywhere, not two designs.
 export default function AnimatedLogo({ sizeClass = "w-14 h-14", showGlow = false, onClick, label = "LENZONE" }) {
   const zoneRef = useRef(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
@@ -68,9 +69,9 @@ export default function AnimatedLogo({ sizeClass = "w-14 h-14", showGlow = false
         className={`group relative ${sizeClass} shrink-0 ${onClick ? "cursor-pointer" : ""} ${clicked ? "big-logo-click" : ""}`}
       >
         {showGlow && <div className="big-logo-glow absolute -inset-4 rounded-full" aria-hidden="true" />}
-        <img src={lenzoneLogoRing} alt="" aria-hidden="true" className="big-logo-spin absolute inset-0 w-full h-full" />
+        <img src={lenzoneLogoRing} alt="" aria-hidden="true" className="big-logo-ring absolute inset-0 w-full h-full" />
         <div className={`absolute inset-0 ${blinking ? "big-logo-blink" : ""}`}>
-          <img src={lenzoneLogoBall} alt={label} className="big-logo-spin absolute inset-0 w-full h-full" />
+          <img src={lenzoneLogoBall} alt={label} className="big-logo-ball absolute inset-0 w-full h-full" />
         </div>
       </div>
     </div>

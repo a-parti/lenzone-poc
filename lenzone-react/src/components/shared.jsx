@@ -33,13 +33,26 @@ const INJURY_STYLES = {
   Suspended: "bg-rose-500/10 text-rose-400 border border-rose-500/20"
 };
 
+// Standard fantasy-football shorthand for Sleeper's real injury_status values -- IR/PUP are
+// already this short natively. Anything else (a status not in this list) is shown unabbreviated
+// since there's no established shorthand for it to borrow.
+const INJURY_ABBREV = {
+  Questionable: "Q",
+  Doubtful: "D",
+  Out: "O",
+  Suspended: "SUS"
+};
+
 // Reflects Sleeper's real injury_status field. No listed status is shown as "Healthy" (a real
 // signal -- Sleeper lists nothing wrong -- not an invented one).
 export function InjuryBadge({ status }) {
   if (!status) return null;
   return (
-    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${INJURY_STYLES[status] || "bg-slate-500/10 text-[var(--text2)] border border-slate-500/20"}`}>
-      {status}
+    <span
+      title={status}
+      className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${INJURY_STYLES[status] || "bg-slate-500/10 text-[var(--text2)] border border-slate-500/20"}`}
+    >
+      {INJURY_ABBREV[status] || status}
     </span>
   );
 }

@@ -39,7 +39,7 @@ function MyPlayersLine({ team, players, isLive }) {
 // own schedule feed only has a date); otherwise falls back to the date, never a fabricated time.
 // Shared by the Home "This Week" landing page and the Matchups tab's own "This Week" view so the
 // two never drift into showing different things for the same week.
-export default function NflGamesPanel({ games, week, myTeamNflTeams, myPlayersByNflTeam, selectedGames, onToggleGame, onClearGames }) {
+export default function NflGamesPanel({ games, week, myTeamNflTeams, myPlayersByNflTeam, selectedGames, onToggleGame, onClearGames, compactCounts }) {
   const weekGames = (games || [])
     .filter(g => g.week === week && g.home && g.away)
     .sort((a, b) => (a.kickoff || a.date || "").localeCompare(b.kickoff || b.date || ""));
@@ -115,14 +115,14 @@ export default function NflGamesPanel({ games, week, myTeamNflTeams, myPlayersBy
                   <NflTeamLogo team={g.away} />
                   {awayCount > 0 && (
                     <span className="text-xs font-semibold text-[var(--accent)] shrink-0" title={`${awayCount} of your players are on ${g.away}`}>
-                      ({awayCount} of yours)
+                      {compactCounts ? `(${awayCount})` : `(${awayCount} of yours)`}
                     </span>
                   )}
                   <span className="text-[var(--muted)] shrink-0 text-xs">@</span>
                   <NflTeamLogo team={g.home} />
                   {homeCount > 0 && (
                     <span className="text-xs font-semibold text-[var(--accent)] shrink-0" title={`${homeCount} of your players are on ${g.home}`}>
-                      ({homeCount} of yours)
+                      {compactCounts ? `(${homeCount})` : `(${homeCount} of yours)`}
                     </span>
                   )}
                 </div>

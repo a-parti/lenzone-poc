@@ -41,7 +41,7 @@ import { ImageLightboxProvider, Zoomable } from './context/ImageLightboxContext'
 import { TeamLogoProvider } from './context/TeamLogoContext';
 import { PlayerPhotoProvider } from './context/PlayerPhotoContext';
 import { buildConferenceColorMap, getDraftSlotMap } from './lib/teamColors';
-import { scoringFieldFor, computeRosterProjection, computeBlendedRosterScore, buildOwnerMap, buildAcquisitionHistory, computeMoveCounts } from './lib/players';
+import { scoringFieldFor, computeRosterProjection, computeBlendedRosterScore, buildOwnerMap, buildAcquisitionHistory, computeMoveCounts, playerLabel, projectedPoints } from './lib/players';
 import { Button, ThemeToggle, TeamPicker, useEscapeKey } from './components/shared';
 
 // LENZONE 2026 is a fixed dual-conference league. These IDs should not change season to season.
@@ -814,6 +814,25 @@ export default function App() {
     });
     return teams;
   }, [myTeamRoster, playersDB]);
+  // Same shape CurrentWeekView builds for its own NFL games panel -- lifted up here so the
+  // Matchups tab's copy of that panel can show the same "(N of yours)" counts instead of nothing.
+  const myPlayersByNflTeam = useMemo(() => {
+    const map = new Map();
+    (myTeamRoster?.players || []).forEach(pid => {
+      const p = playerLabel(playersDB, pid);
+      if (!p?.team) return;
+      const real = myTeamPlayersPoints?.[pid];
+      const proj = myTeamConfData ? projectedPoints(weekProjections, pid, myTeamConfData.scoringSettings, myTeamFallbackField) : null;
+      if (!map.has(p.team)) map.set(p.team, []);
+      map.get(p.team).push({
+        playerId: pid, name: p.name, position: p.position, number: p.number,
+        realPts: real > 0 ? real : null, projPts: proj,
+        isBench: !(myTeamRoster?.starters || []).includes(pid),
+        injuryStatus: p.injuryStatus
+      });
+    });
+    return map;
+  }, [myTeamRoster, playersDB, myTeamPlayersPoints, weekProjections, myTeamConfData, myTeamFallbackField]);
 
   // Real per-team kickoff time + live status (from ESPN) merged onto the currently viewed week's
   // entry only -- everything else passes through Sleeper's own schedule data untouched.
@@ -1280,7 +1299,7 @@ export default function App() {
                       playersDB={playersDB}
                       weekProjections={weekProjections}
                       byTeamWeek={enrichedByTeamWeek} week={selectedWeek}
-                      highlightTeams={matchupsHighlightTeams}
+                      highlightTeams={matchupsHighlightTeams} onSelectGame={toggleMatchupsHighlightGame}
                     />
                   ))}
                 </div>
@@ -1305,7 +1324,7 @@ export default function App() {
                       playersDB={playersDB}
                       weekProjections={weekProjections}
                       byTeamWeek={enrichedByTeamWeek} week={selectedWeek}
-                      highlightTeams={matchupsHighlightTeams}
+                      highlightTeams={matchupsHighlightTeams} onSelectGame={toggleMatchupsHighlightGame}
                     />
                   ))}
                 </div>
@@ -1315,6 +1334,7 @@ export default function App() {
             <div className="lg:sticky lg:top-4">
               <NflGamesPanel
                 games={enrichedNflGames} week={selectedWeek} myTeamNflTeams={myTeamNflTeams}
+                myPlayersByNflTeam={myPlayersByNflTeam} compactCounts
                 selectedGames={matchupsHighlightGames} onToggleGame={toggleMatchupsHighlightGame}
                 onClearGames={() => setMatchupsHighlightGames([])}
               />

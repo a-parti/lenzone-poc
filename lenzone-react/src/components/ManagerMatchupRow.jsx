@@ -19,9 +19,25 @@ import TeamName from './TeamName';
 const ROSTER_ROW_FLEX = "flex items-center gap-1.5";
 const ROSTER_NAME_WIDTH = "w-[128px] shrink-0";
 
-function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, playersDB, byTeamWeek, week, highlightTeams }) {
+// Clicking anywhere on a player's side of the row (but not the name or team-tag buttons, which
+// already have their own destinations -- player card / depth chart) highlights that player's real
+// NFL game and everyone else in it, the same way clicking a game in the NFL games panel does.
+// e.target.closest('button') lets a click that started on one of those two nested buttons fall
+// through to its own handler instead of also triggering this.
+function gameFor(team, week, byTeamWeek) {
+  const g = team && byTeamWeek?.[team]?.[week];
+  if (!g || !g.opponent) return null;
+  return { home: g.isHome ? team : g.opponent, away: g.isHome ? g.opponent : team };
+}
+
+function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, playersDB, byTeamWeek, week, highlightTeams, onSelectGame }) {
   const my = myId && myId !== '0' ? playerLabel(playersDB, myId) : null;
   const opp = oppId && oppId !== '0' ? playerLabel(playersDB, oppId) : null;
+  const handleRowClick = (team) => (e) => {
+    if (e.target.closest('button')) return;
+    const g = gameFor(team, week, byTeamWeek);
+    if (g) onSelectGame?.(g);
+  };
   // A real 0 is indistinguishable from "hasn't played yet" by the number alone (Sleeper's live
   // points default to 0 before kickoff too) -- but once that player's own game is confirmed final,
   // any 0 on the board IS their real final score, not a placeholder. Without this, a player who
@@ -40,11 +56,14 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
   const oppHighlighted = opp && highlightTeams?.has(opp.team);
   return (
     <div className="grid grid-cols-2 gap-4 text-xs py-1.5">
-      <div className={`${ROSTER_ROW_FLEX} min-w-0 rounded ${myHighlighted ? "bg-amber-400/10 ring-1 ring-amber-400/50" : ""}`}>
+      <div
+        className={`${ROSTER_ROW_FLEX} min-w-0 rounded ${onSelectGame && my ? "cursor-pointer" : ""} ${myHighlighted ? "bg-amber-400/10 ring-1 ring-amber-400/50" : ""}`}
+        onClick={my ? handleRowClick(my.team) : undefined}
+      >
         {my ? (
           <>
             <PlayerAvatar playerId={myId} position={my.position} className="w-5 h-5 shrink-0" />
-            <div className="shrink-0"><PositionBadge position={my.position} /></div>
+            <div className="w-9 shrink-0 flex justify-center"><PositionBadge position={my.position} /></div>
             <div className={`flex flex-col ${ROSTER_NAME_WIDTH}`}>
               <div className="flex items-center gap-1 min-w-0">
                 <PlayerNameButton playerId={myId} name={my.name} position={my.position} className="text-[var(--text2)] truncate" />
@@ -52,21 +71,24 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
               </div>
               <GameBadge nflTeam={my.team} week={week} byTeamWeek={byTeamWeek} />
             </div>
-            <NflTeamTag team={my.team} number={my.number} />
+            <div className="ml-1 shrink-0"><NflTeamTag team={my.team} number={my.number} /></div>
             {myDisplayPts != null && (
               <span className="font-mono text-right ml-auto shrink-0 whitespace-nowrap">
-                <span className={`font-bold text-sm ${myColor}`}>{myDisplayPts.toFixed(2)}</span>
-                {myIsActual && myProj != null && <span className="text-[10px] text-[var(--proj)] ml-1">({myProj.toFixed(2)})</span>}
+                <span className={`font-bold text-base ${myColor}`}>{myDisplayPts.toFixed(2)}</span>
+                {myIsActual && myProj != null && <span className="text-xs text-[var(--proj)] ml-1">({myProj.toFixed(2)})</span>}
               </span>
             )}
           </>
         ) : <span className="text-[var(--muted)] italic">Empty</span>}
       </div>
-      <div className={`${ROSTER_ROW_FLEX} min-w-0 rounded ${oppHighlighted ? "bg-amber-400/10 ring-1 ring-amber-400/50" : ""}`}>
+      <div
+        className={`${ROSTER_ROW_FLEX} min-w-0 rounded ${onSelectGame && opp ? "cursor-pointer" : ""} ${oppHighlighted ? "bg-amber-400/10 ring-1 ring-amber-400/50" : ""}`}
+        onClick={opp ? handleRowClick(opp.team) : undefined}
+      >
         {opp ? (
           <>
             <PlayerAvatar playerId={oppId} position={opp.position} className="w-5 h-5 shrink-0" />
-            <div className="shrink-0"><PositionBadge position={opp.position} /></div>
+            <div className="w-9 shrink-0 flex justify-center"><PositionBadge position={opp.position} /></div>
             <div className={`flex flex-col ${ROSTER_NAME_WIDTH}`}>
               <div className="flex items-center gap-1 min-w-0">
                 <PlayerNameButton playerId={oppId} name={opp.name} position={opp.position} className="text-[var(--text2)] truncate" />
@@ -74,11 +96,11 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
               </div>
               <GameBadge nflTeam={opp.team} week={week} byTeamWeek={byTeamWeek} />
             </div>
-            <NflTeamTag team={opp.team} number={opp.number} />
+            <div className="ml-1 shrink-0"><NflTeamTag team={opp.team} number={opp.number} /></div>
             {oppDisplayPts != null && (
               <span className="font-mono text-right ml-auto shrink-0 whitespace-nowrap">
-                <span className={`font-bold text-sm ${oppColor}`}>{oppDisplayPts.toFixed(2)}</span>
-                {oppIsActual && oppProj != null && <span className="text-[10px] text-[var(--proj)] ml-1">({oppProj.toFixed(2)})</span>}
+                <span className={`font-bold text-base ${oppColor}`}>{oppDisplayPts.toFixed(2)}</span>
+                {oppIsActual && oppProj != null && <span className="text-xs text-[var(--proj)] ml-1">({oppProj.toFixed(2)})</span>}
               </span>
             )}
           </>
@@ -88,7 +110,7 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
   );
 }
 
-function MatchupRosterComparison({ mySlots, oppSlots, mySnapshot, oppSnapshot, playersDB, weekProjections, myScoringSettings, myFallbackField, oppScoringSettings, oppFallbackField, byTeamWeek, week, highlightTeams }) {
+function MatchupRosterComparison({ mySlots, oppSlots, mySnapshot, oppSnapshot, playersDB, weekProjections, myScoringSettings, myFallbackField, oppScoringSettings, oppFallbackField, byTeamWeek, week, highlightTeams, onSelectGame }) {
   if (!mySnapshot && !oppSnapshot) {
     return <p className="text-xs text-[var(--muted)] italic mt-2">No roster data available for this matchup yet.</p>;
   }
@@ -108,7 +130,7 @@ function MatchupRosterComparison({ mySlots, oppSlots, mySnapshot, oppSnapshot, p
             oppPts={oppSnapshot?.startersPoints?.[i]}
             myProj={projectedPoints(weekProjections, myId, myScoringSettings, myFallbackField)}
             oppProj={projectedPoints(weekProjections, oppId, oppScoringSettings, oppFallbackField)}
-            playersDB={playersDB} byTeamWeek={byTeamWeek} week={week} highlightTeams={highlightTeams}
+            playersDB={playersDB} byTeamWeek={byTeamWeek} week={week} highlightTeams={highlightTeams} onSelectGame={onSelectGame}
           />
         );
       })}
@@ -116,7 +138,7 @@ function MatchupRosterComparison({ mySlots, oppSlots, mySnapshot, oppSnapshot, p
   );
 }
 
-function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlots = [], oppSlots = [], playersDB, weekProjections, byTeamWeek, week, highlightTeams }) {
+function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlots = [], oppSlots = [], playersDB, weekProjections, byTeamWeek, week, highlightTeams, onSelectGame }) {
   if (!info) {
     return (
       <div className={`flex-1 min-w-[220px] bg-[var(--bg)]/60 border ${accentBorder} rounded-lg p-3 flex items-center justify-center`}>
@@ -215,14 +237,14 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
           playersDB={playersDB} weekProjections={weekProjections}
           myScoringSettings={myScoringSettings} myFallbackField={myFallbackField}
           oppScoringSettings={oppScoringSettings} oppFallbackField={oppFallbackField}
-          byTeamWeek={byTeamWeek} week={week} highlightTeams={highlightTeams}
+          byTeamWeek={byTeamWeek} week={week} highlightTeams={highlightTeams} onSelectGame={onSelectGame}
         />
       )}
     </div>
   );
 }
 
-export default function ManagerMatchupRow({ manager, conf, intra, inter, afcSlots, nfcSlots, playersDB, weekProjections, byTeamWeek, week, hideHeader, highlightTeams }) {
+export default function ManagerMatchupRow({ manager, conf, intra, inter, afcSlots, nfcSlots, playersDB, weekProjections, byTeamWeek, week, hideHeader, highlightTeams, onSelectGame }) {
   const style = CONF_STYLES[conf];
   const interAccent = inter ? CONF_STYLES[inter.oppConf].border : style.border;
   const slotsFor = (c) => (c === "AFC" ? afcSlots : nfcSlots);
@@ -243,13 +265,13 @@ export default function ManagerMatchupRow({ manager, conf, intra, inter, afcSlot
           label="In-Conference" myTeam={manager} myConf={conf} oppConf={conf}
           accentBorder={style.border} info={intra}
           mySlots={slotsFor(conf)} oppSlots={slotsFor(conf)} playersDB={playersDB}
-          weekProjections={weekProjections} byTeamWeek={byTeamWeek} week={week} highlightTeams={highlightTeams}
+          weekProjections={weekProjections} byTeamWeek={byTeamWeek} week={week} highlightTeams={highlightTeams} onSelectGame={onSelectGame}
         />
         <MatchupPill
           label="Cross-Conference" myTeam={manager} myConf={conf} oppConf={inter?.oppConf}
           accentBorder={interAccent} info={inter}
           mySlots={slotsFor(conf)} oppSlots={slotsFor(inter?.oppConf)} playersDB={playersDB}
-          weekProjections={weekProjections} byTeamWeek={byTeamWeek} week={week} highlightTeams={highlightTeams}
+          weekProjections={weekProjections} byTeamWeek={byTeamWeek} week={week} highlightTeams={highlightTeams} onSelectGame={onSelectGame}
         />
       </div>
     </div>

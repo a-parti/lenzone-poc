@@ -81,7 +81,7 @@ export default function CurrentWeekView({
             manager={myTeamManager} conf={myTeamConf} intra={myTeamIntra} inter={myTeamInter}
             afcSlots={afcSlots} nfcSlots={nfcSlots} playersDB={playersDB}
             weekProjections={weekProjections} byTeamWeek={byTeamWeek} week={selectedWeek}
-            hideHeader highlightTeams={highlightTeams}
+            hideHeader highlightTeams={highlightTeams} onSelectGame={toggleGame}
           />
           <MyPlayerHighlights
             myTeamRoster={myTeamRoster} myTeamPlayersPoints={myTeamPlayersPoints} weekProjections={weekProjections}

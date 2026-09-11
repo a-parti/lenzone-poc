@@ -44,9 +44,9 @@ function weekScore(season, confData, manager, week, weekProjectionsByWeek, lates
 function ScoreTag({ score }) {
   if (!score) return null;
   return (
-    <span className={`text-xs font-mono font-bold shrink-0 ${SCORE_COLOR[score.state]}`}>
-      {score.value.toFixed(2)}
-      {score.projected != null && <span className="text-[10px] font-semibold text-[var(--proj)] ml-1">({score.projected.toFixed(2)})</span>}
+    <span className="font-mono shrink-0 flex flex-col items-end leading-tight">
+      <span className={`text-xs font-bold ${SCORE_COLOR[score.state]}`}>{score.value.toFixed(2)}</span>
+      {score.projected != null && <span className="text-[10px] font-semibold text-[var(--proj)]">{score.projected.toFixed(2)}</span>}
     </span>
   );
 }

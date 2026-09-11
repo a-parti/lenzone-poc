@@ -11,23 +11,22 @@ import PlayerNameButton from './PlayerNameButton';
 // Before a real score exists, just the projection (blue).
 function ProjectedPts({ id, weekProjections, scoringSettings, fallbackField, playersPoints, isLive, gameFinal }) {
   const real = playersPoints?.[id];
-  // A real 0 is indistinguishable from "hasn't played yet" by the number alone (Sleeper's live
-  // points default to 0 before kickoff too) -- but once the game is confirmed final, any 0 on the
-  // board IS the real final score, not a placeholder.
-  const hasReal = real > 0 || (gameFinal && real != null);
+  // Sleeper's own convention: the big number is always the best REAL number available right now --
+  // live (real 0s included) or final -- and only "hasn't played at all yet" falls back to a dash,
+  // with the projection always shown underneath, smaller, as the reference point either way.
+  const hasReal = isLive || gameFinal || real > 0;
   const proj = weekProjections ? projectedPoints(weekProjections, id, scoringSettings, fallbackField) : null;
-
-  if (hasReal) {
-    const color = SCORE_COLOR[scoreState({ hasActual: true, isLive, actual: real, projected: proj })];
-    return (
-      <span className="font-mono text-right shrink-0 whitespace-nowrap">
-        <span className={`font-bold text-sm ${color}`}>{real.toFixed(2)}</span>
-        {proj != null && <span className="text-xs text-[var(--proj)] ml-1">({proj.toFixed(2)})</span>}
+  const actualVal = hasReal ? (real ?? 0) : null;
+  if (!hasReal && proj == null) return null;
+  const color = SCORE_COLOR[scoreState({ hasActual: hasReal, isLive, actual: actualVal, projected: proj })];
+  return (
+    <span className="font-mono text-right shrink-0 whitespace-nowrap flex flex-col items-end leading-tight">
+      <span className={`font-bold text-sm ${hasReal ? color : "text-[var(--muted)]"}`}>
+        {hasReal ? actualVal.toFixed(2) : "--"}
       </span>
-    );
-  }
-  if (proj === null) return null;
-  return <span className="text-sm font-mono font-semibold text-[var(--proj)] shrink-0">{proj.toFixed(2)}</span>;
+      {proj != null && <span className="text-[10px] text-[var(--proj)]">{proj.toFixed(2)}</span>}
+    </span>
+  );
 }
 
 // Team-level rollup of the same actual/projected/delta treatment as each player row: full squad
@@ -51,9 +50,9 @@ function TeamTotal({ starters, weekProjections, scoringSettings, fallbackField, 
       {anyPosted && (
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
           <span className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)] shrink-0">Posted So Far</span>
-          <span className="font-mono text-right">
+          <span className="font-mono text-right flex flex-col items-end leading-tight">
             <span className={`font-bold text-base ${postedColor}`}>{actualPosted.toFixed(2)}</span>
-            <span className="ml-1.5 text-xs text-[var(--proj)]">({projectedPosted.toFixed(2)})</span>
+            <span className="text-[10px] text-[var(--proj)]">{projectedPosted.toFixed(2)}</span>
           </span>
         </div>
       )}

@@ -39,20 +39,20 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
     const g = gameFor(team, week, byTeamWeek);
     if (g) onSelectGame?.(g);
   };
-  // A real 0 is indistinguishable from "hasn't played yet" by the number alone (Sleeper's live
-  // points default to 0 before kickoff too) -- but once that player's own game is confirmed final,
-  // any 0 on the board IS their real final score, not a placeholder. Without this, a player who
-  // legitimately scored zero in an already-final game showed as if still projected.
+  // Sleeper's own convention, applied per-player: the big number is always the best REAL number
+  // available right now -- live (mid-game, real 0s included) or final -- never the projection once
+  // a player's actual game has started. Only "hasn't played yet at all" falls back to a dash, with
+  // the projection always shown underneath, smaller, as the reference point either way.
   const myGameFinal = my && byTeamWeek?.[my.team]?.[week]?.state === 'post';
   const oppGameFinal = opp && byTeamWeek?.[opp.team]?.[week]?.state === 'post';
-  const myIsActual = myPts > 0 || (myGameFinal && myPts != null);
-  const oppIsActual = oppPts > 0 || (oppGameFinal && oppPts != null);
-  const myDisplayPts = myIsActual ? myPts : myProj;
-  const oppDisplayPts = oppIsActual ? oppPts : oppProj;
   const myLive = my && byTeamWeek?.[my.team]?.[week]?.state === 'in';
   const oppLive = opp && byTeamWeek?.[opp.team]?.[week]?.state === 'in';
-  const myColor = SCORE_COLOR[scoreState({ hasActual: myIsActual, isLive: myLive, actual: myPts, projected: myProj })];
-  const oppColor = SCORE_COLOR[scoreState({ hasActual: oppIsActual, isLive: oppLive, actual: oppPts, projected: oppProj })];
+  const myIsActual = myLive || myGameFinal || myPts > 0;
+  const oppIsActual = oppLive || oppGameFinal || oppPts > 0;
+  const myActualVal = myIsActual ? (myPts ?? 0) : null;
+  const oppActualVal = oppIsActual ? (oppPts ?? 0) : null;
+  const myColor = SCORE_COLOR[scoreState({ hasActual: myIsActual, isLive: myLive, actual: myActualVal, projected: myProj })];
+  const oppColor = SCORE_COLOR[scoreState({ hasActual: oppIsActual, isLive: oppLive, actual: oppActualVal, projected: oppProj })];
   const myHighlighted = my && highlightTeams?.has(my.team);
   const oppHighlighted = opp && highlightTeams?.has(opp.team);
   return (
@@ -73,10 +73,12 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
               <GameBadge nflTeam={my.team} week={week} byTeamWeek={byTeamWeek} />
             </div>
             <div className="ml-1 shrink-0"><NflTeamTag team={my.team} number={my.number} /></div>
-            {myDisplayPts != null && (
-              <span className="font-mono text-right ml-auto shrink-0 whitespace-nowrap">
-                <span className={`font-bold text-base ${myColor}`}>{myDisplayPts.toFixed(2)}</span>
-                {myIsActual && myProj != null && <span className="text-xs text-[var(--proj)] ml-1">({myProj.toFixed(2)})</span>}
+            {(myActualVal != null || myProj != null) && (
+              <span className="font-mono text-right ml-auto shrink-0 whitespace-nowrap flex flex-col items-end leading-tight">
+                <span className={`font-bold text-base ${myIsActual ? myColor : "text-[var(--muted)]"}`}>
+                  {myIsActual ? myActualVal.toFixed(2) : "--"}
+                </span>
+                {myProj != null && <span className="text-[10px] text-[var(--proj)]">{myProj.toFixed(2)}</span>}
               </span>
             )}
           </>
@@ -105,10 +107,12 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
               <GameBadge nflTeam={opp.team} week={week} byTeamWeek={byTeamWeek} />
             </div>
             <div className="shrink-0"><NflTeamTag team={opp.team} number={opp.number} /></div>
-            {oppDisplayPts != null && (
-              <span className="font-mono text-left mr-auto shrink-0 whitespace-nowrap">
-                <span className={`font-bold text-base ${oppColor}`}>{oppDisplayPts.toFixed(2)}</span>
-                {oppIsActual && oppProj != null && <span className="text-xs text-[var(--proj)] ml-1">({oppProj.toFixed(2)})</span>}
+            {(oppActualVal != null || oppProj != null) && (
+              <span className="font-mono text-left mr-auto shrink-0 whitespace-nowrap flex flex-col items-start leading-tight">
+                <span className={`font-bold text-base ${oppIsActual ? oppColor : "text-[var(--muted)]"}`}>
+                  {oppIsActual ? oppActualVal.toFixed(2) : "--"}
+                </span>
+                {oppProj != null && <span className="text-[10px] text-[var(--proj)]">{oppProj.toFixed(2)}</span>}
               </span>
             )}
           </>
@@ -244,12 +248,12 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 sm:gap-2">
         <div className="flex items-center justify-between sm:flex-col sm:items-end sm:justify-start gap-2 sm:gap-0.5 min-w-0 flex-1">
           <TeamName manager={myTeam} conf={myConf} className="font-semibold truncate sm:w-full sm:justify-end" />
-          <span className="font-mono leading-none shrink-0 whitespace-nowrap">
+          <span className="font-mono leading-tight shrink-0 whitespace-nowrap flex flex-col sm:items-end">
             <span className={`text-lg font-bold ${showScores ? myBigColor : "text-[var(--muted)]"}`}>
               {showScores && bigMy != null ? bigMy.toFixed(2) : "--"}
             </span>
             {showCaption && myScore != null && (
-              <span className="text-xs text-[var(--proj)] ml-1">({myScore.toFixed(2)} proj)</span>
+              <span className="text-[10px] text-[var(--proj)]">{myScore.toFixed(2)} proj</span>
             )}
           </span>
         </div>
@@ -260,12 +264,12 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
         </div>
         <div className="flex items-center justify-between sm:flex-col sm:items-start sm:justify-start gap-2 sm:gap-0.5 min-w-0 flex-1">
           <TeamName manager={opponent} conf={oppConf} className="font-semibold truncate sm:w-full" />
-          <span className="font-mono leading-none shrink-0 whitespace-nowrap">
+          <span className="font-mono leading-tight shrink-0 whitespace-nowrap flex flex-col">
             <span className={`text-lg font-bold ${showScores ? oppBigColor : "text-[var(--muted)]"}`}>
               {showScores && bigOpp != null ? bigOpp.toFixed(2) : "--"}
             </span>
             {showCaption && oppScore != null && (
-              <span className="text-xs text-[var(--proj)] ml-1">({oppScore.toFixed(2)} proj)</span>
+              <span className="text-[10px] text-[var(--proj)]">{oppScore.toFixed(2)} proj</span>
             )}
           </span>
         </div>

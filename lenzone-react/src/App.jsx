@@ -606,16 +606,25 @@ export default function App() {
     if (swatch) setTeamBurst({ nonce: Date.now(), color: swatch });
     playTeamSound(manager);
   };
-  // Plays the remembered team's welcome sound once on a fresh page load too, not just when
-  // actively picking a team from the dropdown -- otherwise a returning viewer whose team is
-  // restored from localStorage never hears it at all. Browsers generally block audio.play() before
-  // any user gesture has happened on the page, so this can still be silently blocked on some loads
-  // (playTeamSound already swallows that) -- it's given a real chance to play, not guaranteed audible.
+  // Plays the remembered team's welcome sound once per page load too, not just when actively
+  // picking a team from the dropdown -- otherwise a returning viewer whose team is restored from
+  // localStorage never hears it at all. Browsers flatly block audio.play() before the page has
+  // seen ANY user gesture (click/key/touch) -- calling it immediately on mount was silently
+  // swallowed every time on a fresh load, since nothing had happened yet. Waiting for the first
+  // such gesture anywhere on the page (capture phase, so it fires before that gesture's own click
+  // handler, e.g. picking a different team) satisfies that requirement, so it actually plays.
   const playedWelcomeSoundRef = useRef(false);
   useEffect(() => {
     if (playedWelcomeSoundRef.current || !myTeamManager) return;
-    playedWelcomeSoundRef.current = true;
-    playTeamSound(myTeamManager);
+    const events = ['pointerdown', 'keydown', 'touchstart'];
+    const fire = () => {
+      if (playedWelcomeSoundRef.current) return;
+      playedWelcomeSoundRef.current = true;
+      playTeamSound(myTeamManager);
+      events.forEach(e => window.removeEventListener(e, fire, true));
+    };
+    events.forEach(e => window.addEventListener(e, fire, true));
+    return () => events.forEach(e => window.removeEventListener(e, fire, true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myTeamManager]);
 

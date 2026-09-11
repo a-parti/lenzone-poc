@@ -26,11 +26,10 @@ import CurrentWeekView from './components/CurrentWeekView';
 import CommandPalette from './components/CommandPalette';
 import ManagerMatchupRow from './components/ManagerMatchupRow';
 import HeaderKnockover from './components/HeaderKnockover';
-import BouncingFootball from './components/BouncingFootball';
+import GrabbableFootball from './components/GrabbableFootball';
 import BouncingTrophies from './components/BouncingTrophies';
 import FallingPhotos from './components/FallingPhotos';
 import DancingStickmen from './components/DancingStickmen';
-import DraggableCards from './components/DraggableCards';
 import NflGamesPanel from './components/NflGamesPanel';
 import WeeklyHighlights from './components/WeeklyHighlights';
 import PlayerHighlights from './components/PlayerHighlights';
@@ -1181,11 +1180,10 @@ export default function App() {
         </header>
       )}
       <HeaderKnockover targetRef={headerRowRef} enabled={activeTab !== "home"} />
-      <BouncingFootball enabled={activeTab !== "home"} />
+      <GrabbableFootball targetRef={headerRowRef} enabled={activeTab !== "home"} />
       <BouncingTrophies enabled={activeTab !== "home"} />
       <FallingPhotos enabled={activeTab !== "home"} />
       <DancingStickmen enabled={activeTab !== "home"} />
-      <DraggableCards enabled={activeTab !== "home"} />
 
       <main className="max-w-7xl mx-auto">
         {/* Desktop Navigation Tabs -- also hidden on Home; the radial menu is its navigation */}

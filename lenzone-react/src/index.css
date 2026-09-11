@@ -296,25 +296,38 @@ html {
   animation: title-shine 5s linear infinite;
   box-shadow: 0 0 8px 1px color-mix(in srgb, var(--accent), transparent 55%);
 }
-/* Big Home-page logo shown before a team is picked -- unlike the small header logo (which only
-   spins the football, and only on hover), both layers spin continuously here, at different
-   speeds/directions so the two rings read as independent moving parts rather than one flat image,
-   with a soft rotating rainbow glow behind it (same 8-stop palette as the title/picker glow) so
-   the empty pre-pick moment still feels alive instead of static. */
-@keyframes big-logo-ring-spin {
-  to { transform: rotate(360deg); }
+/* Big Home-page logo shown before a team is picked -- leans cartoonish (squash & stretch) rather
+   than a rigid spin. The ring never fully rotates (it has open gaps in the art meant to frame the
+   ball at ONE fixed orientation -- spinning it independently drifted those gaps out of alignment
+   with the ball and looked like a broken overlap); instead it just breathes in place. The ball
+   spins AND morphs its squash/stretch in the same cycle, like jelly, which is also what visually
+   sells the motion since the ring itself stays put. Soft rotating+pulsing rainbow glow behind both
+   (same 8-stop palette as the title/picker glow) so the empty pre-pick moment feels alive. */
+@keyframes big-logo-ring-morph {
+  0%, 100% { transform: scale(1, 1); }
+  50% { transform: scale(1.045, 0.955); }
 }
-@keyframes big-logo-ball-spin {
-  to { transform: rotate(-360deg); }
+@keyframes big-logo-ball-morph-spin {
+  0%   { transform: rotate(0deg)   scale(1, 1); }
+  12%  { transform: rotate(43deg)  scale(1.14, 0.86); }
+  25%  { transform: rotate(90deg)  scale(0.88, 1.12); }
+  37%  { transform: rotate(133deg) scale(1.12, 0.88); }
+  50%  { transform: rotate(180deg) scale(0.86, 1.14); }
+  62%  { transform: rotate(223deg) scale(1.12, 0.88); }
+  75%  { transform: rotate(270deg) scale(0.88, 1.12); }
+  87%  { transform: rotate(313deg) scale(1.14, 0.86); }
+  100% { transform: rotate(360deg) scale(1, 1); }
 }
 .big-logo-ring {
-  animation: big-logo-ring-spin 14s linear infinite;
+  animation: big-logo-ring-morph 3s ease-in-out infinite;
 }
 .big-logo-ball {
-  animation: big-logo-ball-spin 3.5s linear infinite;
+  animation: big-logo-ball-morph-spin 3s ease-in-out infinite;
 }
 @keyframes big-logo-glow-spin {
-  to { transform: rotate(360deg); }
+  0% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(180deg) scale(1.08); }
+  100% { transform: rotate(360deg) scale(1); }
 }
 .big-logo-glow {
   background: conic-gradient(from 0deg, #f87171, #fb923c, var(--accent), #2dd4bf, #60a5fa, #a78bfa, #f472b6, #facc15, #f87171);

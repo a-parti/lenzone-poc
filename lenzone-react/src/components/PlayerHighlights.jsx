@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { TrendingUp, Rocket, Skull, Target } from 'lucide-react';
+import { TrendingUp, Rocket, Skull, Target, Compass } from 'lucide-react';
 import { computePlayerHighlights, playerLabel } from '../lib/players';
 import { usePlayerModal } from '../context/PlayerModalContext';
 import { PositionBadge, NflTeamTag } from './shared';
@@ -9,6 +9,19 @@ import PlayerAvatar from './PlayerAvatar';
 // negative value, which is exactly the kind of value this shows for a miss.
 export function signed(n) {
   return `${n >= 0 ? "+" : ""}${n.toFixed(2)}`;
+}
+
+// Renders the actual score big, with its own pregame projection as a small caption underneath --
+// same "actual is the real number, projection is a reference point" convention already used in
+// ManagerMatchupRow/MatchupPill, so a riser/bust/top-score card shows what actually happened AND
+// what was expected in one glance, not just the computed diff.
+export function ActualVsProjected({ actual, projected, accent }) {
+  return (
+    <span className="flex flex-col leading-tight">
+      {actual != null && <span className={`text-sm font-mono font-bold ${accent}`}>{actual.toFixed(2)} pts</span>}
+      {projected != null && <span className="text-[10px] font-mono text-[var(--proj)]">{projected.toFixed(2)} proj</span>}
+    </span>
+  );
 }
 
 export function PlayerCard({ icon: Icon, label, entry, playersDB, value, accent, onClick }) {
@@ -39,7 +52,7 @@ export function PlayerCard({ icon: Icon, label, entry, playersDB, value, accent,
             <PositionBadge position={position} />
             {team && <NflTeamTag team={team} number={number} />}
           </div>
-          <p className={`text-xs font-mono ${accent}`}>{value}</p>
+          {typeof value === 'string' ? <p className={`text-xs font-mono ${accent}`}>{value}</p> : value}
         </div>
       </div>
     </div>
@@ -56,8 +69,8 @@ export default function PlayerHighlights({ afcData, nfcData, afcSeason, nfcSeaso
     () => computePlayerHighlights(afcData, nfcData, afcSeason, nfcSeason, week, weekProjections),
     [afcData, nfcData, afcSeason, nfcSeason, week, weekProjections]
   );
-  const { highestProjected, highestActual, biggestRiser, biggestBust } = highlights;
-  if (!highestProjected && !highestActual && !biggestRiser && !biggestBust) return null;
+  const { highestProjected, highestActual, biggestRiser, biggestBust, mostReliable } = highlights;
+  if (!highestProjected && !highestActual && !biggestRiser && !biggestBust && !mostReliable) return null;
 
   const openFor = (entry) => {
     const { position } = playerLabel(playersDB, entry.id);
@@ -73,19 +86,41 @@ export default function PlayerHighlights({ afcData, nfcData, afcSeason, nfcSeaso
       />
       <PlayerCard
         icon={TrendingUp} label="Top Actual Score" entry={highestActual} playersDB={playersDB}
-        value={highestActual ? `${highestActual.actual.toFixed(2)} pts` : ""}
+        value={highestActual ? <ActualVsProjected actual={highestActual.actual} projected={highestActual.projected} accent="text-[var(--pos)]" /> : ""}
         accent="text-[var(--pos)]" onClick={() => openFor(highestActual)}
       />
       <PlayerCard
         icon={Rocket} label="Biggest Riser" entry={biggestRiser} playersDB={playersDB}
-        value={biggestRiser ? `${signed(biggestRiser.actual - biggestRiser.projected)} vs proj` : ""}
+        value={biggestRiser ? (
+          <div className="flex flex-col leading-tight">
+            <ActualVsProjected actual={biggestRiser.actual} projected={biggestRiser.projected} accent="text-[var(--pos)]" />
+            <span className="text-xs font-mono text-[var(--pos)]">{signed(biggestRiser.actual - biggestRiser.projected)} vs proj</span>
+          </div>
+        ) : ""}
         accent="text-[var(--pos)]" onClick={() => openFor(biggestRiser)}
       />
       <PlayerCard
         icon={Skull} label="Biggest Bust" entry={biggestBust} playersDB={playersDB}
-        value={biggestBust ? `${signed(biggestBust.actual - biggestBust.projected)} vs proj` : ""}
+        value={biggestBust ? (
+          <div className="flex flex-col leading-tight">
+            <ActualVsProjected actual={biggestBust.actual} projected={biggestBust.projected} accent="text-[var(--neg)]" />
+            <span className="text-xs font-mono text-[var(--neg)]">{signed(biggestBust.actual - biggestBust.projected)} vs proj</span>
+          </div>
+        ) : ""}
         accent="text-[var(--neg)]" onClick={() => openFor(biggestBust)}
       />
+      {mostReliable && (
+        <PlayerCard
+          icon={Compass} label="Mr./Ms. Reliable" entry={mostReliable} playersDB={playersDB}
+          value={(
+            <div className="flex flex-col leading-tight">
+              <ActualVsProjected actual={mostReliable.actual} projected={mostReliable.projected} accent="text-[var(--accent)]" />
+              <span className="text-xs font-mono text-[var(--accent)]">{signed(mostReliable.actual - mostReliable.projected)} vs proj</span>
+            </div>
+          )}
+          accent="text-[var(--accent)]" onClick={() => openFor(mostReliable)}
+        />
+      )}
     </div>
   );
 }

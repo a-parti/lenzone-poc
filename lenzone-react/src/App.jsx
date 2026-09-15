@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Trophy, Swords, Megaphone, Scroll, ExternalLink, RefreshCw, Award, Lock, Unlock, X, Activity, ListOrdered, Users, Calendar, Search, Volume2, VolumeX } from 'lucide-react';
+import { Trophy, Swords, Megaphone, Scroll, ExternalLink, RefreshCw, Award, Lock, Unlock, X, Activity, ListOrdered, Users, Calendar, Search, Volume2, VolumeX, LayoutGrid } from 'lucide-react';
 import AnimatedLogo from './components/AnimatedLogo';
 import { CONF_STYLES } from './lib/theme';
 import { ConfFilterToggle } from './components/shared';
 import {
   fetchSleeperLeague, fetchFullSeasonData, fetchPlayersDB, fetchSeasonTransactions, fetchDraftPicks, fetchAllWeekProjections, fetchNflState, fetchNflSchedule
 } from './lib/sleeperApi';
-import { fetchWeekKickoffInfo } from './lib/espnApi';
+import { fetchWeekKickoffInfo, fetchWeekBigPlays } from './lib/espnApi';
 import {
   computeStats, buildHistory, simulateCombinedPlayoffOdds, computeCrossRecords, computeCrossWeekRecord,
   computeWeeklyAwards, computeProjectedTrophies, buildConferenceList, rankConference, winProbability, roughWinProbability, computePointsAgainst, computeInConfRecord,
+  computeCrossPointsAgainst, computeIntraGamesPlayed, computeInterGamesPlayed, buildStandingsHistory,
+  buildWeeklyPfPaHistory, computeWeeklyConferenceMedian, computeWeekResultByManager,
   computeBenchPointsAward
 } from './lib/statsMath';
 import RosterTab from './components/RosterTab';
@@ -37,6 +39,8 @@ import WeeklyHighlights from './components/WeeklyHighlights';
 import PlayerHighlights from './components/PlayerHighlights';
 import TopByPositionHighlights from './components/TopByPositionHighlights';
 import { RosterModalProvider } from './context/RosterModalContext';
+import { MatchupPreviewProvider, useMatchupPreview } from './context/MatchupPreviewContext';
+import MatchupPreviewModal from './components/MatchupPreviewModal';
 import { PlayerModalProvider } from './context/PlayerModalContext';
 import PlayerModal from './components/PlayerModal';
 import { TeamColorProvider } from './context/TeamColorContext';
@@ -48,7 +52,11 @@ import TeamDefaultsAdmin from './components/TeamDefaultsAdmin';
 import { ImageLightboxProvider, Zoomable } from './context/ImageLightboxContext';
 import { TeamLogoProvider } from './context/TeamLogoContext';
 import { PlayerPhotoProvider } from './context/PlayerPhotoContext';
-import { buildConferenceColorMap, getDraftSlotMap } from './lib/teamColors';
+import { buildConferenceColorMap, buildConferenceHexColorMap, getDraftSlotMap } from './lib/teamColors';
+import StandingsTrendChart from './components/StandingsTrendChart';
+import NflBigPlaysHighlights from './components/NflBigPlaysHighlights';
+import { getRealName } from './lib/realNames';
+import { buildTrophyLinesByManager } from './lib/speechBubble';
 import { scoringFieldFor, computeRosterProjection, computeBlendedRosterScore, buildOwnerMap, buildAcquisitionHistory, computeMoveCounts, playerLabel, projectedPoints } from './lib/players';
 import { Button, ThemeToggle, TeamPicker, useEscapeKey } from './components/shared';
 
@@ -143,8 +151,8 @@ const STANDINGS_SORT_ACCESSORS = {
   inConfRecord: item => parseRecordWins(item.inConfRecord),
   interConfRecord: item => parseRecordWins(item.interConfRecord),
   totalPts: item => item.totalPts,
-  pf: item => item.pf,
-  pa: item => item.pa,
+  pf: item => item.pfAvg,
+  pa: item => item.paAvg,
   playoffPct: item => item.playoffPct ?? -1,
   faab: item => parseFaab(item.faab),
   moves: item => item.moves
@@ -165,7 +173,7 @@ function SortHeader({ label, sortKey, activeKey, dir, onClick }) {
   );
 }
 
-function StandingsTable({ conf, rows }) {
+function StandingsTable({ conf, rows, afcData, nfcData }) {
   const style = CONF_STYLES[conf];
   const [sortKey, setSortKey] = useState('rank');
   const [sortDir, setSortDir] = useState('asc');
@@ -198,13 +206,14 @@ function StandingsTable({ conf, rows }) {
           <thead className="bg-[var(--bg)]/80 tracking-wider text-xs uppercase font-semibold text-[var(--text2)] border-b border-[var(--border)]/80">
             <tr>
               <SortHeader label="Rank" sortKey="rank" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
-              <SortHeader label="Manager" sortKey="manager" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
+              <SortHeader label="Team Name" sortKey="manager" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
+              <th className="py-3 px-4">Manager</th>
               <SortHeader label="Intra-Conf" sortKey="inConfRecord" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
               <SortHeader label="Inter-Conf" sortKey="interConfRecord" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
               <SortHeader label="Standings Pts" sortKey="totalPts" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
-              <SortHeader label="PF" sortKey="pf" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
-              <SortHeader label="PA" sortKey="pa" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
-              <SortHeader label="Playoff %" sortKey="playoffPct" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
+              <SortHeader label="PF (avg)" sortKey="pf" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
+              <SortHeader label="PA (avg)" sortKey="pa" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
+              {/* Playoff % hidden for now -- pending further work on the model, see statsMath.js computeStats */}
               <SortHeader label="FAAB" sortKey="faab" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
               <SortHeader label="Moves" sortKey="moves" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
             </tr>
@@ -218,12 +227,12 @@ function StandingsTable({ conf, rows }) {
                     <TeamName manager={item.manager} conf={conf} className="font-bold" />
                   </div>
                 </td>
+                <td className="py-3 px-4 text-[var(--text2)]">{getRealName(afcData, nfcData, item.manager) || "—"}</td>
                 <td className="py-3 px-4">{item.inConfRecord}</td>
                 <td className="py-3 px-4">{item.interConfRecord}</td>
-                <td className={`py-3 px-4 font-extrabold ${style.text}`}>{item.totalPts.toFixed(2)}</td>
-                <td className="py-3 px-4 font-mono">{item.pf.toFixed(2)}</td>
-                <td className="py-3 px-4 font-mono text-[var(--text2)]">{item.pa.toFixed(2)}</td>
-                <td className="py-3 px-4 font-mono">{item.playoffPct === null || item.playoffPct === undefined ? "--" : `${item.playoffPct.toFixed(0)}%`}</td>
+                <td className={`py-3 px-4 font-extrabold ${style.text}`}>{item.totalPts.toFixed(1)}</td>
+                <td className="py-3 px-4 font-mono">{item.pfAvg.toFixed(2)}</td>
+                <td className="py-3 px-4 font-mono text-[var(--text2)]">{item.paAvg.toFixed(2)}</td>
                 <td className="py-3 px-4 text-emerald-400">{item.faab}</td>
                 <td className="py-3 px-4 font-mono text-[var(--text2)]">{item.moves}</td>
               </tr>
@@ -251,20 +260,20 @@ function StandingsTable({ conf, rows }) {
                 <p className="text-[var(--text)] font-semibold text-sm">{item.interConfRecord}</p>
               </div>
               <div>
+                <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">Manager</p>
+                <p className="text-[var(--text2)] text-sm">{getRealName(afcData, nfcData, item.manager) || "—"}</p>
+              </div>
+              <div>
                 <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">Pts</p>
-                <p className={`font-extrabold text-sm ${style.text}`}>{item.totalPts.toFixed(2)}</p>
+                <p className={`font-extrabold text-sm ${style.text}`}>{item.totalPts.toFixed(1)}</p>
               </div>
               <div>
-                <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">PF</p>
-                <p className="text-[var(--text)] font-mono text-sm">{item.pf.toFixed(2)}</p>
+                <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">PF (avg)</p>
+                <p className="text-[var(--text)] font-mono text-sm">{item.pfAvg.toFixed(2)}</p>
               </div>
               <div>
-                <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">PA</p>
-                <p className="text-[var(--text2)] font-mono text-sm">{item.pa.toFixed(2)}</p>
-              </div>
-              <div>
-                <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">Playoff %</p>
-                <p className="text-[var(--text)] font-mono text-sm">{item.playoffPct === null || item.playoffPct === undefined ? "--" : `${item.playoffPct.toFixed(0)}%`}</p>
+                <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">PA (avg)</p>
+                <p className="text-[var(--text2)] font-mono text-sm">{item.paAvg.toFixed(2)}</p>
               </div>
               <div>
                 <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">FAAB</p>
@@ -478,7 +487,7 @@ function estimateTeamScore(manager, confData, season, week, weekProjections, lat
   return { value: proj, isFinal: false };
 }
 
-const VALID_TABS = new Set(["home", "currentWeek", "standings", "matchups", "players", "teams", "charter"]);
+const VALID_TABS = new Set(["home", "currentWeek", "standings", "matchups", "grid", "players", "teams", "charter"]);
 
 function tabFromHash() {
   const id = window.location.hash.slice(1);
@@ -514,6 +523,7 @@ export default function App() {
   // matchup for one week -- the old Weekly Matchups tab) and "season" (one team's full schedule --
   // the old Schedule tab), merged into a single tab with a toggle instead of two separate tabs.
   const [matchupsView, setMatchupsView] = useState("week");
+  const [standingsView, setStandingsView] = useState("overview");
   const [selectedWeek, setSelectedWeek] = useState(1);
   const [selectedManager, setSelectedManager] = useState("ALL");
   // Clicking a game in the Matchups tab's NFL games panel highlights any players from it across
@@ -761,6 +771,19 @@ export default function App() {
     fetchWeekKickoffInfo(selectedWeek, SEASON_YEAR).then(setWeekKickoffInfo);
   }, [selectedWeek]);
 
+  // Real league-wide "big plays" (longest pass/run/field goal) for the viewed week, from ESPN's
+  // real play-by-play -- only fetched once that week is actually done (selectedWeek <=
+  // latestCompletedWeek), since a mid-week fetch would just be an incomplete, still-changing
+  // partial answer to "longest of the week". One request per game in the week, so this is cached
+  // per week (not refetched on unrelated re-renders) via the effect's own dependency array.
+  const [weekBigPlays, setWeekBigPlays] = useState(null);
+  useEffect(() => {
+    if (selectedWeek > latestCompletedWeek) { setWeekBigPlays(null); return; }
+    let cancelled = false;
+    fetchWeekBigPlays(selectedWeek, SEASON_YEAR).then(result => { if (!cancelled) setWeekBigPlays(result); });
+    return () => { cancelled = true; };
+  }, [selectedWeek, latestCompletedWeek]);
+
   const handleLeagueIdChange = (conf, value) => {
     if (conf === "AFC") {
       setAfcLeagueId(value);
@@ -960,8 +983,14 @@ export default function App() {
     const nfcPA = computePointsAgainst(nfcManagers, nfcSeason, latestCompletedWeek);
     const afcInConf = computeInConfRecord(afcManagers, afcSeason, latestCompletedWeek);
     const nfcInConf = computeInConfRecord(nfcManagers, nfcSeason, latestCompletedWeek);
-    const afcBaseList = buildConferenceList(afcManagers, afcData, crossRecords, afcPA, afcInConf);
-    const nfcBaseList = buildConferenceList(nfcManagers, nfcData, crossRecords, nfcPA, nfcInConf);
+    const afcCrossPA = computeCrossPointsAgainst(afcManagers, schedule, afcSeason, nfcSeason, latestCompletedWeek);
+    const nfcCrossPA = computeCrossPointsAgainst(nfcManagers, schedule, afcSeason, nfcSeason, latestCompletedWeek);
+    const afcIntraGames = {}; afcManagers.forEach(m => { afcIntraGames[m] = computeIntraGamesPlayed(m, afcSeason, latestCompletedWeek); });
+    const nfcIntraGames = {}; nfcManagers.forEach(m => { nfcIntraGames[m] = computeIntraGamesPlayed(m, nfcSeason, latestCompletedWeek); });
+    const afcInterGames = {}; afcManagers.forEach(m => { afcInterGames[m] = computeInterGamesPlayed(m, schedule, afcSeason, nfcSeason, latestCompletedWeek); });
+    const nfcInterGames = {}; nfcManagers.forEach(m => { nfcInterGames[m] = computeInterGamesPlayed(m, schedule, afcSeason, nfcSeason, latestCompletedWeek); });
+    const afcBaseList = buildConferenceList(afcManagers, afcData, crossRecords, afcPA, afcInConf, afcCrossPA, afcIntraGames, afcInterGames);
+    const nfcBaseList = buildConferenceList(nfcManagers, nfcData, crossRecords, nfcPA, nfcInConf, nfcCrossPA, nfcIntraGames, nfcInterGames);
 
     const afcStats = computeStats(buildHistory(afcSeason.scoreByWeek, latestCompletedWeek), afcManagers);
     const nfcStats = computeStats(buildHistory(nfcSeason.scoreByWeek, latestCompletedWeek), nfcManagers);
@@ -1018,6 +1047,20 @@ export default function App() {
   }
   const weeklyAwards = computeWeeklyAwards(afcSeason, nfcSeason, selectedWeek, isSelectedWeekFinal ? null : projectedScoreByManager);
   const benchPointsAward = computeBenchPointsAward(afcData, nfcData, afcSeason, nfcSeason, selectedWeek);
+  // Real, already-computed facts each manager's speech bubble can reference this week (a trophy
+  // they actually won) -- shared by RosterModal's own bubble and the ambient RandomNameBubble so
+  // neither invents anything and both stay in sync with what the trophy cards actually show.
+  const trophyLinesByManager = useMemo(
+    () => (isSelectedWeekFinal ? buildTrophyLinesByManager({ weeklyAwards, benchPointsAward }) : {}),
+    [weeklyAwards, benchPointsAward, isSelectedWeekFinal]
+  );
+  // Real live/final in-conference W/L/T for every manager this week -- feeds the speech bubbles'
+  // "you're winning/losing right now" flavor line (see lib/speechBubble.js). Works pre-final too
+  // (a live score already picks a real leader), unlike trophyLinesByManager which waits for final.
+  const weekResultByManager = useMemo(
+    () => computeWeekResultByManager(afcManagers, nfcManagers, afcSeason, nfcSeason, selectedWeek),
+    [afcManagers, nfcManagers, afcSeason, nfcSeason, selectedWeek]
+  );
   const weekRecord = isSelectedWeekFinal
     ? computeCrossWeekRecord(weekCrossPairs, afcSeason.scoreByWeek[selectedWeek] || {}, nfcSeason.scoreByWeek[selectedWeek] || {})
     : { afcWins: 0, nfcWins: 0, ties: 0, counted: 0 };
@@ -1064,6 +1107,34 @@ export default function App() {
     [afcData.logoMap, nfcData.logoMap]
   );
 
+  // Hex twin of teamColorMap -- same colors, same order, just usable as an SVG stroke (the
+  // Standings Trends chart's lines) instead of a Tailwind text-color class.
+  const teamHexColorMap = useMemo(
+    () => ({
+      ...buildConferenceHexColorMap(afcManagers, afcDraft, afcData.rosterIdMap),
+      ...buildConferenceHexColorMap(nfcManagers, nfcDraft, nfcData.rosterIdMap)
+    }),
+    [afcManagers.join('|'), nfcManagers.join('|'), afcDraft, nfcDraft, afcData.rosterIdMap, nfcData.rosterIdMap]
+  );
+
+  const standingsHistory = useMemo(
+    () => buildStandingsHistory(afcManagers, nfcManagers, afcData, nfcData, afcSeason, nfcSeason, schedule, latestCompletedWeek),
+    [afcManagers, nfcManagers, afcData, nfcData, afcSeason, nfcSeason, schedule, latestCompletedWeek]
+  );
+
+  const weeklyPfPaHistory = useMemo(
+    () => buildWeeklyPfPaHistory(afcManagers, nfcManagers, afcData, nfcData, afcSeason, nfcSeason, schedule, latestCompletedWeek),
+    [afcManagers, nfcManagers, afcData, nfcData, afcSeason, nfcSeason, schedule, latestCompletedWeek]
+  );
+
+  const weeklyConferenceMedians = useMemo(
+    () => ({
+      afc: computeWeeklyConferenceMedian(afcSeason, latestCompletedWeek),
+      nfc: computeWeeklyConferenceMedian(nfcSeason, latestCompletedWeek)
+    }),
+    [afcSeason, nfcSeason, latestCompletedWeek]
+  );
+
   const afcOwners = useMemo(() => buildOwnerMap(afcData.rosters), [afcData.rosters]);
   const nfcOwners = useMemo(() => buildOwnerMap(nfcData.rosters), [nfcData.rosters]);
   const afcHistory = useMemo(
@@ -1084,6 +1155,7 @@ export default function App() {
     { id: "currentWeek", label: `This Week (${selectedWeek})`, shortLabel: `This Week (${selectedWeek})`, icon: Calendar },
     { id: "standings", label: "Standings", shortLabel: "Standings", icon: Trophy },
     { id: "matchups", label: "Matchups", shortLabel: "Matchups", icon: Swords },
+    { id: "grid", label: "Grid", shortLabel: "Grid", icon: LayoutGrid },
     { id: "players", label: "Players", shortLabel: "Players", icon: Search },
     ...(isAdmin ? [{ id: "teams", label: "MS Teams Broadcast", shortLabel: "Broadcast", icon: Megaphone }] : [])
   ];
@@ -1097,6 +1169,7 @@ export default function App() {
     <PlayerModalProvider>
     <RosterModalProvider onOpen={playTeamSound}>
     <TeamDepthChartProvider>
+    <MatchupPreviewProvider>
     <div className="min-h-screen bg-[var(--bg)] text-[var(--text)] p-4 md:p-8 pb-24 md:pb-8">
       {showLoginModal && (
         <AdminLoginModal onClose={() => setShowLoginModal(false)} onSuccess={handleLoginSuccess} />
@@ -1108,6 +1181,8 @@ export default function App() {
       <RosterModal
         afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason} playersDB={playersDB}
         weekProjections={weekProjections} selectedWeek={selectedWeek} byTeamWeek={enrichedByTeamWeek}
+        trophyLinesByManager={trophyLinesByManager} afcStandings={afcStandings} nfcStandings={nfcStandings}
+        weekResultByManager={weekResultByManager}
       />
       <PlayerModal
         playersDB={playersDB} afcOwners={afcOwners} nfcOwners={nfcOwners} afcHistory={afcHistory} nfcHistory={nfcHistory}
@@ -1117,6 +1192,19 @@ export default function App() {
       <TeamDepthChartModal
         playersDB={playersDB} afcOwners={afcOwners} nfcOwners={nfcOwners}
         weekProjections={weekProjections} selectedWeek={selectedWeek}
+      />
+      <MatchupPreviewModal
+        computeIntra={(manager, conf, week) => getIntraInfo(
+          manager, conf === "AFC" ? afcSeason : nfcSeason, allStats, week,
+          conf === "AFC" ? afcData : nfcData, weekProjections, latestCompletedWeek
+        )}
+        computeInter={(manager, conf, week) => getInterInfo(
+          manager, conf, schedule.filter(m => m.week === week), afcSeason, nfcSeason, allStats, week,
+          afcData, nfcData, weekProjections, latestCompletedWeek
+        )}
+        afcSlots={afcData.startingSlots || []} nfcSlots={nfcData.startingSlots || []}
+        playersDB={playersDB} weekProjections={weekProjections} byTeamWeek={enrichedByTeamWeek}
+        onOpenFullMatchup={goToMatchup}
       />
 
       {/* Header Banner -- hidden on Home, which is deliberately just the "I am" picker + radial menu */}
@@ -1188,7 +1276,11 @@ export default function App() {
       <BouncingTrophies enabled={activeTab !== "home"} />
       <FallingPhotos enabled={activeTab !== "home"} />
       <DancingStickmen enabled={activeTab !== "home"} />
-      <RandomNameBubble enabled={activeTab !== "home"} afcData={afcData} nfcData={nfcData} />
+      <RandomNameBubble
+        enabled={activeTab !== "home"} afcData={afcData} nfcData={nfcData}
+        trophyLinesByManager={trophyLinesByManager} afcStandings={afcStandings} nfcStandings={nfcStandings}
+        weekResultByManager={weekResultByManager}
+      />
 
       <main className="max-w-7xl mx-auto">
         {/* Desktop Navigation Tabs -- also hidden on Home; the radial menu is its navigation */}
@@ -1220,7 +1312,8 @@ export default function App() {
         {/* TAB: CURRENT WEEK */}
         {activeTab === "currentWeek" && (
           <CurrentWeekView
-            onGoToMatchup={goToMatchup} selectedWeek={selectedWeek} isWeekFinal={isSelectedWeekFinal}
+            onGoToMatchup={goToMatchup} selectedWeek={selectedWeek} onSelectWeek={setSelectedWeek}
+            currentNflWeek={nflState.week} seasonWeeks={SEASON_WEEKS} isWeekFinal={isSelectedWeekFinal}
             weeklyAwards={weeklyAwards} nflGames={enrichedNflGames}
             myTeamNflTeams={myTeamNflTeams} myTeamManager={myTeamManager}
             myTeamIntra={myTeamIntra} myTeamInter={myTeamInter} myTeamConf={myTeamConf}
@@ -1229,6 +1322,7 @@ export default function App() {
             byTeamWeek={enrichedByTeamWeek}
             afcSlots={afcData.startingSlots || []} nfcSlots={nfcData.startingSlots || []}
             afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
+            afcStandings={afcStandings} nfcStandings={nfcStandings} weekBigPlays={weekBigPlays}
           />
         )}
 
@@ -1274,17 +1368,47 @@ export default function App() {
               )}
             </div>
 
-            {showAfc && <StandingsTable conf="AFC" rows={afcStandings} />}
-            {showNfc && <StandingsTable conf="NFC" rows={nfcStandings} />}
+            <div className="inline-flex rounded-full bg-[var(--surface2)] border border-[var(--border)] p-1 gap-1">
+              {[["overview", "Overview"], ["trends", "Trends"]].map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setStandingsView(id)}
+                  className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all duration-200 ${
+                    standingsView === id ? "bg-[var(--accent)] text-[var(--accent-text)]" : "text-[var(--text2)] hover:text-[var(--text)]"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {standingsView === "overview" && (
+              <>
+                {showAfc && <StandingsTable conf="AFC" rows={afcStandings} afcData={afcData} nfcData={nfcData} />}
+                {showNfc && <StandingsTable conf="NFC" rows={nfcStandings} afcData={afcData} nfcData={nfcData} />}
+              </>
+            )}
+
+            {standingsView === "trends" && (
+              <StandingsTrendChart
+                history={standingsHistory} weeklyHistory={weeklyPfPaHistory} weeklyMedians={weeklyConferenceMedians}
+                afcManagers={afcManagers} nfcManagers={nfcManagers}
+                hexColorMap={teamHexColorMap} logoMap={teamLogoMap} confFilter={confFilter} latestCompletedWeek={latestCompletedWeek}
+              />
+            )}
           </div>
         )}
 
-        {/* TAB: MATCHUPS (merged Weekly Matchups + Schedule -- same schedule/score data, two pivots) */}
+        {/* TAB: MATCHUPS (merged Weekly Matchups + Schedule -- same schedule/score data, two pivots.
+             The Grid used to be a third pivot here -- it's now its own top-level tab, see below,
+             since it's a different-enough view (whole-league/whole-season at once) to earn its own
+             spot in the nav rather than being buried a click into Matchups.) */}
         {activeTab === "matchups" && (
           <div className="space-y-8 max-w-7xl mx-auto w-full">
-            {(matchupsView === "season" || matchupsView === "grid") && (
+            {matchupsView === "season" && (
               <div className="inline-flex rounded-full bg-[var(--surface2)] border border-[var(--border)] p-1 gap-1">
-                {[["week", "Weekly"], ["season", "Full Season"], ["grid", "Grid"]].map(([id, label]) => (
+                {[["week", "Weekly"], ["season", "Full Season"]].map(([id, label]) => (
                   <button
                     key={id}
                     type="button"
@@ -1312,15 +1436,6 @@ export default function App() {
               />
             )}
 
-            {matchupsView === "grid" && (
-              <SeasonGridTab
-                afcSeason={afcSeason} nfcSeason={nfcSeason} crossSchedule={schedule}
-                afcManagers={afcManagers} nfcManagers={nfcManagers}
-                seasonWeeks={SEASON_WEEKS} currentWeek={nflState.week}
-                onGoToMatchup={(manager, week) => goToMatchup(manager, week)}
-              />
-            )}
-
             {matchupsView === "week" && (
               <>
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6 items-start">
@@ -1329,7 +1444,7 @@ export default function App() {
               <div>
                 <label className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)] block mb-1">View</label>
                 <div className="inline-flex rounded-full bg-[var(--surface2)] border border-[var(--border)] p-1 gap-1">
-                  {[["week", "Weekly"], ["season", "Full Season"], ["grid", "Grid"]].map(([id, label]) => (
+                  {[["week", "Weekly"], ["season", "Full Season"]].map(([id, label]) => (
                     <button
                       key={id}
                       type="button"
@@ -1374,10 +1489,29 @@ export default function App() {
               </div>
             </div>
 
+            {/* Your own matchup pinned to the top of the full manager list -- same reasoning as
+                CurrentWeekView: this is the one card here that's actually about you, so it
+                shouldn't require scrolling past the league-wide trophies and every other
+                manager's card first. */}
+            {myTeamManager && (
+              <div className="space-y-3">
+                <p className="tracking-wider text-xs uppercase font-semibold text-[var(--muted)]">Your Matchup</p>
+                <ManagerMatchupRow
+                  manager={myTeamManager} conf={myTeamConf} intra={myTeamIntra} inter={myTeamInter}
+                  afcSlots={afcData.startingSlots || []} nfcSlots={nfcData.startingSlots || []} playersDB={playersDB}
+                  weekProjections={weekProjections} byTeamWeek={enrichedByTeamWeek} week={selectedWeek}
+                  highlightTeams={matchupsHighlightTeams} onSelectGame={toggleMatchupsHighlightGame}
+                />
+              </div>
+            )}
+
             {/* goToMatchup (not setSelectedManager alone) resets the conference filter to ALL first --
                 otherwise clicking a trophy for a manager outside the currently-filtered conference
                 just silently does nothing, since their card is filtered out of view. */}
-            <WeeklyHighlights awards={weeklyAwards} benchPointsAward={benchPointsAward} week={selectedWeek} isWeekFinal={isSelectedWeekFinal} onSelectManager={goToMatchup} />
+            <WeeklyHighlights
+              awards={weeklyAwards} benchPointsAward={benchPointsAward} week={selectedWeek} isWeekFinal={isSelectedWeekFinal} onSelectManager={goToMatchup}
+              afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason} playersDB={playersDB}
+            />
             <PlayerHighlights
               afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
               week={selectedWeek} weekProjections={weekProjections} playersDB={playersDB}
@@ -1386,6 +1520,7 @@ export default function App() {
               afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
               week={selectedWeek} playersDB={playersDB}
             />
+            <NflBigPlaysHighlights bigPlays={weekBigPlays} />
 
             {showAfc && (
               <div className="space-y-3">
@@ -1448,6 +1583,18 @@ export default function App() {
             </div>
               </>
             )}
+          </div>
+        )}
+
+        {/* TAB: GRID (whole-league season schedule grid, its own tab -- see comment above Matchups) */}
+        {activeTab === "grid" && (
+          <div className="max-w-7xl mx-auto w-full">
+            <SeasonGridTab
+              afcSeason={afcSeason} nfcSeason={nfcSeason} crossSchedule={schedule}
+              afcManagers={afcManagers} nfcManagers={nfcManagers}
+              seasonWeeks={SEASON_WEEKS} currentWeek={nflState.week}
+              latestCompletedWeek={latestCompletedWeek}
+            />
           </div>
         )}
 
@@ -1622,6 +1769,7 @@ Full Standings & Scoreboard: https://lenzone.vercel.app`}
       </nav>
       )}
     </div>
+    </MatchupPreviewProvider>
     </TeamDepthChartProvider>
     </RosterModalProvider>
     </PlayerModalProvider>

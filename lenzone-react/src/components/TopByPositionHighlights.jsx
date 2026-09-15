@@ -29,8 +29,13 @@ export default function TopByPositionHighlights({ afcData, nfcData, afcSeason, n
             <div className="flex items-center gap-2 mb-3">
               <PositionBadge position={pos} />
               <span className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">Top {byPosition[pos].length} {pos}</span>
+              {byPosition[pos].length > 5 && (
+                <span className="text-[9px] text-[var(--muted)] italic ml-auto">scroll for more</span>
+              )}
             </div>
-            <div className="space-y-1">
+            {/* Card shows ~5 rows at a time -- the other 5 (of up to 10) are a scroll away inside
+                the card instead of growing every card's height to fit the longest list. */}
+            <div className="space-y-1 max-h-[15.5rem] overflow-y-auto scroll-thin pr-1">
               {byPosition[pos].map((entry, i) => {
                 const { name, team, number } = playerLabel(playersDB, entry.id);
                 return (

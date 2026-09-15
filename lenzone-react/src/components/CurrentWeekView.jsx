@@ -8,11 +8,14 @@ import TopByPositionHighlights from './TopByPositionHighlights';
 import MyPlayerHighlights from './MyPlayerHighlights';
 import ManagerMatchupRow from './ManagerMatchupRow';
 import NflGamesPanel from './NflGamesPanel';
+import CopyRecapButton from './CopyRecapButton';
+import NflBigPlaysHighlights from './NflBigPlaysHighlights';
 
 export default function CurrentWeekView({
-  onGoToMatchup, selectedWeek, isWeekFinal, weeklyAwards, nflGames, myTeamNflTeams,
+  onGoToMatchup, selectedWeek, onSelectWeek, currentNflWeek, seasonWeeks, isWeekFinal, weeklyAwards, nflGames, myTeamNflTeams,
   myTeamManager, myTeamIntra, myTeamInter, myTeamConf, myTeamRoster, myTeamConfData, myTeamFallbackField, myTeamPlayersPoints,
-  playersDB, weekProjections, byTeamWeek, afcSlots, nfcSlots, afcData, nfcData, afcSeason, nfcSeason
+  playersDB, weekProjections, byTeamWeek, afcSlots, nfcSlots, afcData, nfcData, afcSeason, nfcSeason,
+  afcStandings, nfcStandings, weekBigPlays
 }) {
   const goToManagerMatchup = (manager) => onGoToMatchup(manager);
   const logoUrl = useTeamLogo(myTeamManager);
@@ -57,22 +60,35 @@ export default function CurrentWeekView({
 
   return (
     <div className="space-y-10 max-w-7xl mx-auto w-full">
-      <div className="space-y-3">
-        <p className="tracking-wider text-xs uppercase font-semibold text-[var(--muted)]">This Week (Week {selectedWeek})</p>
-        <WeeklyHighlights
-          awards={weeklyAwards} week={selectedWeek} isWeekFinal={isWeekFinal}
-          onSelectManager={goToManagerMatchup}
-        />
-        <PlayerHighlights
+      {/* Week selector is the very first thing on the page -- it drives EVERYTHING below it
+          (Your Matchups included), so it needs to sit above all of that, not buried inside the
+          league-wide trophies section further down. Defaults to the real current NFL week (see
+          App.jsx's one-time didSetInitialWeek effect), always called out as "(current)" here so
+          it's obvious once you've browsed to a different week. */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <label className="tracking-wider text-xs uppercase font-semibold text-[var(--muted)]">Week</label>
+          <select
+            value={selectedWeek}
+            onChange={(e) => onSelectWeek(Number(e.target.value))}
+            className="bg-[var(--bg)] border border-[var(--border)]/80 text-sm font-bold rounded-lg px-2 py-1 text-[var(--text)]"
+          >
+            {Array.from({ length: seasonWeeks }, (_, i) => i + 1).map(w => (
+              <option key={w} value={w}>Week {w}{w === currentNflWeek ? " (current)" : ""}</option>
+            ))}
+          </select>
+        </div>
+        <CopyRecapButton
+          week={selectedWeek} weeklyAwards={weeklyAwards} isWeekFinal={isWeekFinal}
           afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
-          week={selectedWeek} weekProjections={weekProjections} playersDB={playersDB}
-        />
-        <TopByPositionHighlights
-          afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
-          week={selectedWeek} playersDB={playersDB}
+          weekProjections={weekProjections} playersDB={playersDB}
+          afcStandings={afcStandings} nfcStandings={nfcStandings}
         />
       </div>
 
+      {/* "Your Matchups"/"Your Player Trophies" comes next -- this is the one section that's
+          actually about you, not the whole league, so it shouldn't require scrolling past three
+          league-wide sections to reach it. */}
       {myTeamManager && (
         <div className="space-y-3 w-full">
           <div className="flex items-center justify-between">
@@ -94,7 +110,7 @@ export default function CurrentWeekView({
             myTeamRoster={myTeamRoster} myTeamPlayersPoints={myTeamPlayersPoints} weekProjections={weekProjections}
             myTeamConfData={myTeamConfData} myTeamFallbackField={myTeamFallbackField} playersDB={playersDB}
             nflGames={nflGames} week={selectedWeek} myPlayersByNflTeam={myPlayersByNflTeam}
-            onSelectGame={toggleGame}
+            onSelectGame={toggleGame} weekBigPlays={weekBigPlays}
           />
           {/* Same component as the Matchups tab -- identical scores, win%, and "Expand Rosters"
               (both sides' full lineups) so nothing here can drift from what that tab shows. Header
@@ -108,6 +124,24 @@ export default function CurrentWeekView({
           />
         </div>
       )}
+
+      <div className="space-y-3">
+        <p className="tracking-wider text-xs uppercase font-semibold text-[var(--muted)]">This Week (Week {selectedWeek})</p>
+        <WeeklyHighlights
+          awards={weeklyAwards} week={selectedWeek} isWeekFinal={isWeekFinal}
+          onSelectManager={goToManagerMatchup}
+          afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason} playersDB={playersDB}
+        />
+        <PlayerHighlights
+          afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
+          week={selectedWeek} weekProjections={weekProjections} playersDB={playersDB}
+        />
+        <TopByPositionHighlights
+          afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
+          week={selectedWeek} playersDB={playersDB}
+        />
+        <NflBigPlaysHighlights bigPlays={weekBigPlays} />
+      </div>
 
       <NflGamesPanel
         games={nflGames} week={selectedWeek} myTeamNflTeams={myTeamNflTeams} myPlayersByNflTeam={myPlayersByNflTeam}

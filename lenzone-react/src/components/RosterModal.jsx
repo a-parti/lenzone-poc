@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { useRosterModal } from '../context/RosterModalContext';
 import { useTeamLogo } from '../context/TeamLogoContext';
@@ -9,8 +9,9 @@ import { scoringFieldFor } from '../lib/players';
 import { useEscapeKey } from './shared';
 import { nextModalZ } from '../lib/modalStack';
 import { getRealName } from '../lib/realNames';
+import { pickSpeechBubbleLine, findRankAndConf } from '../lib/speechBubble';
 
-export default function RosterModal({ afcData, nfcData, afcSeason, nfcSeason, playersDB, weekProjections, selectedWeek, byTeamWeek }) {
+export default function RosterModal({ afcData, nfcData, afcSeason, nfcSeason, playersDB, weekProjections, selectedWeek, byTeamWeek, trophyLinesByManager, afcStandings, nfcStandings, weekResultByManager }) {
   const { target, closeRoster } = useRosterModal();
   useEscapeKey(closeRoster);
   // Claims a fresh top-of-stack z-index each time this opens, so it renders above whatever else
@@ -23,6 +24,18 @@ export default function RosterModal({ afcData, nfcData, afcSeason, nfcSeason, pl
   // many hooks this component calls from one render to the next, which breaks React's hook order
   // and throws in dev. Passing it undefined when there's no target yet is harmless.
   const logoUrl = useTeamLogo(target?.manager);
+  // realName/bubbleText must also be computed unconditionally (same reasoning as useTeamLogo
+  // above) -- getRealName/pickSpeechBubbleLine are cheap pure functions, safe to call with a null
+  // target. Memoized so the random pick doesn't flicker between lines on unrelated re-renders
+  // while the same roster stays open.
+  const realName = target ? getRealName(afcData, nfcData, target.manager) : null;
+  const bubbleText = useMemo(() => {
+    if (!target || !realName) return null;
+    const { rank, conf } = findRankAndConf(target.manager, afcStandings, nfcStandings);
+    return pickSpeechBubbleLine(realName, target.manager, {
+      trophyLines: trophyLinesByManager?.[target.manager], rank, conf, weekResult: weekResultByManager?.[target.manager]
+    });
+  }, [target, realName, trophyLinesByManager, afcStandings, nfcStandings, weekResultByManager]);
   if (!target) return null;
 
   const confData = target.conf === 'AFC' ? afcData : nfcData;
@@ -30,7 +43,6 @@ export default function RosterModal({ afcData, nfcData, afcSeason, nfcSeason, pl
   const roster = confData.rosters.find(r => r.manager === target.manager);
   const fallbackField = scoringFieldFor(confData.receptionPoints || 0);
   const playersPoints = season?.rosterSnapshotByWeek?.[selectedWeek]?.[target.manager]?.playersPoints;
-  const realName = getRealName(afcData, nfcData, target.manager);
 
   return (
     <div className="fixed inset-0 bg-[var(--bg)]/80 backdrop-blur-sm flex items-center justify-center p-4" style={{ zIndex: z }} onClick={closeRoster}>
@@ -51,10 +63,10 @@ export default function RosterModal({ afcData, nfcData, afcSeason, nfcSeason, pl
             )}
             {/* A little speech bubble pointing at the logo, not just plain caption text underneath
                 -- "who's actually behind this team" reads more like an introduction that way. */}
-            {realName && (
-              <div className="absolute -top-2 left-[85%] z-10 whitespace-nowrap pointer-events-none">
+            {bubbleText && (
+              <div className="absolute -top-2 left-[85%] z-10 w-44 pointer-events-none">
                 <div className="relative bg-[var(--surface)] border border-[var(--border)] rounded-xl px-2.5 py-1 shadow-md">
-                  <span className="text-xs font-semibold text-[var(--text)]">I'm {realName}</span>
+                  <span className="text-xs font-semibold text-[var(--text)] leading-snug">{bubbleText}</span>
                   <div className="absolute top-1/2 -left-[5px] -translate-y-1/2 w-2.5 h-2.5 bg-[var(--surface)] border-l border-b border-[var(--border)] rotate-45" />
                 </div>
               </div>

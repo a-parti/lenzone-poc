@@ -239,6 +239,9 @@ function summarizePlayerEntries(entries) {
   // pick the max diff without checking its sign. Same the other way for busts.
   const risers = withBoth.filter(e => e.actual > e.projected);
   const busts = withBoth.filter(e => e.actual < e.projected);
+  // Worth at least 1 projected point for "reliable" to mean something -- a 0.2-projected kicker
+  // landing within 0.1 pts of that projection isn't an impressive read, it's a rounding error.
+  const reliablePool = withBoth.filter(e => e.projected >= 1);
   const maxBy = (list, fn) => list.length ? list.reduce((a, b) => (fn(b) > fn(a) ? b : a)) : null;
   const minBy = (list, fn) => list.length ? list.reduce((a, b) => (fn(b) < fn(a) ? b : a)) : null;
 
@@ -246,7 +249,8 @@ function summarizePlayerEntries(entries) {
     highestProjected: maxBy(withProjOnly, e => e.projected),
     highestActual: maxBy(withActual, e => e.actual),
     biggestRiser: maxBy(risers, e => e.actual - e.projected),
-    biggestBust: minBy(busts, e => e.actual - e.projected)
+    biggestBust: minBy(busts, e => e.actual - e.projected),
+    mostReliable: minBy(reliablePool, e => Math.abs(e.actual - e.projected))
   };
 }
 
@@ -295,7 +299,90 @@ export function computeTopByPosition(afcData, nfcData, afcSeason, nfcSeason, wee
   seen.forEach(entry => { if (byPosition[entry.position]) byPosition[entry.position].push(entry); });
   TOP_BY_POSITION_SLOTS.forEach(pos => {
     byPosition[pos].sort((a, b) => b.points - a.points);
-    byPosition[pos] = byPosition[pos].slice(0, 5);
+    // Top 10, not top 5 -- the card only shows 5 at a time (scrolls for 6-10), but the data itself
+    // should have the extra 5 ready rather than the UI's viewport size dictating how much we compute.
+    byPosition[pos] = byPosition[pos].slice(0, 10);
   });
   return byPosition;
+}
+
+// Which slot types a given real position is eligible to fill, mirroring Sleeper's own flex rules.
+const FLEX_ELIGIBLE = new Set(['RB', 'WR', 'TE']);
+const SUPERFLEX_ELIGIBLE = new Set(['QB', 'RB', 'WR', 'TE']);
+function eligibleForSlot(slot, position) {
+  if (slot === 'FLEX' || slot === 'REC_FLEX' || slot === 'WRRB_FLEX') return FLEX_ELIGIBLE.has(position);
+  if (slot === 'SUPER_FLEX' || slot === 'OP') return SUPERFLEX_ELIGIBLE.has(position);
+  if (slot === 'IDP_FLEX') return true;
+  return slot === position;
+}
+// Fixed (single-position) slots are filled before flexible ones, since a flex slot has strictly
+// more candidates to choose from -- filling it first can wrongly "steal" the one player a fixed
+// slot actually needed. Standard greedy heuristic (same approach most fantasy sites use for this),
+// not a fabricated or invented scoring rule.
+const SLOT_FILL_ORDER = (slot) => (slot === 'FLEX' || slot === 'REC_FLEX' || slot === 'WRRB_FLEX') ? 1
+  : (slot === 'SUPER_FLEX' || slot === 'OP' || slot === 'IDP_FLEX') ? 2 : 0;
+
+// The best possible real score this roster COULD have started this week, given its actual bench --
+// i.e. optimal lineup points. Used for the "Lineup IQ" trophy (actual starters' points / this,
+// as a %) -- a measure of sit/start decision quality, not raw point total (that's Bench Points).
+export function computeOptimalLineupPoints(startingSlots, rosterPlayerIds, playersPoints, playersDB) {
+  const pool = (rosterPlayerIds || [])
+    .filter(id => id && id !== '0')
+    .map(id => ({ id, position: playersDB?.[id]?.position, points: playersPoints?.[id] }))
+    .filter(e => e.position && e.points > 0);
+  const slots = [...(startingSlots || [])].sort((a, b) => SLOT_FILL_ORDER(a) - SLOT_FILL_ORDER(b));
+  const used = new Set();
+  let total = 0;
+  slots.forEach(slot => {
+    const candidates = pool
+      .filter(e => !used.has(e.id) && eligibleForSlot(slot, e.position))
+      .sort((a, b) => b.points - a.points);
+    if (candidates.length) { used.add(candidates[0].id); total += candidates[0].points; }
+  });
+  return total;
+}
+
+// Finds the best (highest-yardage) play in a sorted `plays` list (see espnApi.js fetchWeekBigPlays)
+// that's actually attributable to one of YOUR rostered players -- matched by real NFL team (via
+// myPlayersByNflTeam, the same map CurrentWeekView already builds for the NFL games panel) AND a
+// case-insensitive last-name match against ESPN's real play text (e.g. "D.Lock pass ... to
+// J.Smith-Njigba for 45 yards" contains "Smith-Njigba"). Heuristic, not a structured player id
+// join (ESPN's free-text play description is all that's available) -- good enough for a fun
+// trophy, and only ever surfaces real ESPN text, never invents a play.
+export function findMyBigPlay(plays, myPlayersByNflTeam) {
+  if (!plays?.length || !myPlayersByNflTeam) return null;
+  for (const play of plays) {
+    const candidates = myPlayersByNflTeam.get(play.team) || [];
+    for (const p of candidates) {
+      const lastName = p.name?.trim().split(/\s+/).slice(-1)[0];
+      if (lastName && lastName.length > 2 && play.text?.toLowerCase().includes(lastName.toLowerCase())) {
+        return { ...play, playerId: p.playerId, playerName: p.name, position: p.position };
+      }
+    }
+  }
+  return null;
+}
+
+// League-wide "Lineup IQ" -- whose actual starting lineup captured the highest % of their own
+// roster's optimal (best-possible-with-actual-bench) points this week. Real posted points only
+// (mirrors computeBenchPointsAward); a roster with 0 optimal points (nobody's played yet) is
+// skipped rather than divide-by-zero.
+export function computeLineupAccuracy(afcData, nfcData, afcSeason, nfcSeason, week, playersDB) {
+  const entries = [];
+  const ingest = (confData, season) => {
+    (confData?.rosters || []).forEach(r => {
+      const snapshot = season?.rosterSnapshotByWeek?.[week]?.[r.manager];
+      if (!snapshot) return;
+      const actual = (snapshot.starters || []).reduce((sum, id) => {
+        const pts = snapshot.playersPoints?.[id];
+        return sum + (pts > 0 ? pts : 0);
+      }, 0);
+      const optimal = computeOptimalLineupPoints(confData.startingSlots, r.players, snapshot.playersPoints, playersDB);
+      if (optimal > 0) entries.push({ manager: r.manager, actual, optimal, pct: (actual / optimal) * 100 });
+    });
+  };
+  ingest(afcData, afcSeason);
+  ingest(nfcData, nfcSeason);
+  if (entries.length === 0) return null;
+  return [...entries].sort((a, b) => b.pct - a.pct)[0];
 }

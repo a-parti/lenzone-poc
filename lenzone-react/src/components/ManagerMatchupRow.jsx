@@ -236,7 +236,17 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
   // "final = green" -- so a final score can read red if that team came in under its projection.
   const myBigColor = SCORE_COLOR[scoreState({ hasActual: isFinal || isLive, isLive, actual: isFinal ? myScore : null, projected: myProjected })];
   const oppBigColor = SCORE_COLOR[scoreState({ hasActual: isFinal || isLive, isLive, actual: isFinal ? oppScore : null, projected: oppProjected })];
-  const showCaption = isLive && showScores;
+  // Shown post-final too (not just live/pregame) -- "what was it projected to be" stays a useful
+  // reference point even once the real result is known, not just while the outcome's in doubt.
+  const showCaption = showScores && (isLive || isFinal);
+  // Win/loss/tie is its OWN explicit signal, independent of the score coloring above -- the big
+  // number's color answers "did you beat YOUR OWN projection", which a team can do while still
+  // losing the matchup outright, so a reader needs a second, unambiguous W/L/T marker to know who
+  // actually won.
+  const result = isFinal && myScore != null && oppScore != null
+    ? (myScore > oppScore ? "W" : myScore < oppScore ? "L" : "T")
+    : null;
+  const RESULT_STYLE = { W: "bg-[var(--pos)]/20 text-[var(--pos)]", L: "bg-[var(--neg)]/20 text-[var(--neg)]", T: "bg-[var(--muted)]/20 text-[var(--muted)]" };
   const [showRosters, setShowRosters] = useState(false);
   return (
     <div className={`bg-[var(--bg)]/60 border ${accentBorder} rounded-lg p-3`}>
@@ -251,13 +261,22 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
           "TheRealHousehusbandsOfIB" down to a couple of characters on a phone. */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 sm:gap-2">
         <div className="flex items-center justify-between sm:flex-col sm:items-end sm:justify-start gap-2 sm:gap-0.5 min-w-0 flex-1">
-          <TeamName manager={myTeam} conf={myConf} className="font-semibold truncate sm:w-full sm:justify-end" />
+          <div className="flex items-center gap-1.5 min-w-0 sm:w-full sm:justify-end">
+            {result && <span className={`text-sm font-black px-2 py-0.5 rounded shrink-0 ${RESULT_STYLE[result]}`}>{result}</span>}
+            <TeamName manager={myTeam} conf={myConf} className="font-semibold truncate" />
+          </div>
           <span className="font-mono leading-tight shrink-0 whitespace-nowrap flex flex-col sm:items-end">
             <span className={`text-lg font-bold ${showScores ? myBigColor : "text-[var(--muted)]"}`}>
               {showScores && bigMy != null ? bigMy.toFixed(2) : "--"}
             </span>
-            {showCaption && myScore != null && (
+            {/* Live: myScore itself IS the blended projected-final (bigMy shows the live-partial
+                actual instead). Final: myScore now equals the real final, so the pregame
+                myProjected is the only meaningful "what was it projected to be" left to show. */}
+            {showCaption && isLive && myScore != null && (
               <span className="text-[10px] text-[var(--proj)]">{myScore.toFixed(2)} proj</span>
+            )}
+            {showCaption && isFinal && myProjected != null && (
+              <span className="text-[10px] text-[var(--proj)]">{myProjected.toFixed(2)} proj</span>
             )}
           </span>
         </div>
@@ -267,13 +286,19 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
           <div className="flex-1 h-px bg-[var(--border)]/60 sm:hidden" />
         </div>
         <div className="flex items-center justify-between sm:flex-col sm:items-start sm:justify-start gap-2 sm:gap-0.5 min-w-0 flex-1">
-          <TeamName manager={opponent} conf={oppConf} className="font-semibold truncate sm:w-full" />
+          <div className="flex items-center gap-1.5 min-w-0 sm:w-full">
+            <TeamName manager={opponent} conf={oppConf} className="font-semibold truncate" />
+            {result && <span className={`text-sm font-black px-2 py-0.5 rounded shrink-0 ${RESULT_STYLE[result === "W" ? "L" : result === "L" ? "W" : "T"]}`}>{result === "W" ? "L" : result === "L" ? "W" : "T"}</span>}
+          </div>
           <span className="font-mono leading-tight shrink-0 whitespace-nowrap flex flex-col">
             <span className={`text-lg font-bold ${showScores ? oppBigColor : "text-[var(--muted)]"}`}>
               {showScores && bigOpp != null ? bigOpp.toFixed(2) : "--"}
             </span>
-            {showCaption && oppScore != null && (
+            {showCaption && isLive && oppScore != null && (
               <span className="text-[10px] text-[var(--proj)]">{oppScore.toFixed(2)} proj</span>
+            )}
+            {showCaption && isFinal && oppProjected != null && (
+              <span className="text-[10px] text-[var(--proj)]">{oppProjected.toFixed(2)} proj</span>
             )}
           </span>
         </div>

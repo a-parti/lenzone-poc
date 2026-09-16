@@ -12,7 +12,7 @@ import {
   computeStats, buildHistory, simulateCombinedPlayoffOdds, computeCrossRecords, computeCrossWeekRecord,
   computeWeeklyAwards, computeProjectedTrophies, buildConferenceList, rankConference, winProbability, roughWinProbability, computePointsAgainst, computeInConfRecord,
   computeCrossPointsAgainst, computeIntraGamesPlayed, computeInterGamesPlayed, buildStandingsHistory,
-  buildWeeklyPfPaHistory, computeWeeklyConferenceMedian, computeWeekResultByManager,
+  buildWeeklyPfPaHistory, computeWeeklyConferenceMedian, computeWeekResultByManager, computeManagerStreaks,
   computeBenchPointsAward
 } from './lib/statsMath';
 import RosterTab from './components/RosterTab';
@@ -1081,6 +1081,12 @@ export default function App() {
     () => computeWeekResultByManager(afcManagers, nfcManagers, afcSeason, nfcSeason, selectedWeek),
     [afcManagers, nfcManagers, afcSeason, nfcSeason, selectedWeek]
   );
+  // Each manager's real current active win/loss streak (2+ games) through the latest completed
+  // week -- feeds both the "Hot/Cold Streak" trophy and the speech bubbles' streak-aware lines.
+  const managerStreaks = useMemo(
+    () => computeManagerStreaks(afcManagers, nfcManagers, afcSeason, nfcSeason, latestCompletedWeek),
+    [afcManagers, nfcManagers, afcSeason, nfcSeason, latestCompletedWeek]
+  );
   const weekRecord = isSelectedWeekFinal
     ? computeCrossWeekRecord(weekCrossPairs, afcSeason.scoreByWeek[selectedWeek] || {}, nfcSeason.scoreByWeek[selectedWeek] || {})
     : { afcWins: 0, nfcWins: 0, ties: 0, counted: 0 };
@@ -1210,7 +1216,7 @@ export default function App() {
         afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason} playersDB={playersDB}
         weekProjections={weekProjections} selectedWeek={selectedWeek} byTeamWeek={enrichedByTeamWeek}
         trophyLinesByManager={trophyLinesByManager} afcStandings={afcStandings} nfcStandings={nfcStandings}
-        weekResultByManager={weekResultByManager}
+        weekResultByManager={weekResultByManager} managerStreaks={managerStreaks}
       />
       <PlayerModal
         playersDB={playersDB} afcOwners={afcOwners} nfcOwners={nfcOwners} afcHistory={afcHistory} nfcHistory={nfcHistory}
@@ -1307,7 +1313,7 @@ export default function App() {
       <RandomNameBubble
         enabled={activeTab !== "home"} afcData={afcData} nfcData={nfcData}
         trophyLinesByManager={trophyLinesByManager} afcStandings={afcStandings} nfcStandings={nfcStandings}
-        weekResultByManager={weekResultByManager}
+        weekResultByManager={weekResultByManager} managerStreaks={managerStreaks}
       />
 
       <main className="max-w-7xl mx-auto">
@@ -1370,7 +1376,7 @@ export default function App() {
             afcSlots={afcData.startingSlots || []} nfcSlots={nfcData.startingSlots || []}
             afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
             afcStandings={afcStandings} nfcStandings={nfcStandings} weekBigPlays={weekBigPlays}
-            seasonResultsByTeam={seasonResultsByTeam}
+            seasonResultsByTeam={seasonResultsByTeam} managerStreaks={managerStreaks}
           />
         )}
 
@@ -1581,6 +1587,7 @@ export default function App() {
             <WeeklyHighlights
               awards={weeklyAwards} benchPointsAward={benchPointsAward} week={selectedWeek} isWeekFinal={isSelectedWeekFinal} onSelectManager={goToMatchup}
               afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason} playersDB={playersDB}
+              managerStreaks={managerStreaks}
             />
             <PlayerHighlights
               afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}

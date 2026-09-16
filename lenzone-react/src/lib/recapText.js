@@ -10,7 +10,7 @@ import { playerLabel } from './players';
 // always included, regardless of who copies it or what they're currently filtered to on-screen.
 export function buildWeeklyRecapText({
   week, weeklyAwards, playerHighlights, lineupAccuracy, worstLineupDecision, benchPointsAward, bigPlays,
-  afcStandingsTop3, nfcStandingsTop3, playersDB
+  managerStreaks, afcStandingsTop3, nfcStandingsTop3, playersDB
 }) {
   const lines = [`LENZONE — Week ${week} Recap`, ''];
 
@@ -46,6 +46,14 @@ export function buildWeeklyRecapText({
   }
   if (lineupAccuracy && lineupAccuracy.pct >= 99.5) {
     potStirrers.push(`✅ ${lineupAccuracy.manager} ran the literal best possible lineup this week (${lineupAccuracy.pct.toFixed(0)}% of optimal). Nothing to say here.`);
+  }
+  if (managerStreaks) {
+    Object.entries(managerStreaks).forEach(([manager, streak]) => {
+      if (!streak || streak.count < 3) return; // only worth calling out at 3+
+      potStirrers.push(streak.type === 'W'
+        ? `🔥 ${manager} has won ${streak.count} straight.`
+        : `🥶 ${manager} has dropped ${streak.count} straight.`);
+    });
   }
   if (potStirrers.length > 0) {
     lines.push('');

@@ -58,6 +58,20 @@ const TIE_LINES = [
   "I'm {name} — a tie. Nobody involved feels good about this."
 ];
 
+// Real MULTI-WEEK streak flavor (2+ games, from computeManagerStreaks) -- distinct from
+// WINNING/LOSING_LINES above, which only ever know about THIS week in isolation. A 4-game skid
+// reads very differently than "lost this week", so this gets its own pool.
+const WIN_STREAK_LINES = [
+  "I'm {name} — {team} has won {count} straight. Building a dynasty, or a fluke. TBD.",
+  "{team} is riding a {count}-game win streak and will not shut up about it.",
+  "{count} in a row for {team}. {name} has never been more insufferable."
+];
+const LOSE_STREAK_LINES = [
+  "I'm {name} — {team} has dropped {count} straight. It's fine. It's all fine.",
+  "{team} is on a {count}-game losing streak. {name} says the schedule is rigged.",
+  "{count} straight losses for {team}. {name} is 'due for one' any week now."
+];
+
 function fill(line, name, team) {
   return line.replace(/\{name\}/g, name).replace(/\{team\}/g, team);
 }
@@ -82,10 +96,10 @@ const RANK_FRAMES = [
 ];
 
 // trophyContext (optional): { trophyLines?: string[], rank?: number, conf?: string, weekResult?:
-// 'W'|'L'|'T' }. trophyLines/weekResult are real, already-computed facts about this manager this
-// week (a trophy actually won, or whether they're actually winning/losing right now) -- built
-// from weeklyAwards/standings/live-score data, never invented here; only the surrounding JOKE
-// text is free-written.
+// 'W'|'L'|'T', streak?: {type:'W'|'L', count:number} }. trophyLines/weekResult/streak are real,
+// already-computed facts about this manager (a trophy actually won, whether they're actually
+// winning/losing right now, or a real multi-week streak) -- built from weeklyAwards/standings/
+// live-score data, never invented here; only the surrounding JOKE text is free-written.
 export function pickSpeechBubbleLine(realName, manager, trophyContext = {}) {
   if (!realName) return null;
   // Custom per-manager lines (lib/speechBubbleOverrides.js) always win -- if someone's been
@@ -94,21 +108,26 @@ export function pickSpeechBubbleLine(realName, manager, trophyContext = {}) {
   if (overrides && overrides.length > 0) {
     return pickFrom(overrides, realName, manager);
   }
-  const { trophyLines, rank, conf, weekResult } = trophyContext;
+  const { trophyLines, rank, conf, weekResult, streak } = trophyContext;
   if (trophyLines && trophyLines.length > 0) {
     const trophy = trophyLines[Math.floor(Math.random() * trophyLines.length)];
     const frame = TROPHY_FRAMES[Math.floor(Math.random() * TROPHY_FRAMES.length)];
     return fill(frame, realName, manager).replace('{trophy}', trophy);
   }
-  // ~40% chance to riff on the real live win/loss state when we have one, ~25% to mention real
-  // standing, otherwise a generic joke -- keeps the ambient bubbles varied rather than always
+  // A real multi-week streak is a stronger, more specific signal than this week alone -- checked
+  // first (~35% of the time when one exists), then this week's result (~30%), then standing
+  // (~20%), otherwise a generic joke. Keeps the ambient bubbles varied rather than always
   // defaulting to whichever real signal happens to be available.
   const roll = Math.random();
-  if (weekResult && roll < 0.4) {
+  if (streak && roll < 0.35) {
+    const pool = streak.type === 'W' ? WIN_STREAK_LINES : LOSE_STREAK_LINES;
+    return fill(pool[Math.floor(Math.random() * pool.length)], realName, manager).replace(/\{count\}/g, streak.count);
+  }
+  if (weekResult && roll < 0.65) {
     const pool = weekResult === 'W' ? WINNING_LINES : weekResult === 'L' ? LOSING_LINES : TIE_LINES;
     return pickFrom(pool, realName, manager);
   }
-  if (rank != null && conf && roll < 0.65) {
+  if (rank != null && conf && roll < 0.85) {
     const frame = RANK_FRAMES[Math.floor(Math.random() * RANK_FRAMES.length)];
     return fill(frame, realName, manager).replace('{rank}', rank).replace('{conf}', conf);
   }

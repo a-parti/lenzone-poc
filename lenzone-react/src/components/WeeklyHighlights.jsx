@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Trophy, Award, TrendingDown, Zap, Flame, Frown, Crosshair, ThumbsDown } from 'lucide-react';
+import { Trophy, Award, TrendingDown, Zap, Flame, Frown, Crosshair, ThumbsDown, Snowflake } from 'lucide-react';
 import { useTeamColor } from '../context/TeamColorContext';
 import { useTeamLogo } from '../context/TeamLogoContext';
 import { computeLineupAccuracy, computeWorstLineupDecision } from '../lib/players';
@@ -73,8 +73,18 @@ function MatchupHighlightCard({ icon: Icon, label, teamA, teamB, scoreA, scoreB,
 // real Trophy icon and the actual final numbers. Clicking a card jumps the matchup grid to that manager.
 export default function WeeklyHighlights({
   awards, benchPointsAward, week, isWeekFinal, onSelectManager,
-  afcData, nfcData, afcSeason, nfcSeason, playersDB
+  afcData, nfcData, afcSeason, nfcSeason, playersDB, managerStreaks
 }) {
+  // Longest active real streak league-wide (2+ games, either direction) -- ties broken by
+  // whichever manager sorts first, since there's no principled real tiebreaker for "equally hot".
+  const longestStreak = useMemo(() => {
+    if (!managerStreaks) return null;
+    let best = null;
+    Object.entries(managerStreaks).forEach(([manager, streak]) => {
+      if (streak && (!best || streak.count > best.streak.count)) best = { manager, streak };
+    });
+    return best;
+  }, [managerStreaks]);
   // "Lineup IQ" needs the same roster snapshot data as Bench Points -- only computed once the
   // week is actually final (a live/in-progress optimal-lineup comparison would flip around as
   // scores keep coming in, unlike the other awards which have a live/projected fallback instead).
@@ -149,6 +159,16 @@ export default function WeeklyHighlights({
           icon={ThumbsDown} label="Left the Most on the Table" name={worstLineupDecision.manager} nameManager={worstLineupDecision.manager}
           value={`Scored ${worstLineupDecision.actual.toFixed(2)}, could've had ${worstLineupDecision.optimal.toFixed(2)} (-${worstLineupDecision.deficit.toFixed(2)})`}
           accent="text-red-400" onClick={() => onSelectManager(worstLineupDecision.manager)}
+        />
+      )}
+      {longestStreak && (
+        <HighlightCard
+          icon={longestStreak.streak.type === 'W' ? Flame : Snowflake}
+          label={longestStreak.streak.type === 'W' ? "Hot Streak" : "Cold Streak"}
+          name={longestStreak.manager} nameManager={longestStreak.manager}
+          value={`${longestStreak.streak.count} straight ${longestStreak.streak.type === 'W' ? "wins" : "losses"}`}
+          accent={longestStreak.streak.type === 'W' ? "text-orange-400" : "text-sky-300"}
+          onClick={() => onSelectManager(longestStreak.manager)}
         />
       )}
     </div>

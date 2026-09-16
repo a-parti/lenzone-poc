@@ -16,7 +16,7 @@ export default function CurrentWeekView({
   onGoToMatchup, selectedWeek, onSelectWeek, currentNflWeek, seasonWeeks, isWeekFinal, weeklyAwards, nflGames, myTeamNflTeams,
   myTeamManager, myTeamIntra, myTeamInter, myTeamConf, myTeamRoster, myTeamConfData, myTeamFallbackField, myTeamPlayersPoints,
   playersDB, weekProjections, byTeamWeek, afcSlots, nfcSlots, afcData, nfcData, afcSeason, nfcSeason,
-  afcStandings, nfcStandings, weekBigPlays, seasonResultsByTeam
+  afcStandings, nfcStandings, weekBigPlays, seasonResultsByTeam, managerStreaks
 }) {
   const goToManagerMatchup = (manager) => onGoToMatchup(manager);
   const logoUrl = useTeamLogo(myTeamManager);
@@ -84,6 +84,7 @@ export default function CurrentWeekView({
           afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
           weekProjections={weekProjections} playersDB={playersDB}
           afcStandings={afcStandings} nfcStandings={nfcStandings} weekBigPlays={weekBigPlays}
+          managerStreaks={managerStreaks}
         />
       </div>
 
@@ -132,6 +133,7 @@ export default function CurrentWeekView({
           awards={weeklyAwards} week={selectedWeek} isWeekFinal={isWeekFinal}
           onSelectManager={goToManagerMatchup}
           afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason} playersDB={playersDB}
+          managerStreaks={managerStreaks}
         />
         <PlayerHighlights
           afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}

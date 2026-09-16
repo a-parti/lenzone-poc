@@ -557,6 +557,39 @@ export function computeWeekResultByManager(afcManagers, nfcManagers, afcSeason, 
   return result;
 }
 
+// Each manager's current active streak (W or L), 2+ games, from real week-by-week intra-conference
+// results through latestCompletedWeek -- null if their last result broke a streak (or they have
+// no completed games yet). Used for both the "Hot/Cold Streak" trophy and the speech bubbles'
+// streak-aware flavor lines (a real 3-game skid reads very differently than just "lost this week").
+export function computeManagerStreaks(afcManagers, nfcManagers, afcSeason, nfcSeason, latestCompletedWeek) {
+  const streaks = {};
+  const build = (managers, season) => {
+    managers.forEach(m => {
+      const results = [];
+      for (let w = 1; w <= latestCompletedWeek; w++) {
+        const pair = (season.scheduleByWeek[w] || []).find(([a, b]) => a === m || b === m);
+        if (!pair) continue;
+        const opp = pair[0] === m ? pair[1] : pair[0];
+        const myScore = season.scoreByWeek[w]?.[m];
+        const oppScore = season.scoreByWeek[w]?.[opp];
+        if (!(myScore > 0 && oppScore > 0)) continue;
+        results.push(myScore > oppScore ? 'W' : myScore < oppScore ? 'L' : 'T');
+      }
+      if (results.length === 0) { streaks[m] = null; return; }
+      const last = results[results.length - 1];
+      let count = 0;
+      for (let i = results.length - 1; i >= 0; i--) {
+        if (results[i] !== last) break;
+        count++;
+      }
+      streaks[m] = (last !== 'T' && count >= 2) ? { type: last, count } : null;
+    });
+  };
+  build(afcManagers, afcSeason);
+  build(nfcManagers, nfcSeason);
+  return streaks;
+}
+
 function median(arr) {
   if (!arr.length) return null;
   const sorted = [...arr].sort((a, b) => a - b);

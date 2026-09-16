@@ -17,7 +17,7 @@ const MAX_AT_ONCE = 2;
 // data-manager specifically so this can find team logos without also matching player headshots,
 // which use the identical rounded-full/object-cover classes and would otherwise be
 // indistinguishable by selector alone.
-export default function RandomNameBubble({ enabled, afcData, nfcData, trophyLinesByManager, afcStandings, nfcStandings, weekResultByManager }) {
+export default function RandomNameBubble({ enabled, afcData, nfcData, trophyLinesByManager, afcStandings, nfcStandings, weekResultByManager, managerStreaks }) {
   const overlayRef = useRef(null);
   // afcStandings/nfcStandings (this app's OWN computed lenzone.xyz standings -- see
   // rankConference() in App.jsx, never raw Sleeper roster.settings) update every time a week's
@@ -27,8 +27,8 @@ export default function RandomNameBubble({ enabled, afcData, nfcData, trophyLine
   // moment the loop first started and silently go stale forever after.
   const latestRef = useRef({});
   useEffect(() => {
-    latestRef.current = { afcData, nfcData, trophyLinesByManager, afcStandings, nfcStandings, weekResultByManager };
-  }, [afcData, nfcData, trophyLinesByManager, afcStandings, nfcStandings, weekResultByManager]);
+    latestRef.current = { afcData, nfcData, trophyLinesByManager, afcStandings, nfcStandings, weekResultByManager, managerStreaks };
+  }, [afcData, nfcData, trophyLinesByManager, afcStandings, nfcStandings, weekResultByManager, managerStreaks]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -45,7 +45,7 @@ export default function RandomNameBubble({ enabled, afcData, nfcData, trophyLine
 
     function fire() {
       if (cancelled) return;
-      const { afcData, nfcData, trophyLinesByManager, afcStandings, nfcStandings, weekResultByManager } = latestRef.current;
+      const { afcData, nfcData, trophyLinesByManager, afcStandings, nfcStandings, weekResultByManager, managerStreaks } = latestRef.current;
       const candidates = Array.from(document.querySelectorAll('img[data-manager]')).filter(el => {
         if (activeEls.has(el)) return false;
         const r = el.getBoundingClientRect();
@@ -62,7 +62,8 @@ export default function RandomNameBubble({ enabled, afcData, nfcData, trophyLine
           const realName = getRealName(afcData, nfcData, manager);
           const { rank, conf } = findRankAndConf(manager, afcStandings, nfcStandings);
           const text = pickSpeechBubbleLine(realName, manager, {
-            trophyLines: trophyLinesByManager?.[manager], rank, conf, weekResult: weekResultByManager?.[manager]
+            trophyLines: trophyLinesByManager?.[manager], rank, conf,
+            weekResult: weekResultByManager?.[manager], streak: managerStreaks?.[manager]
           });
           if (text) showBubble(el, manager, text);
         });

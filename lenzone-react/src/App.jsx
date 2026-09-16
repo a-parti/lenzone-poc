@@ -488,9 +488,16 @@ function estimateTeamScore(manager, confData, season, week, weekProjections, lat
 
 const VALID_TABS = new Set(["home", "currentWeek", "standings", "matchups", "grid", "players", "news", "teams", "charter"]);
 
+// The hash can carry a "?week=N" suffix (e.g. "#matchups?week=3") so a shared link -- see
+// WeeklyScoresBarChart's "Copy Link" -- lands directly on the right week, not just the right tab.
 function tabFromHash() {
-  const id = window.location.hash.slice(1);
+  const id = window.location.hash.slice(1).split('?')[0];
   return VALID_TABS.has(id) ? id : null;
+}
+function weekFromHash() {
+  const query = window.location.hash.slice(1).split('?')[1];
+  const week = query ? Number(new URLSearchParams(query).get('week')) : null;
+  return Number.isInteger(week) && week >= 1 ? week : null;
 }
 
 export default function App() {
@@ -523,7 +530,17 @@ export default function App() {
   // the old Schedule tab), merged into a single tab with a toggle instead of two separate tabs.
   const [matchupsView, setMatchupsView] = useState("week");
   const [standingsView, setStandingsView] = useState("overview");
-  const [selectedWeek, setSelectedWeek] = useState(1);
+  const [selectedWeek, setSelectedWeek] = useState(() => weekFromHash() || 1);
+  // A shared "Copy Link" URL (see WeeklyScoresBarChart) carries the week in the hash too --
+  // back/forward navigation should honor it the same way it already does for the tab.
+  useEffect(() => {
+    const handler = () => {
+      const w = weekFromHash();
+      if (w) setSelectedWeek(w);
+    };
+    window.addEventListener('popstate', handler);
+    return () => window.removeEventListener('popstate', handler);
+  }, []);
   const [selectedManager, setSelectedManager] = useState("ALL");
   // Clicking a game in the Matchups tab's NFL games panel highlights any players from it across
   // every matchup card on the page -- multiple games can be selected at once. A Set for O(1)
@@ -692,7 +709,10 @@ export default function App() {
   // reports, once that loads -- not always week 1. Only does this ONCE (the ref guard), so it
   // doesn't yank the viewer back to the current week if they've already navigated to a different
   // one and this effect re-fires from an unrelated nflState update (e.g. a background refresh).
-  const didSetInitialWeek = useRef(false);
+  // A week deep-linked via the URL hash (see weekFromHash/"Copy Link") wins over the "default to
+  // the current real NFL week" behavior below -- seeding the guard ref as already-fired skips it
+  // entirely instead of yanking a shared link back to whatever week it happens to be right now.
+  const didSetInitialWeek = useRef(weekFromHash() != null);
   useEffect(() => {
     if (didSetInitialWeek.current || !nflState.week) return;
     didSetInitialWeek.current = true;
@@ -1662,7 +1682,7 @@ export default function App() {
               Everyone Else's Matchups
             </p>
 
-            <WeeklyScoresBarChart afcManagers={afcManagers} nfcManagers={nfcManagers} afcSeason={afcSeason} nfcSeason={nfcSeason} schedule={schedule} week={selectedWeek} logoMap={teamLogoMap} />
+            <WeeklyScoresBarChart afcManagers={afcManagers} nfcManagers={nfcManagers} afcSeason={afcSeason} nfcSeason={nfcSeason} schedule={schedule} week={selectedWeek} logoMap={teamLogoMap} afcData={afcData} nfcData={nfcData} />
 
             {(() => {
               const afcBlock = showAfc && (
@@ -1840,7 +1860,7 @@ export default function App() {
             {/* Visual reference for whoever's writing the recap -- same "All Teams" chart as the
                 Matchups tab, not part of the copyable markdown text below (Teams chat can't render
                 a live SVG from pasted markdown). */}
-            <WeeklyScoresBarChart afcManagers={afcManagers} nfcManagers={nfcManagers} afcSeason={afcSeason} nfcSeason={nfcSeason} schedule={schedule} week={selectedWeek} logoMap={teamLogoMap} />
+            <WeeklyScoresBarChart afcManagers={afcManagers} nfcManagers={nfcManagers} afcSeason={afcSeason} nfcSeason={nfcSeason} schedule={schedule} week={selectedWeek} logoMap={teamLogoMap} afcData={afcData} nfcData={nfcData} />
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>

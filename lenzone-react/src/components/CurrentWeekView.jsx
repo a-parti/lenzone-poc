@@ -99,6 +99,7 @@ export default function CurrentWeekView({
         <WeeklyScoresBarChart
           afcManagers={afcManagers} nfcManagers={nfcManagers} afcSeason={afcSeason} nfcSeason={nfcSeason}
           schedule={schedule} week={selectedWeek} logoMap={logoMap} hexColorMap={hexColorMap}
+          afcData={afcData} nfcData={nfcData}
           focusManager={myTeamManager}
           focusOpponents={[myTeamIntra?.opponent, myTeamInter?.opponent].filter(Boolean)}
         />

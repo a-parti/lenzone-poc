@@ -191,7 +191,7 @@ export function SkeletonRows({ rows = 3, className = "" }) {
 const SWATCH_STRIP_WIDTH = 190;
 
 export function ThemeToggle() {
-  const { scheme, setScheme, mode, setMode } = useTheme();
+  const { scheme, setSchemeManually, mode, setMode } = useTheme();
   const stripRef = useRef(null);
 
   // Whenever the active scheme changes -- picked here, forced by a manager selection, or the
@@ -242,7 +242,7 @@ export function ThemeToggle() {
               data-scheme-id={s.id}
               aria-label={`Switch to ${s.label} color scheme`}
               aria-pressed={scheme === s.id}
-              onClick={() => setScheme(s.id)}
+              onClick={() => setSchemeManually(s.id)}
               className={`w-5 h-5 rounded-full shrink-0 transition-all duration-200 ${scheme === s.id ? "ring-2 ring-offset-2 ring-offset-[var(--surface2)] ring-[var(--text)] scale-110" : "opacity-70 hover:opacity-100"}`}
               style={{ backgroundColor: s.swatch }}
             />

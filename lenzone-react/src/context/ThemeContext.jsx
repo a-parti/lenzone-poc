@@ -13,7 +13,7 @@ export const COLOR_SCHEMES = [
 // is drawn from on a fresh visit (see initialScheme below).
 export const ALL_SCHEMES = [...COLOR_SCHEMES, ...NFL_TEAM_SCHEMES];
 
-const ThemeContext = createContext({ scheme: 'accent', mode: 'dark', setScheme: () => {}, setMode: () => {}, rerollScheme: () => {}, pickRandomScheme: () => {} });
+const ThemeContext = createContext({ scheme: 'accent', mode: 'dark', setScheme: () => {}, setSchemeManually: () => {}, setMode: () => {}, rerollScheme: () => {}, pickRandomScheme: () => {} });
 
 function systemPrefersDark() {
   return typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches;
@@ -71,6 +71,15 @@ export function ThemeProvider({ children }) {
     localStorage.setItem('lenzone_scheme', id);
   };
 
+  // The swatch strip (shared.jsx) calls THIS, not setScheme directly -- it marks the pick as an
+  // explicit, sticky choice (a separate flag from the plain 'lenzone_scheme' value, which also
+  // gets written by automatic picks like pickRandomScheme below) so that choice survives things
+  // like picking a different "I am" team later, not just page reloads.
+  const setSchemeManually = (id) => {
+    setScheme(id);
+    localStorage.setItem('lenzone_scheme_manual', 'true');
+  };
+
   // Called every time the viewer lands back on the home/landing page. Re-rolls a fresh random team
   // palette so each trip back to Home feels new -- but only while nothing's been explicitly picked
   // yet; once someone picks a scheme from the strip, that choice sticks and Home stops re-rolling it.
@@ -81,11 +90,14 @@ export function ThemeProvider({ children }) {
     setSchemeState(picked);
   };
 
-  // Unlike rerollScheme above, this ALWAYS picks a fresh random team palette, even if the viewer
-  // (or an admin, for a different manager) had previously locked one in manually -- used when
-  // picking a manager with no admin-configured color default, so choosing "who you are" always
-  // feels like a fresh roll of the dice, the same way it did before anyone had picked anything yet.
+  // Picks a fresh random team palette -- used when picking a manager with no admin-configured
+  // color default. Respects an explicitly-picked scheme (lenzone_scheme_manual) instead of
+  // clobbering it: once someone has actually clicked a swatch, "who you are" changing no longer
+  // re-rolls their color out from under them. Returns the CURRENT scheme id either way, so the
+  // caller (App.jsx's chooseMyTeam, for the team-switch color-burst animation) always has a real
+  // id to look up a swatch color for, whether or not a fresh one was actually rolled this time.
   const pickRandomScheme = () => {
+    if (localStorage.getItem('lenzone_scheme_manual') === 'true') return scheme;
     const picked = randomTeamSchemeId();
     setScheme(picked);
     return picked;
@@ -96,7 +108,7 @@ export function ThemeProvider({ children }) {
   }, [mode]);
 
   return (
-    <ThemeContext.Provider value={{ scheme, setScheme, mode, setMode, rerollScheme, pickRandomScheme }}>
+    <ThemeContext.Provider value={{ scheme, setScheme, setSchemeManually, mode, setMode, rerollScheme, pickRandomScheme }}>
       {children}
     </ThemeContext.Provider>
   );

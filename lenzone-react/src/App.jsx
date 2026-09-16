@@ -12,7 +12,7 @@ import {
   computeStats, buildHistory, simulateCombinedPlayoffOdds, computeCrossRecords, computeCrossWeekRecord,
   computeWeeklyAwards, computeProjectedTrophies, buildConferenceList, rankConference, winProbability, roughWinProbability, computePointsAgainst, computeInConfRecord,
   computeCrossPointsAgainst, computeIntraGamesPlayed, computeInterGamesPlayed, buildStandingsHistory,
-  buildWeeklyPfPaHistory, computeWeeklyConferenceMedian, computeWeekResultByManager, computeManagerStreaks,
+  buildWeeklyPfPaHistory, computeWeeklyConferenceMedian, computeWeekResultByManager, computeManagerStreaks, computeRevengeGames,
   computeBenchPointsAward
 } from './lib/statsMath';
 import RosterTab from './components/RosterTab';
@@ -57,8 +57,8 @@ import { buildConferenceColorMap, buildConferenceHexColorMap, getDraftSlotMap } 
 import StandingsTrendChart from './components/StandingsTrendChart';
 import NflBigPlaysHighlights from './components/NflBigPlaysHighlights';
 import { getRealName } from './lib/realNames';
-import { buildTrophyLinesByManager } from './lib/speechBubble';
-import { scoringFieldFor, computeRosterProjection, computeBlendedRosterScore, buildOwnerMap, buildAcquisitionHistory, computeMoveCounts, playerLabel, projectedPoints } from './lib/players';
+import { buildTrophyLinesByManager, mergeTrophyLines } from './lib/speechBubble';
+import { scoringFieldFor, computeRosterProjection, computeBlendedRosterScore, buildOwnerMap, buildAcquisitionHistory, computeMoveCounts, playerLabel, projectedPoints, computeWaiverWireMvp } from './lib/players';
 import { Button, ThemeToggle, TeamPicker, useEscapeKey } from './components/shared';
 
 // LENZONE 2026 is a fixed dual-conference league. These IDs should not change season to season.
@@ -1070,9 +1070,41 @@ export default function App() {
   // Real, already-computed facts each manager's speech bubble can reference this week (a trophy
   // they actually won) -- shared by RosterModal's own bubble and the ambient RandomNameBubble so
   // neither invents anything and both stay in sync with what the trophy cards actually show.
-  const trophyLinesByManager = useMemo(
-    () => (isSelectedWeekFinal ? buildTrophyLinesByManager({ weeklyAwards, benchPointsAward }) : {}),
-    [weeklyAwards, benchPointsAward, isSelectedWeekFinal]
+  // "Last week" for the speech bubbles -- always the real previous completed week, independent of
+  // whatever week the viewer happens to be browsing to on-screen (selectedWeek), so bubbles keep
+  // referencing last week's real trophies even once everyone's moved on to looking at this week.
+  const previousCompletedWeek = latestCompletedWeek - 1;
+  const previousWeeklyAwards = useMemo(
+    () => (previousCompletedWeek >= 1 ? computeWeeklyAwards(afcSeason, nfcSeason, previousCompletedWeek, null) : null),
+    [afcSeason, nfcSeason, previousCompletedWeek]
+  );
+  const previousBenchPointsAward = useMemo(
+    () => (previousCompletedWeek >= 1 ? computeBenchPointsAward(afcData, nfcData, afcSeason, nfcSeason, previousCompletedWeek) : null),
+    [afcData, nfcData, afcSeason, nfcSeason, previousCompletedWeek]
+  );
+  const trophyLinesByManager = useMemo(() => mergeTrophyLines(
+    isSelectedWeekFinal ? buildTrophyLinesByManager({ weeklyAwards, benchPointsAward, label: "this week" }) : {},
+    previousWeeklyAwards ? buildTrophyLinesByManager({ weeklyAwards: previousWeeklyAwards, benchPointsAward: previousBenchPointsAward, label: "last week" }) : {}
+  ), [weeklyAwards, benchPointsAward, isSelectedWeekFinal, previousWeeklyAwards, previousBenchPointsAward]);
+  // Real "revenge game" detection for the viewed week -- keyed per manager for bubble consumption
+  // (see lib/statsMath.js computeRevengeGames for the real rematch/prior-result logic).
+  const revengeGamesThisWeek = useMemo(
+    () => computeRevengeGames(afcSeason, nfcSeason, schedule, selectedWeek),
+    [afcSeason, nfcSeason, schedule, selectedWeek]
+  );
+  const revengeGameByManager = useMemo(() => {
+    const map = {};
+    revengeGamesThisWeek.forEach(g => {
+      map[g.a] = { opponent: g.b, priorWeek: g.priorWeek, won: g.winner === g.a };
+      map[g.b] = { opponent: g.a, priorWeek: g.priorWeek, won: g.winner === g.b };
+    });
+    return map;
+  }, [revengeGamesThisWeek]);
+  // Real league-wide "Waiver Wire MVP" -- whoever's waiver/FA pickup (still on the roster that
+  // added them) scored the most this week. See lib/players.js computeWaiverWireMvp.
+  const waiverWireMvp = useMemo(
+    () => computeWaiverWireMvp(afcData, nfcData, afcSeason, nfcSeason, afcTransactions, nfcTransactions, selectedWeek),
+    [afcData, nfcData, afcSeason, nfcSeason, afcTransactions, nfcTransactions, selectedWeek]
   );
   // Real live/final in-conference W/L/T for every manager this week -- feeds the speech bubbles'
   // "you're winning/losing right now" flavor line (see lib/speechBubble.js). Works pre-final too
@@ -1216,7 +1248,7 @@ export default function App() {
         afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason} playersDB={playersDB}
         weekProjections={weekProjections} selectedWeek={selectedWeek} byTeamWeek={enrichedByTeamWeek}
         trophyLinesByManager={trophyLinesByManager} afcStandings={afcStandings} nfcStandings={nfcStandings}
-        weekResultByManager={weekResultByManager} managerStreaks={managerStreaks}
+        weekResultByManager={weekResultByManager} managerStreaks={managerStreaks} revengeGameByManager={revengeGameByManager}
       />
       <PlayerModal
         playersDB={playersDB} afcOwners={afcOwners} nfcOwners={nfcOwners} afcHistory={afcHistory} nfcHistory={nfcHistory}
@@ -1313,7 +1345,7 @@ export default function App() {
       <RandomNameBubble
         enabled={activeTab !== "home"} afcData={afcData} nfcData={nfcData}
         trophyLinesByManager={trophyLinesByManager} afcStandings={afcStandings} nfcStandings={nfcStandings}
-        weekResultByManager={weekResultByManager} managerStreaks={managerStreaks}
+        weekResultByManager={weekResultByManager} managerStreaks={managerStreaks} revengeGameByManager={revengeGameByManager}
       />
 
       <main className="max-w-7xl mx-auto">
@@ -1376,7 +1408,7 @@ export default function App() {
             afcSlots={afcData.startingSlots || []} nfcSlots={nfcData.startingSlots || []}
             afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
             afcStandings={afcStandings} nfcStandings={nfcStandings} weekBigPlays={weekBigPlays}
-            seasonResultsByTeam={seasonResultsByTeam} managerStreaks={managerStreaks}
+            seasonResultsByTeam={seasonResultsByTeam} managerStreaks={managerStreaks} waiverWireMvp={waiverWireMvp}
           />
         )}
 
@@ -1581,17 +1613,18 @@ export default function App() {
               </div>
             )}
 
-            {/* goToMatchup (not setSelectedManager alone) resets the conference filter to ALL first --
-                otherwise clicking a trophy for a manager outside the currently-filtered conference
-                just silently does nothing, since their card is filtered out of view. */}
+            {/* Clicking a trophy card pops that manager's matchup up as a preview card (global
+                MatchupPreviewContext) instead of filtering/navigating -- works regardless of the
+                current conference filter, since it's not changing what's shown in this list. */}
             <WeeklyHighlights
-              awards={weeklyAwards} benchPointsAward={benchPointsAward} week={selectedWeek} isWeekFinal={isSelectedWeekFinal} onSelectManager={goToMatchup}
+              awards={weeklyAwards} benchPointsAward={benchPointsAward} week={selectedWeek} isWeekFinal={isSelectedWeekFinal}
               afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason} playersDB={playersDB}
               managerStreaks={managerStreaks}
             />
             <PlayerHighlights
               afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
               week={selectedWeek} weekProjections={weekProjections} playersDB={playersDB}
+              waiverWireMvp={waiverWireMvp}
             />
             <TopByPositionHighlights
               afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}

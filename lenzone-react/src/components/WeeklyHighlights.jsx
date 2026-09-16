@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Trophy, Award, TrendingDown, Zap, Flame, Frown, Crosshair, ThumbsDown, Snowflake } from 'lucide-react';
 import { useTeamColor } from '../context/TeamColorContext';
 import { useTeamLogo } from '../context/TeamLogoContext';
+import { useMatchupPreview } from '../context/MatchupPreviewContext';
 import { computeLineupAccuracy, computeWorstLineupDecision } from '../lib/players';
 
 // nameManager is the one real manager this card is "about" for logo purposes -- for the two-team
@@ -70,11 +71,16 @@ function MatchupHighlightCard({ icon: Icon, label, teamA, teamB, scoreA, scoreB,
 // While the week is still live/in-progress, every card is explicitly labeled "Projected" and driven
 // by the blended projected-final numbers (not a partial leaderboard of whoever's ahead right now) --
 // so it's clear these aren't real trophies yet. Once the week is fully complete, they flip to the
-// real Trophy icon and the actual final numbers. Clicking a card jumps the matchup grid to that manager.
+// real Trophy icon and the actual final numbers. Clicking a card pops up that manager's matchup
+// as a card (the same global preview the season Grid uses) rather than filtering/navigating away --
+// you stay right where you were, with a straightforward way to go see the full matchup if you want it.
 export default function WeeklyHighlights({
-  awards, benchPointsAward, week, isWeekFinal, onSelectManager,
+  awards, benchPointsAward, week, isWeekFinal,
   afcData, nfcData, afcSeason, nfcSeason, playersDB, managerStreaks
 }) {
+  const { openPreview } = useMatchupPreview();
+  const confFor = (manager) => (afcData?.rosters?.some(r => r.manager === manager) ? "AFC" : "NFC");
+  const showMatchup = (manager) => openPreview(manager, confFor(manager), week);
   // Longest active real streak league-wide (2+ games, either direction) -- ties broken by
   // whichever manager sorts first, since there's no principled real tiebreaker for "equally hot".
   const longestStreak = useMemo(() => {
@@ -120,45 +126,45 @@ export default function WeeklyHighlights({
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
       <HighlightCard
         icon={icon} label={`${prefix}High Score`} name={high.manager} nameManager={high.manager} value={`${high.points.toFixed(2)} pts`} accent="text-amber-400"
-        onClick={() => onSelectManager(high.manager)}
+        onClick={() => showMatchup(high.manager)}
       />
       <HighlightCard
         icon={TrendingDown} label={`${prefix}Low Score`} name={low.manager} nameManager={low.manager} value={`${low.points.toFixed(2)} pts`} accent="text-rose-400"
-        onClick={() => onSelectManager(low.manager)}
+        onClick={() => showMatchup(low.manager)}
       />
       {closest && (
         <MatchupHighlightCard
           icon={Zap} label={`${prefix}Closest Game`} teamA={closest.a} teamB={closest.b}
           scoreA={closest.sa} scoreB={closest.sb} marginLabel={`${closest.margin.toFixed(2)} pt margin`}
-          accent="text-blue-400" onClick={() => onSelectManager(closest.a)}
+          accent="text-blue-400" onClick={() => showMatchup(closest.a)}
         />
       )}
       {blowout && (
         <MatchupHighlightCard
           icon={Flame} label={`${prefix}Biggest Blowout`} teamA={blowout.a} teamB={blowout.b}
           scoreA={blowout.sa} scoreB={blowout.sb} marginLabel={`${blowout.margin.toFixed(2)} pt margin`}
-          accent="text-orange-400" onClick={() => onSelectManager(blowout.a)}
+          accent="text-orange-400" onClick={() => showMatchup(blowout.a)}
         />
       )}
       {benchPointsAward && (
         <HighlightCard
           icon={Frown} label="Most Points Left on Bench" name={benchPointsAward.manager} nameManager={benchPointsAward.manager}
           value={`${benchPointsAward.points.toFixed(2)} pts benched`} accent="text-violet-400"
-          onClick={() => onSelectManager(benchPointsAward.manager)}
+          onClick={() => showMatchup(benchPointsAward.manager)}
         />
       )}
       {lineupAccuracy && (
         <HighlightCard
           icon={Crosshair} label="Lineup IQ" name={lineupAccuracy.manager} nameManager={lineupAccuracy.manager}
           value={`${lineupAccuracy.pct.toFixed(0)}% of optimal (${lineupAccuracy.actual.toFixed(2)}/${lineupAccuracy.optimal.toFixed(2)})`}
-          accent="text-cyan-400" onClick={() => onSelectManager(lineupAccuracy.manager)}
+          accent="text-cyan-400" onClick={() => showMatchup(lineupAccuracy.manager)}
         />
       )}
       {worstLineupDecision && (
         <HighlightCard
           icon={ThumbsDown} label="Left the Most on the Table" name={worstLineupDecision.manager} nameManager={worstLineupDecision.manager}
           value={`Scored ${worstLineupDecision.actual.toFixed(2)}, could've had ${worstLineupDecision.optimal.toFixed(2)} (-${worstLineupDecision.deficit.toFixed(2)})`}
-          accent="text-red-400" onClick={() => onSelectManager(worstLineupDecision.manager)}
+          accent="text-red-400" onClick={() => showMatchup(worstLineupDecision.manager)}
         />
       )}
       {longestStreak && (
@@ -168,7 +174,7 @@ export default function WeeklyHighlights({
           name={longestStreak.manager} nameManager={longestStreak.manager}
           value={`${longestStreak.streak.count} straight ${longestStreak.streak.type === 'W' ? "wins" : "losses"}`}
           accent={longestStreak.streak.type === 'W' ? "text-orange-400" : "text-sky-300"}
-          onClick={() => onSelectManager(longestStreak.manager)}
+          onClick={() => showMatchup(longestStreak.manager)}
         />
       )}
     </div>

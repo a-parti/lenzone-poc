@@ -11,7 +11,7 @@ import { nextModalZ } from '../lib/modalStack';
 import { getRealName } from '../lib/realNames';
 import { pickSpeechBubbleLine, findRankAndConf } from '../lib/speechBubble';
 
-export default function RosterModal({ afcData, nfcData, afcSeason, nfcSeason, playersDB, weekProjections, selectedWeek, byTeamWeek, trophyLinesByManager, afcStandings, nfcStandings, weekResultByManager, managerStreaks }) {
+export default function RosterModal({ afcData, nfcData, afcSeason, nfcSeason, playersDB, weekProjections, selectedWeek, byTeamWeek, trophyLinesByManager, afcStandings, nfcStandings, weekResultByManager, managerStreaks, revengeGameByManager }) {
   const { target, closeRoster } = useRosterModal();
   useEscapeKey(closeRoster);
   // Claims a fresh top-of-stack z-index each time this opens, so it renders above whatever else
@@ -34,9 +34,10 @@ export default function RosterModal({ afcData, nfcData, afcSeason, nfcSeason, pl
     const { rank, conf } = findRankAndConf(target.manager, afcStandings, nfcStandings);
     return pickSpeechBubbleLine(realName, target.manager, {
       trophyLines: trophyLinesByManager?.[target.manager], rank, conf,
-      weekResult: weekResultByManager?.[target.manager], streak: managerStreaks?.[target.manager]
+      weekResult: weekResultByManager?.[target.manager], streak: managerStreaks?.[target.manager],
+      revengeGame: revengeGameByManager?.[target.manager]
     });
-  }, [target, realName, trophyLinesByManager, afcStandings, nfcStandings, weekResultByManager, managerStreaks]);
+  }, [target, realName, trophyLinesByManager, afcStandings, nfcStandings, weekResultByManager, managerStreaks, revengeGameByManager]);
   if (!target) return null;
 
   const confData = target.conf === 'AFC' ? afcData : nfcData;

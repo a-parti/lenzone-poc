@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { TrendingUp, Rocket, Skull, Target, Compass } from 'lucide-react';
+import { TrendingUp, Rocket, Skull, Target, Compass, ShoppingCart } from 'lucide-react';
 import { computePlayerHighlights, playerLabel } from '../lib/players';
 import { usePlayerModal } from '../context/PlayerModalContext';
 import { PositionBadge, NflTeamTag } from './shared';
@@ -63,14 +63,14 @@ export function PlayerCard({ icon: Icon, label, entry, playersDB, value, accent,
 // highest actual once posted, and the biggest beat/miss vs projection (a real player's own
 // over/underperformance, not a fantasy team total). Shared by Home "This Week" and the Matchups
 // tab's "This Week" view, same as WeeklyHighlights, so the two never drift.
-export default function PlayerHighlights({ afcData, nfcData, afcSeason, nfcSeason, week, weekProjections, playersDB }) {
+export default function PlayerHighlights({ afcData, nfcData, afcSeason, nfcSeason, week, weekProjections, playersDB, waiverWireMvp }) {
   const { openPlayer } = usePlayerModal();
   const highlights = useMemo(
     () => computePlayerHighlights(afcData, nfcData, afcSeason, nfcSeason, week, weekProjections),
     [afcData, nfcData, afcSeason, nfcSeason, week, weekProjections]
   );
   const { highestProjected, highestActual, biggestRiser, biggestBust, mostReliable } = highlights;
-  if (!highestProjected && !highestActual && !biggestRiser && !biggestBust && !mostReliable) return null;
+  if (!highestProjected && !highestActual && !biggestRiser && !biggestBust && !mostReliable && !waiverWireMvp) return null;
 
   const openFor = (entry) => {
     const { position } = playerLabel(playersDB, entry.id);
@@ -119,6 +119,18 @@ export default function PlayerHighlights({ afcData, nfcData, afcSeason, nfcSeaso
             </div>
           )}
           accent="text-[var(--accent)]" onClick={() => openFor(mostReliable)}
+        />
+      )}
+      {waiverWireMvp && (
+        <PlayerCard
+          icon={ShoppingCart} label="Waiver Wire MVP" entry={waiverWireMvp} playersDB={playersDB}
+          value={(
+            <div className="flex flex-col leading-tight">
+              <span className="text-sm font-mono font-bold text-[var(--pos)]">{waiverWireMvp.points.toFixed(2)} pts</span>
+              <span className="text-[10px] text-[var(--muted)]">picked up by {waiverWireMvp.manager}</span>
+            </div>
+          )}
+          accent="text-[var(--pos)]" onClick={() => openFor(waiverWireMvp)}
         />
       )}
     </div>

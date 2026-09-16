@@ -590,6 +590,42 @@ export function computeManagerStreaks(afcManagers, nfcManagers, afcSeason, nfcSe
   return streaks;
 }
 
+// Real "revenge game" detection: does this week's matchup (intra or cross) repeat an EARLIER
+// meeting this season, and if so, who won that first one? With only ~11-12 possible opponents in
+// a 14-week season, rematches are guaranteed to happen -- this just surfaces them with the real
+// prior result, never invents a "rivalry" narrative beyond what actually already happened.
+export function computeRevengeGames(afcSeason, nfcSeason, crossSchedule, week) {
+  const games = [];
+  const checkIntra = (season) => {
+    (season.scheduleByWeek[week] || []).forEach(([a, b]) => {
+      for (let w = 1; w < week; w++) {
+        const prevPairs = season.scheduleByWeek[w] || [];
+        if (!prevPairs.some(([x, y]) => (x === a && y === b) || (x === b && y === a))) continue;
+        const sa = season.scoreByWeek[w]?.[a], sb = season.scoreByWeek[w]?.[b];
+        if (sa > 0 && sb > 0) {
+          games.push({ a, b, priorWeek: w, winner: sa > sb ? a : sb > sa ? b : null, scoreA: sa, scoreB: sb });
+        }
+        break;
+      }
+    });
+  };
+  checkIntra(afcSeason);
+  checkIntra(nfcSeason);
+
+  (crossSchedule.filter(m => m.week === week)).forEach(m => {
+    for (let w = 1; w < week; w++) {
+      const found = crossSchedule.find(x => x.week === w && x.afcTeam === m.afcTeam && x.nfcTeam === m.nfcTeam);
+      if (!found) continue;
+      const sa = afcSeason.scoreByWeek[w]?.[m.afcTeam], sn = nfcSeason.scoreByWeek[w]?.[m.nfcTeam];
+      if (sa > 0 && sn > 0) {
+        games.push({ a: m.afcTeam, b: m.nfcTeam, priorWeek: w, winner: sa > sn ? m.afcTeam : sn > sa ? m.nfcTeam : null, scoreA: sa, scoreB: sn });
+      }
+      break;
+    }
+  });
+  return games;
+}
+
 function median(arr) {
   if (!arr.length) return null;
   const sorted = [...arr].sort((a, b) => a - b);

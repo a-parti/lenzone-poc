@@ -16,7 +16,7 @@ export default function CurrentWeekView({
   onGoToMatchup, selectedWeek, onSelectWeek, currentNflWeek, seasonWeeks, isWeekFinal, weeklyAwards, nflGames, myTeamNflTeams,
   myTeamManager, myTeamIntra, myTeamInter, myTeamConf, myTeamRoster, myTeamConfData, myTeamFallbackField, myTeamPlayersPoints,
   playersDB, weekProjections, byTeamWeek, afcSlots, nfcSlots, afcData, nfcData, afcSeason, nfcSeason,
-  afcStandings, nfcStandings, weekBigPlays, seasonResultsByTeam, managerStreaks
+  afcStandings, nfcStandings, weekBigPlays, seasonResultsByTeam, managerStreaks, waiverWireMvp
 }) {
   const goToManagerMatchup = (manager) => onGoToMatchup(manager);
   const logoUrl = useTeamLogo(myTeamManager);
@@ -131,13 +131,13 @@ export default function CurrentWeekView({
         <p className="tracking-wider text-xs uppercase font-semibold text-[var(--muted)]">This Week (Week {selectedWeek})</p>
         <WeeklyHighlights
           awards={weeklyAwards} week={selectedWeek} isWeekFinal={isWeekFinal}
-          onSelectManager={goToManagerMatchup}
           afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason} playersDB={playersDB}
           managerStreaks={managerStreaks}
         />
         <PlayerHighlights
           afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
           week={selectedWeek} weekProjections={weekProjections} playersDB={playersDB}
+          waiverWireMvp={waiverWireMvp}
         />
         <TopByPositionHighlights
           afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}

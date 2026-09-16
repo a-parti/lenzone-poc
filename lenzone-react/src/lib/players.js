@@ -342,6 +342,41 @@ export function computeOptimalLineupPoints(startingSlots, rosterPlayerIds, playe
   return total;
 }
 
+// Whoever's waiver-wire/free-agent pickup (not drafted, not traded for) scored the most REAL
+// points this week, among players still on the SAME roster that picked them up (a since-traded-
+// away pickup doesn't count for either side -- too ambiguous who deserves the credit). Sourced
+// directly from Sleeper's real transaction log (t.type 'waiver'/'free_agent', never draft/trade),
+// same data computeMoveCounts/buildAcquisitionHistory already use.
+export function computeWaiverWireMvp(afcData, nfcData, afcSeason, nfcSeason, afcTransactions, nfcTransactions, week) {
+  const candidates = [];
+  const ingest = (confData, season, transactions) => {
+    const rosterIdMap = confData.rosterIdMap;
+    const addedBy = {}; // playerId -> manager who most recently waiver/FA-added them
+    [...(transactions || [])]
+      .filter(t => t.status === 'complete' && (t.type === 'waiver' || t.type === 'free_agent'))
+      .sort((a, b) => (a.created || 0) - (b.created || 0))
+      .forEach(t => {
+        Object.entries(t.adds || {}).forEach(([playerId, rosterId]) => {
+          const manager = rosterIdMap[rosterId];
+          if (manager) addedBy[playerId] = manager;
+        });
+      });
+    (confData.rosters || []).forEach(r => {
+      const snapshot = season?.rosterSnapshotByWeek?.[week]?.[r.manager];
+      if (!snapshot) return;
+      (r.players || []).forEach(playerId => {
+        if (addedBy[playerId] !== r.manager) return; // still owned by whoever picked them up
+        const pts = snapshot.playersPoints?.[playerId];
+        if (pts > 0) candidates.push({ id: playerId, manager: r.manager, points: pts });
+      });
+    });
+  };
+  ingest(afcData, afcSeason, afcTransactions);
+  ingest(nfcData, nfcSeason, nfcTransactions);
+  if (candidates.length === 0) return null;
+  return candidates.sort((a, b) => b.points - a.points)[0];
+}
+
 // Finds the best (highest-yardage) play in a sorted `plays` list (see espnApi.js fetchWeekBigPlays)
 // that's actually attributable to one of YOUR rostered players -- matched by real NFL team (via
 // myPlayersByNflTeam, the same map CurrentWeekView already builds for the NFL games panel) AND a

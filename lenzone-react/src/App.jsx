@@ -54,6 +54,7 @@ import { TeamLogoProvider } from './context/TeamLogoContext';
 import { PlayerPhotoProvider } from './context/PlayerPhotoContext';
 import { buildConferenceColorMap, buildConferenceHexColorMap, getDraftSlotMap } from './lib/teamColors';
 import StandingsTrendChart from './components/StandingsTrendChart';
+import StandingsBarChart from './components/StandingsBarChart';
 import { getRealName } from './lib/realNames';
 import { buildTrophyLinesByManager, mergeTrophyLines } from './lib/speechBubble';
 import { scoringFieldFor, computeRosterProjection, computeBlendedRosterScore, buildOwnerMap, buildAcquisitionHistory, computeMoveCounts, playerLabel, projectedPoints, computeWaiverWireMvp } from './lib/players';
@@ -1544,6 +1545,10 @@ export default function App() {
               <>
                 {showAfc && <StandingsTable conf="AFC" rows={afcStandings} afcData={afcData} nfcData={nfcData} />}
                 {showNfc && <StandingsTable conf="NFC" rows={nfcStandings} afcData={afcData} nfcData={nfcData} />}
+                <StandingsBarChart
+                  afcStandings={afcStandings} nfcStandings={nfcStandings} confFilter={confFilter}
+                  logoMap={teamLogoMap} afcData={afcData} nfcData={nfcData}
+                />
               </>
             )}
 

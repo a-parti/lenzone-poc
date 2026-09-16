@@ -216,6 +216,9 @@ function MatchupRosterComparison({
 }
 
 function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlots = [], oppSlots = [], playersDB, weekProjections, byTeamWeek, week, highlightTeams, onSelectGame }) {
+  // A manager can have matchup data in one selected week and none in another. Keep this hook ahead
+  // of the empty-matchup return so week navigation never changes the component's hook order.
+  const [showRosters, setShowRosters] = useState(false);
   if (!info) {
     return (
       <div className={`flex-1 min-w-[220px] bg-[var(--bg)]/60 border ${accentBorder} rounded-lg p-3 flex items-center justify-center`}>
@@ -259,7 +262,6 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
   const isInConf = label === "In-Conference";
   const myStandingsPts = result === "W" ? (isInConf ? 2 : 1) : result === "T" ? (isInConf ? 1 : 0.5) : 0;
   const RESULT_STYLE = { W: "bg-[var(--pos)]/20 text-[var(--pos)]", L: "bg-[var(--neg)]/20 text-[var(--neg)]", T: "bg-[var(--muted)]/20 text-[var(--muted)]" };
-  const [showRosters, setShowRosters] = useState(false);
   return (
     <div className={`bg-[var(--bg)]/60 border ${accentBorder} rounded-lg p-3`}>
       <div className="flex items-center justify-between mb-1.5">
@@ -284,6 +286,9 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
           <span className="font-mono leading-tight shrink-0 whitespace-nowrap flex flex-col sm:items-end">
             <span className={`text-lg font-bold ${showScores ? myBigColor : "text-[var(--muted)]"}`}>
               {showScores && bigMy != null ? bigMy.toFixed(2) : "--"}
+              {!isFinal && !isLive && showScores && bigMy != null && (
+                <span className="ml-1 text-[10px] font-bold uppercase tracking-wide text-[var(--proj)]">Proj</span>
+              )}
             </span>
             {/* Live: myScore itself IS the blended projected-final (bigMy shows the live-partial
                 actual instead). Final: myScore now equals the real final, so the pregame
@@ -317,6 +322,9 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
           <span className="font-mono leading-tight shrink-0 whitespace-nowrap flex flex-col">
             <span className={`text-lg font-bold ${showScores ? oppBigColor : "text-[var(--muted)]"}`}>
               {showScores && bigOpp != null ? bigOpp.toFixed(2) : "--"}
+              {!isFinal && !isLive && showScores && bigOpp != null && (
+                <span className="ml-1 text-[10px] font-bold uppercase tracking-wide text-[var(--proj)]">Proj</span>
+              )}
             </span>
             {showCaption && isLive && oppScore != null && (
               <span className="text-[10px] text-[var(--proj)]">{oppScore.toFixed(2)} proj</span>

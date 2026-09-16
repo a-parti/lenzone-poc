@@ -45,7 +45,10 @@ function ScoreTag({ score }) {
   if (!score) return null;
   return (
     <span className="font-mono shrink-0 flex flex-col items-end leading-tight">
-      <span className={`text-xs font-bold ${SCORE_COLOR[score.state]}`}>{score.value.toFixed(2)}</span>
+      <span className={`text-xs font-bold ${SCORE_COLOR[score.state]}`}>
+        {score.value.toFixed(2)}
+        {score.state === 'proj' && <span className="ml-1 text-[9px] uppercase tracking-wide">Proj</span>}
+      </span>
       {score.projected != null && <span className="text-[10px] font-semibold text-[var(--proj)]">{score.projected.toFixed(2)}</span>}
     </span>
   );

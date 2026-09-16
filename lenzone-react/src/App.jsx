@@ -1132,21 +1132,18 @@ export default function App() {
     ? getInterInfo(myTeamManager, myTeamConf, weekCrossPairs, afcSeason, nfcSeason, allStats, selectedWeek, afcData, nfcData, weekProjections, latestCompletedWeek)
     : null;
 
-  // Blended projected-final per manager for this week, used to surface a "projected margin" on
-  // the closest/blowout awards while the week is still live (not yet fully completed).
+  // Best projected finish per manager for this week. A live roster snapshot yields the blended
+  // real+projected finish; a future week without a snapshot falls back to that manager's current
+  // starters and the selected week's projections. Shared by awards and the weekly score graph.
   const projectedScoreByManager = {};
   if (!isSelectedWeekFinal) {
     afcManagers.forEach(m => {
-      const snap = afcSeason.rosterSnapshotByWeek[selectedWeek]?.[m];
-      const fallbackField = scoringFieldFor(afcData.receptionPoints || 0);
-      const blended = computeBlendedRosterScore(snap, weekProjections, afcData.scoringSettings, fallbackField);
-      if (blended) projectedScoreByManager[m] = blended.total;
+      const estimate = estimateTeamScore(m, afcData, afcSeason, selectedWeek, weekProjections, latestCompletedWeek);
+      if (estimate.value != null) projectedScoreByManager[m] = estimate.value;
     });
     nfcManagers.forEach(m => {
-      const snap = nfcSeason.rosterSnapshotByWeek[selectedWeek]?.[m];
-      const fallbackField = scoringFieldFor(nfcData.receptionPoints || 0);
-      const blended = computeBlendedRosterScore(snap, weekProjections, nfcData.scoringSettings, fallbackField);
-      if (blended) projectedScoreByManager[m] = blended.total;
+      const estimate = estimateTeamScore(m, nfcData, nfcSeason, selectedWeek, weekProjections, latestCompletedWeek);
+      if (estimate.value != null) projectedScoreByManager[m] = estimate.value;
     });
   }
   const weeklyAwards = computeWeeklyAwards(afcSeason, nfcSeason, selectedWeek, isSelectedWeekFinal ? null : projectedScoreByManager);
@@ -1493,6 +1490,7 @@ export default function App() {
             afcSlots={afcData.startingSlots || []} nfcSlots={nfcData.startingSlots || []}
             afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
             afcManagers={afcManagers} nfcManagers={nfcManagers} schedule={schedule} logoMap={teamLogoMap} hexColorMap={teamHexColorMap}
+            projectedScoreByManager={projectedScoreByManager}
             afcStandings={afcStandings} nfcStandings={nfcStandings} weekBigPlays={weekBigPlays}
             seasonResultsByTeam={seasonResultsByTeam} managerStreaks={managerStreaks} waiverWireMvp={waiverWireMvp}
           />
@@ -1707,7 +1705,7 @@ export default function App() {
               Everyone Else's Matchups
             </p>
 
-            <WeeklyScoresBarChart afcManagers={afcManagers} nfcManagers={nfcManagers} afcSeason={afcSeason} nfcSeason={nfcSeason} schedule={schedule} week={selectedWeek} logoMap={teamLogoMap} afcData={afcData} nfcData={nfcData} />
+            <WeeklyScoresBarChart afcManagers={afcManagers} nfcManagers={nfcManagers} afcSeason={afcSeason} nfcSeason={nfcSeason} schedule={schedule} week={selectedWeek} logoMap={teamLogoMap} afcData={afcData} nfcData={nfcData} projectedScores={projectedScoreByManager} isWeekFinal={isSelectedWeekFinal} />
 
             {(() => {
               const afcBlock = showAfc && (
@@ -1885,7 +1883,7 @@ export default function App() {
             {/* Visual reference for whoever's writing the recap -- same "All Teams" chart as the
                 Matchups tab, not part of the copyable markdown text below (Teams chat can't render
                 a live SVG from pasted markdown). */}
-            <WeeklyScoresBarChart afcManagers={afcManagers} nfcManagers={nfcManagers} afcSeason={afcSeason} nfcSeason={nfcSeason} schedule={schedule} week={selectedWeek} logoMap={teamLogoMap} afcData={afcData} nfcData={nfcData} />
+            <WeeklyScoresBarChart afcManagers={afcManagers} nfcManagers={nfcManagers} afcSeason={afcSeason} nfcSeason={nfcSeason} schedule={schedule} week={selectedWeek} logoMap={teamLogoMap} afcData={afcData} nfcData={nfcData} projectedScores={projectedScoreByManager} isWeekFinal={isSelectedWeekFinal} />
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>

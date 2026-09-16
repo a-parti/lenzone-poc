@@ -367,7 +367,7 @@ export function findMyBigPlay(plays, myPlayersByNflTeam) {
 // roster's optimal (best-possible-with-actual-bench) points this week. Real posted points only
 // (mirrors computeBenchPointsAward); a roster with 0 optimal points (nobody's played yet) is
 // skipped rather than divide-by-zero.
-export function computeLineupAccuracy(afcData, nfcData, afcSeason, nfcSeason, week, playersDB) {
+function computeLineupEntries(afcData, nfcData, afcSeason, nfcSeason, week, playersDB) {
   const entries = [];
   const ingest = (confData, season) => {
     (confData?.rosters || []).forEach(r => {
@@ -378,11 +378,26 @@ export function computeLineupAccuracy(afcData, nfcData, afcSeason, nfcSeason, we
         return sum + (pts > 0 ? pts : 0);
       }, 0);
       const optimal = computeOptimalLineupPoints(confData.startingSlots, r.players, snapshot.playersPoints, playersDB);
-      if (optimal > 0) entries.push({ manager: r.manager, actual, optimal, pct: (actual / optimal) * 100 });
+      if (optimal > 0) entries.push({ manager: r.manager, actual, optimal, pct: (actual / optimal) * 100, deficit: optimal - actual });
     });
   };
   ingest(afcData, afcSeason);
   ingest(nfcData, nfcSeason);
+  return entries;
+}
+
+export function computeLineupAccuracy(afcData, nfcData, afcSeason, nfcSeason, week, playersDB) {
+  const entries = computeLineupEntries(afcData, nfcData, afcSeason, nfcSeason, week, playersDB);
   if (entries.length === 0) return null;
   return [...entries].sort((a, b) => b.pct - a.pct)[0];
+}
+
+// The inverse of Lineup IQ: whoever left the most REAL points on the table by not starting their
+// own higher-scoring bench options -- "what your total would've been if you'd subbed in the
+// higher-scoring players" (optimal - actual, in points, not just a percentage). Same optimal-
+// lineup math as Lineup IQ, just sorted for the biggest miss instead of the best decision.
+export function computeWorstLineupDecision(afcData, nfcData, afcSeason, nfcSeason, week, playersDB) {
+  const entries = computeLineupEntries(afcData, nfcData, afcSeason, nfcSeason, week, playersDB);
+  if (entries.length === 0) return null;
+  return [...entries].sort((a, b) => b.deficit - a.deficit)[0];
 }

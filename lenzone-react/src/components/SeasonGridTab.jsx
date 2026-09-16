@@ -4,7 +4,7 @@ import { useIsMyTeam } from '../context/MyTeamContext';
 import { useMatchupPreview } from '../context/MatchupPreviewContext';
 import TeamName from './TeamName';
 
-const TEAM_COL_WIDTH = 232; // px -- fixed so the current-week column can freeze right after it
+const TEAM_COL_WIDTH = 232; // px -- fixed so the sticky team column has a stable width
 
 function findOpponent(pairs, manager) {
   const pair = (pairs || []).find(([a, b]) => a === manager || b === manager);
@@ -16,12 +16,10 @@ function findOpponent(pairs, manager) {
 // visible at a glance instead of one team at a time. Each cell shows that manager's in-conference
 // opponent (bold) and cross-conference opponent (smaller, muted) for that week -- the same two
 // matchups ScheduleTab already computes per-team, just laid out for everyone at once. Sticky first
-// column (team) and header row (week) since this is wide/tall enough to need scrolling either way.
-// The current week's column is ALSO sticky -- frozen right after the team column -- so it stays in
-// view as a constant reference point no matter how far right you scroll into later weeks, the same
-// way the team column stays in view no matter how far down you scroll. Frozen cells use the same
-// translucent-surface + backdrop-blur look the rest of the app already uses for glass panels, so
-// content scrolling underneath them reads as intentionally blurred rather than showing through.
+// column (team) and header row (week) since this is wide/tall enough to need scrolling either way
+// -- just the team column, though; the current week is only called out with color/tint, not
+// frozen in place, so scrolling right doesn't leave two separate frozen columns competing for
+// attention.
 export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afcManagers, nfcManagers, seasonWeeks, currentWeek, latestCompletedWeek }) {
   // Clicking a week's own header toggles highlighting it -- click the same week again (or a
   // different one) to change/clear it, no separate dropdown control needed.
@@ -54,13 +52,12 @@ export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afc
                   <th
                     key={w}
                     onClick={() => toggleHighlight(w)}
-                    style={isCurrent ? { left: TEAM_COL_WIDTH } : undefined}
                     className={`sticky top-0 bg-[var(--surface)] border-b border-[var(--border)]/80 px-2 py-2 font-semibold whitespace-nowrap cursor-pointer hover:text-[var(--text)] select-none ${
-                      isCurrent ? "z-20 border-r border-[var(--border)]/80 shadow-[2px_0_4px_rgba(0,0,0,0.08)] text-[var(--accent)]" : isHighlighted ? "text-violet-400" : "text-[var(--muted)]"
+                      isCurrent ? "text-[var(--accent)]" : isHighlighted ? "text-violet-400" : "text-[var(--muted)]"
                     }`}
                     title={`Click to ${isHighlighted ? "clear" : "highlight"} Week ${w}`}
                   >
-                    Wk {w}{isHighlighted ? " ●" : ""}
+                    Wk {w}{isCurrent ? " •" : ""}{isHighlighted ? " ●" : ""}
                   </th>
                 );
               })}
@@ -115,8 +112,7 @@ function GridRow({ manager, conf, season, oppSeason, weeks, crossSchedule, curre
     <tr className={isMe ? "bg-[var(--accent)]/10" : "hover:bg-[var(--surface2)]/40"}>
       {/* width/maxWidth pinned via inline style AND overflow-hidden -- a plain `width` on a <td>
           is only a hint in the browser's auto table-layout; a long team name would otherwise grow
-          this column past TEAM_COL_WIDTH, which would then no longer line up with the `left`
-          offset the frozen current-week column below assumes, and the two would visibly overlap. */}
+          this column past TEAM_COL_WIDTH. */}
       <td
         style={{ width: TEAM_COL_WIDTH, maxWidth: TEAM_COL_WIDTH, ...opaqueTint(isMe ? 15 : 0) }}
         className="sticky left-0 z-10 border-r border-b border-[var(--border)]/60 px-3 py-1.5 overflow-hidden"
@@ -135,24 +131,18 @@ function GridRow({ manager, conf, season, oppSeason, weeks, crossSchedule, curre
         const isCompleted = latestCompletedWeek != null && w <= latestCompletedWeek;
         const intraResult = isCompleted ? resultFor(season.scoreByWeek[w]?.[manager], season.scoreByWeek[w]?.[intraOpponent]) : null;
         const interResult = isCompleted ? resultFor(season.scoreByWeek[w]?.[manager], oppSeason?.scoreByWeek[w]?.[interOpponent]) : null;
-        // Normal (non-frozen) cells can use a plain translucent Tailwind tint fine -- nothing
-        // scrolls underneath them. The frozen current-week cell needs the opaque color-mix instead.
         // A completed week's W/L tint takes priority visually over the plain highlight-week tint,
         // but only when there isn't already a highlight -- highlighting a week is a deliberate user
-        // action ("show me week X specifically"), so it should still read clearly on top.
+        // action ("show me week X specifically"), so it should still read clearly on top. The
+        // current week gets a light accent tint of its own (not frozen/sticky -- just a normal
+        // translucent tint, since nothing scrolls underneath a non-sticky cell).
         const resultBg = !isHighlighted && intraResult ? RESULT_BG[intraResult] : "";
-        const bgClass = `${!isCurrent && isHighlighted ? "bg-violet-400/15" : ""} ${!isCurrent ? resultBg : ""}`;
+        const currentBg = isCurrent && !isHighlighted && !resultBg ? "bg-[var(--accent)]/10" : "";
+        const bgClass = `${isHighlighted ? "bg-violet-400/15" : ""} ${currentBg} ${resultBg}`;
         return (
           <td
             key={w}
-            style={{
-              ...(isCurrent ? { left: TEAM_COL_WIDTH } : {}),
-              ...(isCurrent ? opaqueTint(isHighlighted ? 0 : isMe ? 15 : 5) : {}),
-              ...(isCurrent && isHighlighted ? { backgroundColor: 'color-mix(in srgb, #a78bfa 15%, var(--surface))' } : {})
-            }}
-            className={`border-b border-[var(--border)]/40 px-2 py-1.5 text-center cursor-pointer hover:bg-[var(--surface2)]/60 ${bgClass} ${
-              isCurrent ? "sticky z-10 border-r border-[var(--border)]/60 shadow-[2px_0_4px_rgba(0,0,0,0.08)]" : ""
-            }`}
+            className={`border-b border-[var(--border)]/40 px-2 py-1.5 text-center cursor-pointer hover:bg-[var(--surface2)]/60 ${bgClass}`}
             onClick={() => openPreview(manager, conf, w)}
             title={`${manager} -- Week ${w}`}
           >

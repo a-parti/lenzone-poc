@@ -10,12 +10,13 @@ import ManagerMatchupRow from './ManagerMatchupRow';
 import NflGamesPanel from './NflGamesPanel';
 import CopyRecapButton from './CopyRecapButton';
 import NflBigPlaysHighlights from './NflBigPlaysHighlights';
+import NflFunFact from './NflFunFact';
 
 export default function CurrentWeekView({
   onGoToMatchup, selectedWeek, onSelectWeek, currentNflWeek, seasonWeeks, isWeekFinal, weeklyAwards, nflGames, myTeamNflTeams,
   myTeamManager, myTeamIntra, myTeamInter, myTeamConf, myTeamRoster, myTeamConfData, myTeamFallbackField, myTeamPlayersPoints,
   playersDB, weekProjections, byTeamWeek, afcSlots, nfcSlots, afcData, nfcData, afcSeason, nfcSeason,
-  afcStandings, nfcStandings, weekBigPlays
+  afcStandings, nfcStandings, weekBigPlays, seasonResultsByTeam
 }) {
   const goToManagerMatchup = (manager) => onGoToMatchup(manager);
   const logoUrl = useTeamLogo(myTeamManager);
@@ -82,7 +83,7 @@ export default function CurrentWeekView({
           week={selectedWeek} weeklyAwards={weeklyAwards} isWeekFinal={isWeekFinal}
           afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
           weekProjections={weekProjections} playersDB={playersDB}
-          afcStandings={afcStandings} nfcStandings={nfcStandings}
+          afcStandings={afcStandings} nfcStandings={nfcStandings} weekBigPlays={weekBigPlays}
         />
       </div>
 
@@ -141,6 +142,7 @@ export default function CurrentWeekView({
           week={selectedWeek} playersDB={playersDB}
         />
         <NflBigPlaysHighlights bigPlays={weekBigPlays} />
+        <NflFunFact resultsByTeam={seasonResultsByTeam} seed={selectedWeek} />
       </div>
 
       <NflGamesPanel

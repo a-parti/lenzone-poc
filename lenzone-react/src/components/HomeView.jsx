@@ -166,6 +166,7 @@ function navSections(selectedWeek) {
     { id: "currentWeek", title: `This Week (${selectedWeek})` },
     { id: "standings", title: "Standings" },
     { id: "matchups", title: "Matchups" },
+    { id: "grid", title: "Grid" },
     { id: "players", title: "Players" }
   ];
 }

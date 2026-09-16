@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react';
-import { Trophy, Award, TrendingDown, Zap, Flame, Frown, Crosshair } from 'lucide-react';
+import { Trophy, Award, TrendingDown, Zap, Flame, Frown, Crosshair, ThumbsDown } from 'lucide-react';
 import { useTeamColor } from '../context/TeamColorContext';
 import { useTeamLogo } from '../context/TeamLogoContext';
-import { computeLineupAccuracy } from '../lib/players';
+import { computeLineupAccuracy, computeWorstLineupDecision } from '../lib/players';
 
 // nameManager is the one real manager this card is "about" for logo purposes -- for the two-team
 // cards (Closest Game, Biggest Blowout) that's just the first team listed, since showing both
@@ -82,6 +82,13 @@ export default function WeeklyHighlights({
     () => (isWeekFinal && afcData && nfcData ? computeLineupAccuracy(afcData, nfcData, afcSeason, nfcSeason, week, playersDB) : null),
     [isWeekFinal, afcData, nfcData, afcSeason, nfcSeason, week, playersDB]
   );
+  // The inverse of Lineup IQ: same optimal-lineup math, but the biggest miss in real POINTS
+  // ("what your total would've been if you'd started your higher-scoring bench options") rather
+  // than the best decision by percentage.
+  const worstLineupDecision = useMemo(
+    () => (isWeekFinal && afcData && nfcData ? computeWorstLineupDecision(afcData, nfcData, afcSeason, nfcSeason, week, playersDB) : null),
+    [isWeekFinal, afcData, nfcData, afcSeason, nfcSeason, week, playersDB]
+  );
   if (!awards) {
     return (
       <div className="bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-4 text-sm text-[var(--muted)] italic">
@@ -135,6 +142,13 @@ export default function WeeklyHighlights({
           icon={Crosshair} label="Lineup IQ" name={lineupAccuracy.manager} nameManager={lineupAccuracy.manager}
           value={`${lineupAccuracy.pct.toFixed(0)}% of optimal (${lineupAccuracy.actual.toFixed(2)}/${lineupAccuracy.optimal.toFixed(2)})`}
           accent="text-cyan-400" onClick={() => onSelectManager(lineupAccuracy.manager)}
+        />
+      )}
+      {worstLineupDecision && (
+        <HighlightCard
+          icon={ThumbsDown} label="Left the Most on the Table" name={worstLineupDecision.manager} nameManager={worstLineupDecision.manager}
+          value={`Scored ${worstLineupDecision.actual.toFixed(2)}, could've had ${worstLineupDecision.optimal.toFixed(2)} (-${worstLineupDecision.deficit.toFixed(2)})`}
+          accent="text-red-400" onClick={() => onSelectManager(worstLineupDecision.manager)}
         />
       )}
     </div>

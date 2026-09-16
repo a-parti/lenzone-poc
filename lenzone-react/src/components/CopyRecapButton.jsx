@@ -1,24 +1,28 @@
 import React, { useState } from 'react';
 import { Copy, Check } from 'lucide-react';
 import { buildWeeklyRecapText } from '../lib/recapText';
-import { computePlayerHighlights, computeLineupAccuracy } from '../lib/players';
+import { computePlayerHighlights, computeLineupAccuracy, computeWorstLineupDecision } from '../lib/players';
+import { computeBenchPointsAward } from '../lib/statsMath';
 
 // One-click "copy this week's recap as text" -- built for pasting straight into a Microsoft Teams
 // (or Slack/email) chat. Every line comes from data already shown on this page (weeklyAwards,
-// player highlights, standings); nothing here is invented or guessed.
+// player highlights, standings, big plays); nothing here is invented or guessed.
 export default function CopyRecapButton({
   week, weeklyAwards, isWeekFinal, afcData, nfcData, afcSeason, nfcSeason, weekProjections, playersDB,
-  afcStandings, nfcStandings
+  afcStandings, nfcStandings, weekBigPlays
 }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
     const playerHighlights = computePlayerHighlights(afcData, nfcData, afcSeason, nfcSeason, week, weekProjections);
     const lineupAccuracy = isWeekFinal ? computeLineupAccuracy(afcData, nfcData, afcSeason, nfcSeason, week, playersDB) : null;
+    const worstLineupDecision = isWeekFinal ? computeWorstLineupDecision(afcData, nfcData, afcSeason, nfcSeason, week, playersDB) : null;
+    const benchPointsAward = computeBenchPointsAward(afcData, nfcData, afcSeason, nfcSeason, week);
     // Global recap -- both conferences' top 3, always, regardless of what the viewer happens to
     // be filtered to on-screen right now.
     const text = buildWeeklyRecapText({
-      week, weeklyAwards, playerHighlights, lineupAccuracy, playersDB,
+      week, weeklyAwards, playerHighlights, lineupAccuracy, worstLineupDecision, benchPointsAward,
+      bigPlays: weekBigPlays, playersDB,
       afcStandingsTop3: (afcStandings || []).filter(r => r.rank <= 3),
       nfcStandingsTop3: (nfcStandings || []).filter(r => r.rank <= 3)
     });

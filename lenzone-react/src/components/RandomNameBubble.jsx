@@ -64,13 +64,13 @@ export default function RandomNameBubble({ enabled, afcData, nfcData, trophyLine
           const text = pickSpeechBubbleLine(realName, manager, {
             trophyLines: trophyLinesByManager?.[manager], rank, conf, weekResult: weekResultByManager?.[manager]
           });
-          if (text) showBubble(el, text);
+          if (text) showBubble(el, manager, text);
         });
       }
       scheduleNext();
     }
 
-    function showBubble(el, text) {
+    function showBubble(el, manager, text) {
       const overlay = overlayRef.current;
       if (!overlay) return;
       activeEls.add(el);
@@ -94,30 +94,46 @@ export default function RandomNameBubble({ enabled, afcData, nfcData, trophyLine
       `;
       overlay.appendChild(bubble);
 
-      // Position ONCE from the element's rect at creation time, not continuously re-read on a
-      // rAF loop -- React can reconcile/reuse that same DOM node for a different row between
-      // renders (list re-sorts, live score updates), which would silently drag an already-shown
-      // bubble to wherever that node ends up next while still showing the name captured at fire
-      // time. A short-lived decorative bubble doesn't need to track scrolling either; it's gone
-      // in a few seconds regardless.
-      const r = el.getBoundingClientRect();
-      bubble.style.left = `${r.left + r.width / 2}px`;
-      // Sits right on top of the actual logo -- anchored to its top edge (not overlapping down
-      // into it), tail pointing straight down at it.
-      bubble.style.top = `${r.top - 8}px`;
+      // Tracked EVERY frame while visible (not positioned once at creation) -- a 4+ second hold
+      // is plenty of time for the page (or a horizontally/vertically scrollable panel like the
+      // Grid) to scroll underneath a fixed-position bubble, which used to leave it floating
+      // behind wherever the logo had been at the moment it popped, not where the logo actually
+      // is now. Bails out early (fades out) if the underlying DOM node gets reused for a
+      // different manager between renders (a list re-sort) or removed from the page entirely --
+      // better to cut a bubble short than have it follow the wrong team's logo around.
+      let rafId;
+      let finished = false;
+      const track = () => {
+        if (finished) return;
+        if (el.dataset.manager !== manager || !document.body.contains(el)) {
+          finish();
+          return;
+        }
+        const r = el.getBoundingClientRect();
+        bubble.style.left = `${r.left + r.width / 2}px`;
+        // Sits right on top of the actual logo -- anchored to its top edge (not overlapping down
+        // into it), tail pointing straight down at it.
+        bubble.style.top = `${r.top - 8}px`;
+        rafId = requestAnimationFrame(track);
+      };
+      track();
       requestAnimationFrame(() => {
         bubble.style.opacity = '1';
         bubble.style.transform = `translate(-50%,-100%) scale(1) rotate(${tilt}deg)`;
       });
 
-      setTimeout(() => {
+      function finish() {
+        if (finished) return;
+        finished = true;
+        cancelAnimationFrame(rafId);
         bubble.style.opacity = '0';
         bubble.style.transform = `translate(-50%,-100%) scale(0.6) rotate(${tilt}deg)`;
         setTimeout(() => {
           bubble.remove();
           activeEls.delete(el);
         }, 300);
-      }, BUBBLE_HOLD_MS);
+      }
+      setTimeout(finish, BUBBLE_HOLD_MS);
     }
 
     scheduleNext();

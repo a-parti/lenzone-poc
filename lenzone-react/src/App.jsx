@@ -6,7 +6,8 @@ import { ConfFilterToggle } from './components/shared';
 import {
   fetchSleeperLeague, fetchFullSeasonData, fetchPlayersDB, fetchSeasonTransactions, fetchDraftPicks, fetchAllWeekProjections, fetchNflState, fetchNflSchedule
 } from './lib/sleeperApi';
-import { fetchWeekKickoffInfo, fetchWeekBigPlays } from './lib/espnApi';
+import { fetchWeekKickoffInfo, fetchWeekBigPlays, fetchSeasonResultsByTeam } from './lib/espnApi';
+import NflFunFact from './components/NflFunFact';
 import {
   computeStats, buildHistory, simulateCombinedPlayoffOdds, computeCrossRecords, computeCrossWeekRecord,
   computeWeeklyAwards, computeProjectedTrophies, buildConferenceList, rankConference, winProbability, roughWinProbability, computePointsAgainst, computeInConfRecord,
@@ -535,7 +536,14 @@ export default function App() {
     return exists ? prev.filter(g => !(g.home === game.home && g.away === game.away)) : [...prev, game];
   });
   const [myTeamManager, setMyTeamManager] = useState(() => localStorage.getItem('lenzone_my_team') || null);
-  const [loading, setLoading] = useState(false);
+  // Starts true (not false) -- the very first render happens BEFORE loadData's effect has even
+  // fired, so a reload landing directly on a deep tab (via a bookmarked #hash URL) would otherwise
+  // render that tab's real content against still-empty afcData/nfcData for one frame. Tracked
+  // separately from the general `loading` flag below (which also flips true on every later
+  // re-fetch) via hasLoadedOnce -- only the FIRST load should gate the page; a background refresh
+  // afterward shouldn't blank an already-showing tab.
+  const [loading, setLoading] = useState(true);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   const [isAdmin, setIsAdmin] = useState(() => localStorage.getItem('lenzone_admin') === 'true');
   // A deep link to the admin-only broadcast tab from a non-admin session lands on Home instead of
@@ -704,6 +712,7 @@ export default function App() {
     if (nfcRes) setNfcData(nfcRes);
     setNflState(stateRes);
     setLoading(false);
+    setHasLoadedOnce(true);
   };
 
   useEffect(() => {
@@ -783,6 +792,17 @@ export default function App() {
     fetchWeekBigPlays(selectedWeek, SEASON_YEAR).then(result => { if (!cancelled) setWeekBigPlays(result); });
     return () => { cancelled = true; };
   }, [selectedWeek, latestCompletedWeek]);
+
+  // Real per-real-NFL-team results so far this season (win/loss streaks, last-win date) -- powers
+  // the "Random NFL Fact" card. One ESPN scoreboard request per completed week (already fetched
+  // elsewhere for kickoff info, just aggregated across every week here instead of one), so this
+  // stays cheap even as the season goes on. Refetches only when latestCompletedWeek advances.
+  const [seasonResultsByTeam, setSeasonResultsByTeam] = useState({});
+  useEffect(() => {
+    let cancelled = false;
+    fetchSeasonResultsByTeam(SEASON_YEAR, latestCompletedWeek).then(result => { if (!cancelled) setSeasonResultsByTeam(result); });
+    return () => { cancelled = true; };
+  }, [latestCompletedWeek]);
 
   const handleLeagueIdChange = (conf, value) => {
     if (conf === "AFC") {
@@ -1090,6 +1110,14 @@ export default function App() {
     nfcWins: nfcManagers.reduce((sum, m) => sum + (crossRecordsForSeason[m]?.wins || 0), 0),
     ties: afcManagers.reduce((sum, m) => sum + (crossRecordsForSeason[m]?.ties || 0), 0)
   };
+  // Real cumulative points scored by every AFC team combined vs every NFC team combined, all
+  // season -- afcStandings/nfcStandings' `.pf` field is each manager's own real season-total
+  // points-for (see buildConferenceList in statsMath.js), so summing it across a conference gives
+  // a genuine whole-conference point total, not an estimate.
+  const conferenceCumulativeScore = {
+    afc: afcStandings.reduce((sum, t) => sum + (t.pf || 0), 0),
+    nfc: nfcStandings.reduce((sum, t) => sum + (t.pf || 0), 0)
+  };
 
   const afcManagerRows = afcManagers.filter(m => selectedManager === "ALL" || m === selectedManager);
   const nfcManagerRows = nfcManagers.filter(m => selectedManager === "ALL" || m === selectedManager);
@@ -1300,6 +1328,25 @@ export default function App() {
           </div>
         )}
 
+        {/* A deep-linked reload landing directly on a non-Home tab (e.g. a bookmarked #standings
+            URL) would otherwise try to render that tab's real content against the still-empty
+            afcData/nfcData that exist for the one render before loadData's effect has even fired
+            -- gate everything except Home behind having loaded at least once instead, with an
+            explicit way back to the one tab that never needs league data to render. */}
+        {activeTab !== "home" && !hasLoadedOnce ? (
+          <div className="flex flex-col items-center justify-center gap-4 py-24 text-center">
+            <RefreshCw className="w-8 h-8 animate-spin text-[var(--accent)]" />
+            <p className="text-sm text-[var(--muted)]">Loading league data&hellip;</p>
+            <button
+              type="button"
+              onClick={() => setActiveTab("home")}
+              className="text-sm font-semibold text-[var(--accent)] hover:text-[var(--accent-ink)] hover:underline"
+            >
+              Go to Homepage
+            </button>
+          </div>
+        ) : (
+        <>
         {/* TAB: HOME */}
         {activeTab === "home" && (
           <HomeView
@@ -1323,6 +1370,7 @@ export default function App() {
             afcSlots={afcData.startingSlots || []} nfcSlots={nfcData.startingSlots || []}
             afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
             afcStandings={afcStandings} nfcStandings={nfcStandings} weekBigPlays={weekBigPlays}
+            seasonResultsByTeam={seasonResultsByTeam}
           />
         )}
 
@@ -1406,6 +1454,28 @@ export default function App() {
              spot in the nav rather than being buried a click into Matchups.) */}
         {activeTab === "matchups" && (
           <div className="space-y-8 max-w-7xl mx-auto w-full">
+            <div className="bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-4 flex flex-wrap items-center gap-x-8 gap-y-2">
+              <div className="flex items-center gap-2">
+                <span className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">Cumulative Score:</span>
+                <p className="text-lg font-extrabold font-mono">
+                  <span className={CONF_STYLES.AFC.text}>AFC {conferenceCumulativeScore.afc.toFixed(2)}</span>
+                  <span className="text-[var(--muted)] mx-2">-</span>
+                  <span className={CONF_STYLES.NFC.text}>{conferenceCumulativeScore.nfc.toFixed(2)} NFC</span>
+                </p>
+              </div>
+              {isSelectedWeekFinal && weekRecord.counted > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">Week {selectedWeek} Series:</span>
+                  <p className="text-lg font-extrabold">
+                    <span className={CONF_STYLES.AFC.text}>AFC {weekRecord.afcWins}</span>
+                    <span className="text-[var(--muted)] mx-2">-</span>
+                    <span className={CONF_STYLES.NFC.text}>{weekRecord.nfcWins} NFC</span>
+                    {weekRecord.ties > 0 && <span className="text-[var(--muted)] text-xs ml-2">({weekRecord.ties} tie{weekRecord.ties > 1 ? "s" : ""})</span>}
+                  </p>
+                </div>
+              )}
+            </div>
+
             {matchupsView === "season" && (
               <div className="inline-flex rounded-full bg-[var(--surface2)] border border-[var(--border)] p-1 gap-1">
                 {[["week", "Weekly"], ["season", "Full Season"]].map(([id, label]) => (
@@ -1749,6 +1819,8 @@ Full Standings & Scoreboard: https://lenzone.vercel.app`}
               </div>
             )}
           </div>
+        )}
+        </>
         )}
       </main>
 

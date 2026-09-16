@@ -1,14 +1,17 @@
 // Builds a plain-text weekly recap for pasting into Microsoft Teams (or Slack, email, etc) --
 // every line comes from data already computed on the This Week page (weeklyAwards,
-// playerHighlights, standings) so nothing here is invented; a category simply isn't included if
-// there's no real data behind it yet (e.g. week still in progress).
+// playerHighlights, standings, big plays) so nothing here is invented; a category simply isn't
+// included if there's no real data behind it yet (e.g. week still in progress).
 import { signed } from '../components/PlayerHighlights';
 import { playerLabel } from './players';
 
 // afcStandingsTop3/nfcStandingsTop3: the recap is a global, whole-league summary -- not scoped to
 // whichever conference the viewer happens to be looking at -- so both conferences' top 3 are
 // always included, regardless of who copies it or what they're currently filtered to on-screen.
-export function buildWeeklyRecapText({ week, weeklyAwards, playerHighlights, lineupAccuracy, afcStandingsTop3, nfcStandingsTop3, playersDB }) {
+export function buildWeeklyRecapText({
+  week, weeklyAwards, playerHighlights, lineupAccuracy, worstLineupDecision, benchPointsAward, bigPlays,
+  afcStandingsTop3, nfcStandingsTop3, playersDB
+}) {
   const lines = [`LENZONE — Week ${week} Recap`, ''];
 
   if (weeklyAwards) {
@@ -19,18 +22,48 @@ export function buildWeeklyRecapText({ week, weeklyAwards, playerHighlights, lin
     if (blowout) lines.push(`🔥 Biggest Blowout: ${blowout.a} (${blowout.sa.toFixed(2)}) vs ${blowout.b} (${blowout.sb.toFixed(2)}) — ${blowout.margin.toFixed(2)} pt margin`);
   }
 
-  if (lineupAccuracy) {
-    lines.push(`🎯 Lineup IQ: ${lineupAccuracy.manager} — ${lineupAccuracy.pct.toFixed(0)}% of optimal`);
-  }
-
   if (playerHighlights) {
-    const { highestActual, biggestRiser, biggestBust } = playerHighlights;
+    const { highestActual, biggestRiser, biggestBust, mostReliable } = playerHighlights;
     const name = (entry) => playerLabel(playersDB || {}, entry.id).name;
     lines.push('');
     lines.push('Player Trophies:');
     if (highestActual) lines.push(`  Top Score: ${name(highestActual)} — ${highestActual.actual.toFixed(2)} pts`);
     if (biggestRiser) lines.push(`  Biggest Riser: ${name(biggestRiser)} — ${signed(biggestRiser.actual - biggestRiser.projected)} vs proj`);
     if (biggestBust) lines.push(`  Biggest Bust: ${name(biggestBust)} — ${signed(biggestBust.actual - biggestBust.projected)} vs proj`);
+    if (mostReliable) lines.push(`  Mr./Ms. Reliable: ${name(mostReliable)} — ${signed(mostReliable.actual - mostReliable.projected)} vs proj`);
+  }
+
+  // The "stir the pot" section -- real, specific, and named, which is exactly what makes it worth
+  // razzing someone about in the group chat (a vague "someone made a mistake" isn't).
+  const potStirrers = [];
+  if (worstLineupDecision) {
+    potStirrers.push(
+      `😬 ${worstLineupDecision.manager} started ${worstLineupDecision.actual.toFixed(2)} when the optimal lineup was sitting right there at ${worstLineupDecision.optimal.toFixed(2)} (-${worstLineupDecision.deficit.toFixed(2)} pts left on the table).`
+    );
+  }
+  if (benchPointsAward) {
+    potStirrers.push(`🪑 ${benchPointsAward.manager} left ${benchPointsAward.points.toFixed(2)} real points on the bench this week.`);
+  }
+  if (lineupAccuracy && lineupAccuracy.pct >= 99.5) {
+    potStirrers.push(`✅ ${lineupAccuracy.manager} ran the literal best possible lineup this week (${lineupAccuracy.pct.toFixed(0)}% of optimal). Nothing to say here.`);
+  }
+  if (potStirrers.length > 0) {
+    lines.push('');
+    lines.push('Stuff to Stir the Pot:');
+    potStirrers.forEach(l => lines.push(`  ${l}`));
+  }
+
+  if (bigPlays) {
+    const { longestReception, longestRun, longestFieldGoal } = bigPlays;
+    const plays = [];
+    if (longestReception) plays.push(`  Longest Pass: ${longestReception.passerName || '?'} to ${longestReception.receiverName || '?'} for ${longestReception.yards} yds`);
+    if (longestRun) plays.push(`  Longest Run: ${longestRun.playerName || '?'} for ${longestRun.yards} yds`);
+    if (longestFieldGoal) plays.push(`  Longest FG: ${longestFieldGoal.playerName || '?'} from ${longestFieldGoal.yards} yds`);
+    if (plays.length > 0) {
+      lines.push('');
+      lines.push('NFL Big Plays (Real, League-Wide):');
+      plays.forEach(l => lines.push(l));
+    }
   }
 
   const standingsBlock = (label, rows) => {

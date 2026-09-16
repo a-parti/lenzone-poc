@@ -17,7 +17,7 @@ function MyBigPlayCard({ icon: Icon, label, play, accent, onClick }) {
         <span className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">{label}</span>
       </div>
       <p className={`font-mono font-bold text-lg ${accent}`}>{play.yards} yds</p>
-      <p className="font-bold text-sm text-[var(--text)] truncate">{play.playerName}</p>
+      <p className="font-bold text-sm text-[var(--text)] leading-snug line-clamp-2">{play.playerName}</p>
       <p className="text-[10px] text-[var(--muted)] leading-snug line-clamp-2 mt-1">{play.text}</p>
     </div>
   );

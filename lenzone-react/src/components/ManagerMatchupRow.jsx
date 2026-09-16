@@ -252,6 +252,12 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
   const result = isFinal && myScore != null && oppScore != null
     ? (myScore > oppScore ? "W" : myScore < oppScore ? "L" : "T")
     : null;
+  // Real Standings Pts this specific matchup is worth (see buildConferenceList in statsMath.js):
+  // an in-conference win is worth 2.0 Standings Pts (1.0 for a tie), a cross-conference win only
+  // 1.0 (0.5 for a tie) -- shown next to the W/L badge so it's clear at a glance how much this
+  // particular result actually moves the real standings, not just who "won" the game.
+  const isInConf = label === "In-Conference";
+  const myStandingsPts = result === "W" ? (isInConf ? 2 : 1) : result === "T" ? (isInConf ? 1 : 0.5) : 0;
   const RESULT_STYLE = { W: "bg-[var(--pos)]/20 text-[var(--pos)]", L: "bg-[var(--neg)]/20 text-[var(--neg)]", T: "bg-[var(--muted)]/20 text-[var(--muted)]" };
   const [showRosters, setShowRosters] = useState(false);
   return (
@@ -266,9 +272,13 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
           half-width column next to the other team -- that's what was truncating names like
           "TheRealHousehusbandsOfIB" down to a couple of characters on a phone. */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 sm:gap-2">
-        <div className="flex items-center justify-between sm:flex-col sm:items-end sm:justify-start gap-2 sm:gap-0.5 min-w-0 flex-1">
+        <div className="flex items-center justify-between sm:flex-col sm:items-end sm:justify-start gap-2 sm:gap-2 min-w-0 flex-1">
           <div className="flex items-center gap-1.5 min-w-0 sm:w-full sm:justify-end">
-            {result && <span className={`text-sm font-black px-2 py-0.5 rounded shrink-0 ${RESULT_STYLE[result]}`}>{result}</span>}
+            {result && (
+              <span className={`text-sm font-black px-2 py-0.5 rounded shrink-0 whitespace-nowrap ${RESULT_STYLE[result]}`}>
+                {result} +{myStandingsPts}
+              </span>
+            )}
             <TeamName manager={myTeam} conf={myConf} className="font-semibold truncate" />
           </div>
           <span className="font-mono leading-tight shrink-0 whitespace-nowrap flex flex-col sm:items-end">
@@ -291,10 +301,18 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
           <span className="text-xs font-bold text-[var(--muted)] bg-[var(--surface)] px-2 py-1 rounded shrink-0">VS</span>
           <div className="flex-1 h-px bg-[var(--border)]/60 sm:hidden" />
         </div>
-        <div className="flex items-center justify-between sm:flex-col sm:items-start sm:justify-start gap-2 sm:gap-0.5 min-w-0 flex-1">
+        <div className="flex items-center justify-between sm:flex-col sm:items-start sm:justify-start gap-2 sm:gap-2 min-w-0 flex-1">
           <div className="flex items-center gap-1.5 min-w-0 sm:w-full">
             <TeamName manager={opponent} conf={oppConf} className="font-semibold truncate" />
-            {result && <span className={`text-sm font-black px-2 py-0.5 rounded shrink-0 ${RESULT_STYLE[result === "W" ? "L" : result === "L" ? "W" : "T"]}`}>{result === "W" ? "L" : result === "L" ? "W" : "T"}</span>}
+            {result && (() => {
+              const oppResult = result === "W" ? "L" : result === "L" ? "W" : "T";
+              const oppStandingsPts = oppResult === "W" ? (isInConf ? 2 : 1) : oppResult === "T" ? (isInConf ? 1 : 0.5) : 0;
+              return (
+                <span className={`text-sm font-black px-2 py-0.5 rounded shrink-0 whitespace-nowrap ${RESULT_STYLE[oppResult]}`}>
+                  {oppResult} +{oppStandingsPts}
+                </span>
+              );
+            })()}
           </div>
           <span className="font-mono leading-tight shrink-0 whitespace-nowrap flex flex-col">
             <span className={`text-lg font-bold ${showScores ? oppBigColor : "text-[var(--muted)]"}`}>

@@ -54,7 +54,7 @@ export default function TopByPositionHighlights({ afcData, nfcData, afcSeason, n
                     <span className="text-xs font-mono text-[var(--muted)] w-4 shrink-0 text-center">{i + 1}</span>
                     <PlayerAvatar playerId={entry.id} position={pos} className="w-9 h-9 shrink-0" />
                     <div className="min-w-0 flex-1">
-                      <p className="font-bold text-sm text-[var(--text)] truncate">{name}</p>
+                      <p className="font-bold text-sm text-[var(--text)] leading-snug line-clamp-2">{name}</p>
                       {team && <NflTeamTag team={team} number={number} />}
                     </div>
                     <span className="text-sm font-mono font-bold text-[var(--pos)] shrink-0">{entry.points.toFixed(2)}</span>

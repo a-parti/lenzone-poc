@@ -11,11 +11,13 @@ import ManagerMatchupRow from './ManagerMatchupRow';
 import NflGamesPanel from './NflGamesPanel';
 import CopyRecapButton from './CopyRecapButton';
 import NflBigPlaysHighlights from './NflBigPlaysHighlights';
+import WeeklyScoresBarChart from './WeeklyScoresBarChart';
 
 export default function CurrentWeekView({
   onGoToMatchup, selectedWeek, onSelectWeek, currentNflWeek, seasonWeeks, isWeekFinal, weeklyAwards, nflGames, myTeamNflTeams,
   myTeamManager, myTeamIntra, myTeamInter, myTeamConf, myTeamRoster, myTeamConfData, myTeamFallbackField, myTeamPlayersPoints,
   playersDB, weekProjections, byTeamWeek, afcSlots, nfcSlots, afcData, nfcData, afcSeason, nfcSeason,
+  afcManagers, nfcManagers, schedule, logoMap, hexColorMap,
   afcStandings, nfcStandings, weekBigPlays, seasonResultsByTeam, managerStreaks, waiverWireMvp
 }) {
   const goToManagerMatchup = (manager) => onGoToMatchup(manager);
@@ -92,6 +94,15 @@ export default function CurrentWeekView({
           managerStreaks={managerStreaks}
         />
       </div>
+
+      {myTeamManager && (
+        <WeeklyScoresBarChart
+          afcManagers={afcManagers} nfcManagers={nfcManagers} afcSeason={afcSeason} nfcSeason={nfcSeason}
+          schedule={schedule} week={selectedWeek} logoMap={logoMap} hexColorMap={hexColorMap}
+          focusManager={myTeamManager}
+          focusOpponents={[myTeamIntra?.opponent, myTeamInter?.opponent].filter(Boolean)}
+        />
+      )}
 
       {/* "Your Matchups"/"Your Player Trophies" comes next -- this is the one section that's
           actually about you, not the whole league, so it shouldn't require scrolling past three

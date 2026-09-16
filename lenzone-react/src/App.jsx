@@ -27,6 +27,7 @@ import SeasonGridTab from './components/SeasonGridTab';
 import HomeView from './components/HomeView';
 import NewsView from './components/NewsView';
 import NewsTicker from './components/NewsTicker';
+import WeeklyScoresBarChart from './components/WeeklyScoresBarChart';
 import CurrentWeekView from './components/CurrentWeekView';
 import CommandPalette from './components/CommandPalette';
 import ManagerMatchupRow from './components/ManagerMatchupRow';
@@ -1456,6 +1457,7 @@ export default function App() {
             byTeamWeek={enrichedByTeamWeek}
             afcSlots={afcData.startingSlots || []} nfcSlots={nfcData.startingSlots || []}
             afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
+            afcManagers={afcManagers} nfcManagers={nfcManagers} schedule={schedule} logoMap={teamLogoMap} hexColorMap={teamHexColorMap}
             afcStandings={afcStandings} nfcStandings={nfcStandings} weekBigPlays={weekBigPlays}
             seasonResultsByTeam={seasonResultsByTeam} managerStreaks={managerStreaks} waiverWireMvp={waiverWireMvp}
           />
@@ -1660,6 +1662,8 @@ export default function App() {
               Everyone Else's Matchups
             </p>
 
+            <WeeklyScoresBarChart afcManagers={afcManagers} nfcManagers={nfcManagers} afcSeason={afcSeason} nfcSeason={nfcSeason} schedule={schedule} week={selectedWeek} logoMap={teamLogoMap} />
+
             {(() => {
               const afcBlock = showAfc && (
                 <div key="afc" className="space-y-3">
@@ -1832,6 +1836,11 @@ export default function App() {
               <h2 className="text-xl font-bold mb-2 text-[var(--text)]">MS Teams Weekly Broadcast Generator</h2>
               <p className="text-sm text-[var(--text2)]">Copy and paste this markdown recap directly into your MS Teams channel every Tuesday morning.</p>
             </div>
+
+            {/* Visual reference for whoever's writing the recap -- same "All Teams" chart as the
+                Matchups tab, not part of the copyable markdown text below (Teams chat can't render
+                a live SVG from pasted markdown). */}
+            <WeeklyScoresBarChart afcManagers={afcManagers} nfcManagers={nfcManagers} afcSeason={afcSeason} nfcSeason={nfcSeason} schedule={schedule} week={selectedWeek} logoMap={teamLogoMap} />
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>

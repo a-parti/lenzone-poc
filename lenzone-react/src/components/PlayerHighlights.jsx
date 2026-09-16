@@ -47,7 +47,9 @@ export function PlayerCard({ icon: Icon, label, entry, playersDB, value, accent,
       <div className="flex items-center gap-2.5">
         <PlayerAvatar playerId={entry.id} position={position} className="w-12 h-12" />
         <div className="min-w-0">
-          <p className="font-bold text-sm text-[var(--text)] truncate">{name}</p>
+          {/* line-clamp-2 (not truncate) -- long player names shouldn't get chopped off with an
+              ellipsis; wrapping to a second line reads better than losing part of the name. */}
+          <p className="font-bold text-sm text-[var(--text)] leading-snug line-clamp-2">{name}</p>
           <div className="flex items-center gap-1.5 mt-1 mb-1">
             <PositionBadge position={position} />
             {team && <NflTeamTag team={team} number={number} />}

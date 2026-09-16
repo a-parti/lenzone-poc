@@ -14,7 +14,7 @@ function BigPlayCard({ icon: Icon, label, play, accent, suffix, playerName }) {
         {play.team && <NflTeamTag team={play.team} />}
         <span className={`font-mono font-bold text-lg ${accent}`}>{play.yards} {suffix}</span>
       </div>
-      {playerName && <p className="font-bold text-sm text-[var(--text)] truncate">{playerName}</p>}
+      {playerName && <p className="font-bold text-sm text-[var(--text)] leading-snug line-clamp-2">{playerName}</p>}
       <p className="text-xs text-[var(--muted)] leading-snug line-clamp-2">{play.text}</p>
       {play.event && <p className="text-[10px] text-[var(--muted)] mt-1">{play.event}</p>}
     </div>

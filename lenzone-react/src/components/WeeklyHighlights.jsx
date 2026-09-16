@@ -53,13 +53,13 @@ function MatchupHighlightCard({ icon: Icon, label, teamA, teamB, scoreA, scoreB,
         <Icon className={`w-4 h-4 ${accent}`} />
         <span className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">{label}</span>
       </div>
-      <div className="space-y-0.5">
+      <div className="space-y-1">
         <div className="flex items-baseline justify-between gap-2">
-          <span className={`font-bold text-sm truncate ${colorA.text}`}>{teamA}</span>
+          <span className={`font-bold text-sm leading-snug min-w-0 ${colorA.text}`}>{teamA}</span>
           <span className="font-mono text-sm font-bold text-[var(--text)] shrink-0">{scoreA.toFixed(2)}</span>
         </div>
         <div className="flex items-baseline justify-between gap-2">
-          <span className={`font-bold text-sm truncate ${colorB.text}`}>{teamB}</span>
+          <span className={`font-bold text-sm leading-snug min-w-0 ${colorB.text}`}>{teamB}</span>
           <span className="font-mono text-sm font-bold text-[var(--text)] shrink-0">{scoreB.toFixed(2)}</span>
         </div>
       </div>

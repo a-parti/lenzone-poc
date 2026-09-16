@@ -440,6 +440,71 @@ body {
   animation: news-ticker-scroll 40s linear infinite;
 }
 
+/* "Material" card finish -- layered on TOP of each card's existing Tailwind background/border
+   utility classes (never replaces them), so this is purely additive polish: a soft light sheen in
+   the upper-left corner (like light catching a glass panel), a fine inset top-edge highlight, and
+   a layered elevation shadow. Kept subtle on purpose ("clean", not busy/skeuomorphic) -- no film
+   grain/noise texture, since that read as grungy rather than polished at this app's flat-color,
+   editorial-serif visual style. `position:relative` + `isolation:isolate` on the card itself keeps
+   the ::before sheen layer scoped behind the card's own content instead of leaking into a parent
+   stacking context. */
+.material-surface {
+  position: relative;
+  isolation: isolate;
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.07) inset,
+    0 10px 28px -16px rgba(0, 0, 0, 0.5),
+    0 2px 8px -3px rgba(0, 0, 0, 0.3);
+}
+.material-surface::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(130% 90% at 12% -10%, rgba(255, 255, 255, 0.14), transparent 55%),
+    linear-gradient(155deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 45%);
+  mix-blend-mode: overlay;
+}
+/* Light mode: a white/near-white bg means an "overlay" white sheen has almost nothing to blend
+   against (overlay lightens light colors further, i.e. does ~nothing useful here) -- soft-light
+   against a gentle dark tint reads as a believable sheen in both modes instead. */
+:root:not([data-mode="dark"]) .material-surface::before {
+  background:
+    radial-gradient(130% 90% at 12% -10%, rgba(255, 255, 255, 0.55), transparent 55%),
+    linear-gradient(155deg, rgba(15, 23, 42, 0.05), rgba(15, 23, 42, 0) 45%);
+  mix-blend-mode: soft-light;
+}
+.material-surface:hover {
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.09) inset,
+    0 14px 34px -16px rgba(0, 0, 0, 0.55),
+    0 3px 10px -3px rgba(0, 0, 0, 0.35);
+}
+
+/* Same finish, tuned for the bottom-fixed news ticker / header bars -- flatter (no rounded
+   corners to clip against), sheen runs the full width instead of one corner. */
+.material-banner {
+  position: relative;
+  isolation: isolate;
+  box-shadow: 0 -1px 0 0 rgba(255, 255, 255, 0.07) inset, 0 -8px 24px -12px rgba(0, 0, 0, 0.4);
+}
+.material-banner::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 60%);
+  mix-blend-mode: overlay;
+}
+:root:not([data-mode="dark"]) .material-banner::before {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 60%);
+  mix-blend-mode: soft-light;
+}
+
 @keyframes fade-in-up {
   from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: translateY(0); }

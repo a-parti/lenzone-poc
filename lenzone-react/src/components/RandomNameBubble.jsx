@@ -2,21 +2,33 @@ import { useEffect, useRef } from 'react';
 import { getRealName } from '../lib/realNames';
 import { pickSpeechBubbleLine, findRankAndConf } from '../lib/speechBubble';
 
-// Frequent enough that it's a near-constant bit of ambient life on the page, not a rare easter
-// egg you might never see.
-const MIN_INTERVAL_MS = 4000;
-const MAX_INTERVAL_MS = 8000;
+// Toned back down after "too frequent" feedback -- still a regular bit of ambient life, not
+// constant noise.
+const MIN_INTERVAL_MS = 12000;
+const MAX_INTERVAL_MS = 22000;
 const BUBBLE_HOLD_MS = 4200;
+// Usually just one bubble at a time; occasionally two. Three-at-once was part of what made it
+// feel chaotic/not clearly tied to a specific logo.
+const MAX_AT_ONCE = 2;
 
-// Pops a speech bubble directly over a real, currently-visible team nameplate/logo on screen
-// (same "stuck to the actual logo" behavior as before, just louder/more often) -- the same
-// introduction the roster modal's own bubble gives when you click a team (see RosterModal.jsx),
-// surfaced ambiently and unprompted, now for MULTIPLE teams at once when more than one is visible.
-// TeamName.jsx tags its own <img> with data-manager specifically so this can find team logos
-// without also matching player headshots, which use the identical rounded-full/object-cover
-// classes and would otherwise be indistinguishable by selector alone.
+// Pops a speech bubble directly over a real, currently-visible team nameplate/logo on screen --
+// the same introduction the roster modal's own bubble gives when you click a team (see
+// RosterModal.jsx), surfaced ambiently and unprompted. TeamName.jsx tags its own <img> with
+// data-manager specifically so this can find team logos without also matching player headshots,
+// which use the identical rounded-full/object-cover classes and would otherwise be
+// indistinguishable by selector alone.
 export default function RandomNameBubble({ enabled, afcData, nfcData, trophyLinesByManager, afcStandings, nfcStandings, weekResultByManager }) {
   const overlayRef = useRef(null);
+  // afcStandings/nfcStandings (this app's OWN computed lenzone.xyz standings -- see
+  // rankConference() in App.jsx, never raw Sleeper roster.settings) update every time a week's
+  // real scores change. The firing loop below is intentionally NOT restarted on every data change
+  // (that would reset its timing/cadence constantly), so it reads these through a ref instead of
+  // closing over the prop directly -- otherwise it would freeze on whatever standings existed the
+  // moment the loop first started and silently go stale forever after.
+  const latestRef = useRef({});
+  useEffect(() => {
+    latestRef.current = { afcData, nfcData, trophyLinesByManager, afcStandings, nfcStandings, weekResultByManager };
+  }, [afcData, nfcData, trophyLinesByManager, afcStandings, nfcStandings, weekResultByManager]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -33,6 +45,7 @@ export default function RandomNameBubble({ enabled, afcData, nfcData, trophyLine
 
     function fire() {
       if (cancelled) return;
+      const { afcData, nfcData, trophyLinesByManager, afcStandings, nfcStandings, weekResultByManager } = latestRef.current;
       const candidates = Array.from(document.querySelectorAll('img[data-manager]')).filter(el => {
         if (activeEls.has(el)) return false;
         const r = el.getBoundingClientRect();
@@ -40,10 +53,10 @@ export default function RandomNameBubble({ enabled, afcData, nfcData, trophyLine
         return !!getRealName(afcData, nfcData, el.dataset.manager);
       });
       if (candidates.length > 0) {
-        // Multiple teams at once -- shuffle then take the front, so a single tick can show
-        // several different real nameplates talking at the same time, not just one.
+        // Multiple teams at once (capped) -- shuffle then take the front, so a tick can
+        // occasionally show two different real nameplates at once, not just always one.
         const shuffled = [...candidates].sort(() => Math.random() - 0.5);
-        const howMany = Math.min(1 + Math.floor(Math.random() * 3), shuffled.length);
+        const howMany = Math.min(1 + Math.floor(Math.random() * MAX_AT_ONCE), shuffled.length);
         shuffled.slice(0, howMany).forEach(el => {
           const manager = el.dataset.manager;
           const realName = getRealName(afcData, nfcData, manager);
@@ -89,9 +102,9 @@ export default function RandomNameBubble({ enabled, afcData, nfcData, trophyLine
       // in a few seconds regardless.
       const r = el.getBoundingClientRect();
       bubble.style.left = `${r.left + r.width / 2}px`;
-      // Overlaps DOWN onto the top portion of the actual logo (not just floating just above it
-      // with a gap) -- reads as the bubble sitting right on top of the nameplate, tail included.
-      bubble.style.top = `${r.top + r.height * 0.3}px`;
+      // Sits right on top of the actual logo -- anchored to its top edge (not overlapping down
+      // into it), tail pointing straight down at it.
+      bubble.style.top = `${r.top - 8}px`;
       requestAnimationFrame(() => {
         bubble.style.opacity = '1';
         bubble.style.transform = `translate(-50%,-100%) scale(1) rotate(${tilt}deg)`;
@@ -112,8 +125,7 @@ export default function RandomNameBubble({ enabled, afcData, nfcData, trophyLine
       cancelled = true;
       clearTimeout(timeoutId);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, afcData, nfcData]);
+  }, [enabled]);
 
   return <div ref={overlayRef} className="fixed inset-0 z-[999] overflow-visible" style={{ pointerEvents: 'none' }} />;
 }

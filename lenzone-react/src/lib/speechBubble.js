@@ -5,6 +5,10 @@
 // now, or their real current conference rank) instead of always falling back to a generic line.
 // Framing is deliberately varied (not always "I'm {name} —") -- a wall of bubbles that all open
 // the exact same way reads as a template, not a personality.
+//
+// Want a specific manager to say their own specific stuff? Edit lib/speechBubbleOverrides.js --
+// that file takes priority over everything below, no changes needed here.
+import { MANAGER_OVERRIDES } from './speechBubbleOverrides';
 
 // Playful flavor text only -- never a factual claim about the real person, just their fictional
 // fantasy team. Safe to write freely (no sourcing needed for a joke), unlike the trophy/rank/result
@@ -84,6 +88,12 @@ const RANK_FRAMES = [
 // text is free-written.
 export function pickSpeechBubbleLine(realName, manager, trophyContext = {}) {
   if (!realName) return null;
+  // Custom per-manager lines (lib/speechBubbleOverrides.js) always win -- if someone's been
+  // given their own specific material, that's what should show, not a generic trophy/rank line.
+  const overrides = MANAGER_OVERRIDES[manager];
+  if (overrides && overrides.length > 0) {
+    return pickFrom(overrides, realName, manager);
+  }
   const { trophyLines, rank, conf, weekResult } = trophyContext;
   if (trophyLines && trophyLines.length > 0) {
     const trophy = trophyLines[Math.floor(Math.random() * trophyLines.length)];

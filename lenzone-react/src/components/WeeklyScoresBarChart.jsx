@@ -273,8 +273,14 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
   // transform below); the actual `bars` array/DOM order never changes, so sorting, grouping and
   // selection are untouched.
   const pinnedBar = pinned ? bars.find(b => b.manager === pinned) : null;
+  // Clicking yourself, or a team that's already one of your own two real opponents, is a no-op
+  // for layout -- they're already grouped right next to you, so there's nothing left to pull
+  // together. Without this check, that team would try to form a SECOND group whose own "real
+  // opponents" list includes you, fighting the "you" segment over where you actually belong.
+  const alreadyInFocusGroup = !!focusManager && pinnedBar &&
+    (pinnedBar.manager === focusManager || (focusOpponents || []).includes(pinnedBar.manager));
   let pinXByManager = null;
-  if (pinnedBar && pinnedBar.manager !== focusManager) {
+  if (pinnedBar && !alreadyInFocusGroup) {
     const placedNames = new Set();
     // Three distinct, clearly separated clusters -- "you and your matchups" (focus mode only),
     // "your selection and their matchups" (whoever got clicked, plus their real opponents), then

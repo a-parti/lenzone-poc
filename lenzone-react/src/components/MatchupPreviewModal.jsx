@@ -5,6 +5,7 @@ import { useEscapeKey } from './shared';
 import { nextModalZ } from '../lib/modalStack';
 import { CONF_STYLES } from '../lib/theme';
 import ManagerMatchupRow from './ManagerMatchupRow';
+import TeamName from './TeamName';
 
 // Global "quick look" card for a matchup clicked from somewhere that isn't already the Matchups
 // tab (currently: the season Grid) -- shows the same scores/W-L-T/"Expand Rosters" card the
@@ -27,7 +28,7 @@ export default function MatchupPreviewModal({ computeIntra, computeInter, afcSlo
   return (
     <div className="fixed inset-0 bg-[var(--bg)]/80 backdrop-blur-sm flex items-center justify-center p-4" style={{ zIndex: z }} onClick={closePreview}>
       <div
-        className="bg-[var(--surface)]/95 border border-[var(--border)]/80 rounded-xl p-5 w-full max-w-lg shadow-2xl relative max-h-[85vh] overflow-y-auto scroll-thin"
+        className="bg-[var(--surface)]/95 border border-[var(--border)]/80 rounded-xl p-5 w-full max-w-3xl shadow-2xl relative max-h-[85vh] overflow-y-auto scroll-thin"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -36,14 +37,18 @@ export default function MatchupPreviewModal({ computeIntra, computeInter, afcSlo
         <button onClick={closePreview} aria-label="Close" className="absolute top-3 right-3 text-[var(--muted)] hover:text-[var(--text)]">
           <X className="w-4 h-4" />
         </button>
-        <div className="flex items-center justify-between mb-3 pr-6">
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${CONF_STYLES[conf].badge}`}>{conf}</span>
-          <span className="text-xs text-[var(--muted)]">Week {week}</span>
+        {/* The conf badge lives here, once -- ManagerMatchupRow gets hideHeader so it doesn't
+            render its own second copy of the same badge + team name right above its own content. */}
+        <div className="flex items-center gap-2 mb-3 pr-6 min-w-0">
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${CONF_STYLES[conf].badge}`}>{conf}</span>
+          <TeamName manager={manager} conf={conf} className="font-bold min-w-0" />
+          <span className="text-xs text-[var(--muted)] ml-auto shrink-0">Week {week}</span>
         </div>
         <ManagerMatchupRow
           manager={manager} conf={conf} intra={intra} inter={inter}
           afcSlots={afcSlots} nfcSlots={nfcSlots} playersDB={playersDB}
           weekProjections={weekProjections} byTeamWeek={byTeamWeek} week={week}
+          hideHeader
         />
         <button
           type="button"

@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Download, Copy, Check, X as XIcon, Link as LinkIcon } from 'lucide-react';
+import { Download, Copy, Check, X as XIcon, Link as LinkIcon, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { useMatchupPreview } from '../context/MatchupPreviewContext';
 import { HIGH_SCORE_PRIZES } from '../lib/highScorePrizes';
 import { getRealName } from '../lib/realNames';
@@ -115,11 +115,24 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
     return next;
   });
   const clearSelection = () => { setSelected(new Set()); setFilterActive(false); };
-  // A week/mode change invalidates whatever was selected before (different real bars entirely).
-  React.useEffect(() => { clearSelection(); }, [week, focusManager]);
+  // Click (not hover) pulls a team's two real opponents into the slots next to it -- click the
+  // same bar again, or a different one, to release/switch. Hover alone used to drive this, but a
+  // bar sliding out from under (or into) a stationary cursor mid-transition fired spurious
+  // enter/leave events against a pointer that never actually moved, which read as the hover state
+  // randomly flickering. A click is a discrete, deliberate action with none of that ambiguity.
+  const [pinned, setPinned] = useState(null);
+  // A week/mode change invalidates whatever was selected/pinned before (different real bars
+  // entirely).
+  React.useEffect(() => { clearSelection(); setPinned(null); }, [week, focusManager]);
   const svgRef = useRef(null);
   const { openPreview } = useMatchupPreview();
   const [exporting, setExporting] = useState(false);
+  // Zoom scales the SVG's rendered CSS size while its viewBox stays fixed -- the browser scales
+  // every coordinate, line and font in the drawing proportionally (real vector zoom, not a blurry
+  // raster stretch), and the existing horizontal-scroll wrapper below already handles whatever
+  // doesn't fit at zoom > 100%.
+  const [zoom, setZoom] = useState(1);
+  const ZOOM_MIN = 0.5, ZOOM_MAX = 2, ZOOM_STEP = 0.25;
 
   // Cross-conference opponent/result for one manager this week -- `schedule` is the same
   // {week, afcTeam, nfcTeam} pairing list used throughout the app (App.jsx's cross-conference
@@ -222,7 +235,13 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
   // chart uses) instead of the generic accent color, so it's recognizably "you" the same way it is
   // everywhere else in the app.
   const CATEGORY_COLOR = {
-    you: (focusManager && hexColorMap?.[focusManager]) || "var(--accent)", tie: "var(--muted)",
+    // A fixed, distinctive silver rather than your own Standings-page team color -- that color
+    // can coincidentally match (or nearly match) another bar's category color, or just blend in;
+    // silver never occurs anywhere else on this chart, so "which bar is me" never needs a second
+    // look regardless of which team colors happen to be in play this week. A mid-tone slate
+    // (not a pale near-white silver) so it reads with real contrast against both a light and a
+    // dark chart background, not just one of them.
+    you: "#94a3b8", tie: "var(--muted)",
     "actual-ahead": "var(--neg)", "actual-behind": "var(--pos)",
     "theo-neg": THEO_NEG, "theo-pos": THEO_POS,
     both: BOTH_WIN_COLOR, inconf: INCONF_WIN_COLOR, cross: CROSS_WIN_COLOR, none: NO_WIN_COLOR
@@ -244,6 +263,41 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
   // `hovered` also doubles as the key for the AFC/NFC median-line hover dimming ("AFC-median" /
   // "NFC-median"), which aren't real bars -- only look up an actual bar for the hover-reference line.
   const hoveredBarForLine = hovered ? bars.find(b => b.manager === hovered) : null;
+
+  // Clicking a bar pulls that team's two real opponents into the slots right after it, sliding
+  // every other bar out of the way -- a new group, the same way the focus-mode "you" group already
+  // sits first. In focus mode your own group stays anchored first no matter who else gets clicked
+  // (it's the chart's fixed reference point); the clicked team's own cluster becomes a second group
+  // right after it. Clicking yourself is a no-op for layout -- your own two opponents are already
+  // grouped next to you by the default focus-mode sort. Only reorders LAYOUT (x position via a
+  // transform below); the actual `bars` array/DOM order never changes, so sorting, grouping and
+  // selection are untouched.
+  const pinnedBar = pinned ? bars.find(b => b.manager === pinned) : null;
+  let pinXByManager = null;
+  if (pinnedBar && pinnedBar.manager !== focusManager) {
+    const placedNames = new Set();
+    const placeFirst = [];
+    if (focusManager) {
+      const focusBar = bars.find(b => b.manager === focusManager);
+      if (focusBar) { placeFirst.push(focusBar); placedNames.add(focusManager); }
+    }
+    placeFirst.push(pinnedBar);
+    placedNames.add(pinnedBar.manager);
+    [pinnedBar.opponent, pinnedBar.crossOpponent].forEach(name => {
+      if (name && !placedNames.has(name) && bars.some(b => b.manager === name)) {
+        placeFirst.push(positioned.find(b => b.manager === name));
+        placedNames.add(name);
+      }
+    });
+    const rest = positioned.filter(b => !placedNames.has(b.manager));
+    const newOrder = [...placeFirst, ...rest];
+    pinXByManager = {};
+    let px = MARGIN.left;
+    newOrder.forEach(b => {
+      pinXByManager[b.manager] = px;
+      px += MIN_BAR_W + BAR_GAP;
+    });
+  }
 
   // Shared between the live HTML legend below and the export image, so the two never drift apart.
   const legendItems = focusManager
@@ -572,6 +626,38 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
           Week {week} Scores {focusManager ? "-- You & Your Opponents" : "-- All Teams"}
         </p>
         <div className="flex items-center gap-2">
+          <div className="flex items-center gap-0.5 mr-1 border-r border-[var(--border)]/60 pr-2">
+            <button
+              type="button" onClick={() => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))}
+              disabled={zoom <= ZOOM_MIN} title="Zoom out" aria-label="Zoom out"
+              className="p-1 rounded-md text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface2)] disabled:opacity-30 disabled:hover:bg-transparent transition-colors duration-150"
+            >
+              <ZoomOut className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button" onClick={() => setZoom(1)} disabled={zoom === 1}
+              title="Reset zoom" aria-label="Reset zoom"
+              className="w-11 text-center text-[10px] font-semibold tabular-nums text-[var(--muted)] hover:text-[var(--text)] disabled:hover:text-[var(--muted)] transition-colors duration-150"
+            >
+              {zoom === 1 ? <RotateCcw className="w-3 h-3 mx-auto opacity-40" /> : `${Math.round(zoom * 100)}%`}
+            </button>
+            <button
+              type="button" onClick={() => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))}
+              disabled={zoom >= ZOOM_MAX} title="Zoom in" aria-label="Zoom in"
+              className="p-1 rounded-md text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface2)] disabled:opacity-30 disabled:hover:bg-transparent transition-colors duration-150"
+            >
+              <ZoomIn className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          {pinned && (
+            <button
+              type="button" onClick={() => setPinned(null)}
+              title="Stop grouping this team's opponents next to it"
+              className="text-[10px] font-semibold text-[var(--muted)] hover:text-[var(--text)] px-2 py-1 rounded-md hover:bg-[var(--surface2)] transition-colors duration-150"
+            >
+              Clear Grouping
+            </button>
+          )}
           {selected.size > 0 && (
             <>
               <button
@@ -622,7 +708,10 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
         </p>
       )}
       <div className="overflow-x-auto scroll-thin">
-        <svg ref={svgRef} width={width} height={HEIGHT} viewBox={`0 0 ${width} ${HEIGHT}`} className="h-auto" style={{ minWidth: '100%', fontFamily: DATA_FONT }} role="img" aria-label={`Week ${week} scores by team`}>
+        <svg
+          ref={svgRef} viewBox={`0 0 ${width} ${HEIGHT}`} role="img" aria-label={`Week ${week} scores by team`}
+          style={{ width: width * zoom, height: HEIGHT * zoom, fontFamily: DATA_FONT, transition: 'width 0.2s ease, height 0.2s ease' }}
+        >
           <text
             x={84} y={MARGIN.top + plotH / 2} textAnchor="middle" fontSize={12} fontWeight={700}
             fill="var(--muted)" transform={`rotate(-90 84 ${MARGIN.top + plotH / 2})`}
@@ -713,6 +802,12 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
             const showLogo = logoUrl && barHeight >= LOGO_SIZE + 14;
             const isSelected = selected.has(b.manager);
             const realName = getRealName(afcData, nfcData, b.manager);
+            // The actual "move out of the way / slide in next to" animation: dx shifts this bar
+            // from its normal sorted position to its slot in the click-pinned reflow (0 when
+            // nothing's pinned, or when this bar isn't affected by the current pin), and the
+            // transform transition below is what makes that shift slide instead of jump.
+            const dx = pinXByManager ? (pinXByManager[b.manager] - b.x) : 0;
+            const isPinned = pinned === b.manager;
             return (
               <g
                 key={b.manager}
@@ -720,15 +815,15 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
                 onMouseEnter={() => setHovered(b.manager)}
                 onMouseLeave={() => setHovered(null)}
                 onClick={(e) => {
-                  if (e.ctrlKey || e.metaKey || e.shiftKey) toggleSelected(b.manager);
-                  else openPreview(b.manager, b.conf, week);
+                  if (e.ctrlKey || e.metaKey || e.shiftKey) { toggleSelected(b.manager); return; }
+                  setPinned(prev => (prev === b.manager ? null : b.manager));
                 }}
                 style={{
                   cursor: 'pointer',
                   filter: isHovered ? `drop-shadow(0 0 10px ${color})` : `drop-shadow(0 2px 3px rgba(0,0,0,0.25))`,
-                  transform: isHovered ? 'translateY(-4px)' : 'translateY(0)',
+                  transform: `translate(${dx}px, ${isHovered ? -4 : 0}px)`,
                   transformBox: 'fill-box', transformOrigin: 'bottom center',
-                  transition: 'filter 0.2s ease, transform 0.25s cubic-bezier(.34,1.56,.64,1)'
+                  transition: 'filter 0.2s ease, transform 0.45s cubic-bezier(.22,1,.36,1)'
                 }}
               >
                 <rect
@@ -748,6 +843,14 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
                     fill="none" stroke="var(--text)" strokeWidth={2} strokeDasharray="5 3" pointerEvents="none"
                   />
                 )}
+                {/* Pinned (grouped-with-opponents) ring -- solid, not dashed, so it reads as a
+                    different state from the selection ring above rather than a duplicate of it. */}
+                {isPinned && (
+                  <rect
+                    x={b.x - 4} y={barY - 4} width={MIN_BAR_W + 8} height={barHeight + 4} rx={8}
+                    fill="none" stroke={color} strokeWidth={2.5} pointerEvents="none"
+                  />
+                )}
                 {showLogo && (
                   <>
                     <defs>
@@ -755,9 +858,14 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
                         <circle cx={b.x + MIN_BAR_W / 2} cy={logoCy} r={LOGO_SIZE / 2} />
                       </clipPath>
                     </defs>
+                    {/* Logo/name click opens the full matchup preview (stopPropagation so it
+                        doesn't also toggle this bar's pin) -- the bar body itself is what
+                        groups/ungroups opponents now. */}
                     <image
                       href={logoUrl} x={b.x + MIN_BAR_W / 2 - LOGO_SIZE / 2} y={logoCy - LOGO_SIZE / 2}
                       width={LOGO_SIZE} height={LOGO_SIZE} clipPath={`url(#${clipId})`} preserveAspectRatio="xMidYMid slice"
+                      onClick={(e) => { e.stopPropagation(); openPreview(b.manager, b.conf, week); }}
+                      style={{ cursor: 'pointer' }}
                     />
                     <circle cx={b.x + MIN_BAR_W / 2} cy={logoCy} r={LOGO_SIZE / 2} fill="none" stroke="var(--surface)" strokeWidth={2} />
                   </>
@@ -780,6 +888,8 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
                   fill={b.conf === "AFC" ? AFC_COLOR : NFC_COLOR}
                   fontFamily={SERIF_FONT}
                   textAnchor="end" transform={`rotate(-40 ${b.x + MIN_BAR_W / 2} ${MARGIN.top + plotH + 12})`}
+                  onClick={(e) => { e.stopPropagation(); openPreview(b.manager, b.conf, week); }}
+                  style={{ cursor: 'pointer' }}
                 >
                   <tspan x={b.x + MIN_BAR_W / 2} fontSize={13}>{b.manager}</tspan>
                   {realName && <tspan x={b.x + MIN_BAR_W / 2} dy="14" fontSize={10} fontWeight={600} fill="var(--muted)">({realName})</tspan>}

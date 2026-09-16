@@ -6,7 +6,10 @@ import lenzoneLogoRing from '../assets/lenzone-logo-ring.png';
 import lenzoneLogoBall from '../assets/lenzone-logo-ball.png';
 
 const HEIGHT = 380;
-const MARGIN = { top: 40, right: 16, bottom: 130, left: 56 };
+// bottom carries a little extra room for the tied-points bracket row (see `tiers` below), which
+// sits right between the bar bottoms and the rotated name labels -- not tacked on below the
+// labels, which read as a stray disconnected row down at the very edge of the chart.
+const MARGIN = { top: 40, right: 16, bottom: 156, left: 56 };
 const MIN_BAR_W = 58;
 const BAR_GAP = 10;
 const GROUP_GAP = 30;
@@ -85,6 +88,28 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
     });
     groupSpans.push({ conf: group.conf, startX, endX: x - BAR_GAP });
   });
+
+  // Groups consecutive same-Standings-Pts bars into one tier (bars are already sorted by rank,
+  // so ties are always adjacent) -- a tier of 2+ gets ONE shared "3.0 pts" bracket drawn once
+  // below the chart instead of repeating "(3.0)" in every single one of those bars' own labels.
+  // Never spans a conference boundary in segregated mode (a new group always starts a new tier)
+  // since AFC's "3.0" and NFC's "3.0" are two separate ties, not one.
+  const tiers = [];
+  bars.forEach((b, i) => {
+    const prev = bars[i - 1];
+    // The conference boundary only breaks a tier in segregated mode, where AFC's and NFC's own
+    // "3.0" are genuinely two separate ties. In combined mode conf is just a color, not a real
+    // grouping boundary -- a tie that happens to straddle an AFC- and NFC-origin team adjacent in
+    // the merged rank is still one real tie and belongs in one shared bracket, not two size-1 ones.
+    if (i === 0 || (mode !== "combined" && b.conf !== prev.conf) || b.totalPts !== prev.totalPts) {
+      tiers.push({ pts: b.totalPts, startX: b.x, endX: b.x + MIN_BAR_W, count: 1 });
+    } else {
+      const t = tiers[tiers.length - 1];
+      t.endX = b.x + MIN_BAR_W;
+      t.count++;
+    }
+    b.tierIdx = tiers.length - 1;
+  });
   const plotW = x - BAR_GAP - MARGIN.left;
   const width = MARGIN.left + MARGIN.right + plotW;
   const plotH = HEIGHT - MARGIN.top - MARGIN.bottom;
@@ -92,6 +117,11 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
   const maxPf = Math.max(1, ...bars.map(b => b.pfAvg || 0));
   const { ticks, domainMax } = niceTicks(maxPf);
   const yFor = (v) => MARGIN.top + plotH - (v / domainMax) * plotH;
+  // The tied-points bracket sits in its own row between the bar bottoms and the rotated name
+  // labels (not tacked on below everything, and not fighting the labels for the same row) --
+  // labelStartY is pushed down from where it used to start to make room for that row above it.
+  const bracketY = MARGIN.top + plotH + 20;
+  const labelStartY = MARGIN.top + plotH + 40;
   const titleSuffix = mode === "combined" ? " (Overall)" : confFilter === "AFC" ? " (AFC)" : confFilter === "NFC" ? " (NFC)" : "";
   const chartTitle = `Standings -- Ranked by Points, PF/Game${titleSuffix}`;
 
@@ -200,15 +230,31 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
         parts.push(`<circle cx="${cx}" cy="${logoCy}" r="${LOGO_SIZE / 2}" fill="none" stroke="${EXPORT.bg}" stroke-width="2"/>`);
       }
       parts.push(`<text x="${cx}" y="${barY - 6}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="13" font-weight="800" fill="${EXPORT.text}">${(b.pfAvg || 0).toFixed(1)}</text>`);
-      const labelY = MARGIN.top + plotH + 12;
+      const labelY = labelStartY;
       const realName = getRealName(afcData, nfcData, b.manager);
+      const ptsSuffix = tiers[b.tierIdx].count === 1 ? ` (${b.totalPts.toFixed(1)})` : '';
       parts.push(`<text font-family="${EXPORT_SERIF}" font-weight="700" fill="${color}" text-anchor="end" transform="rotate(-40 ${cx} ${labelY})">` +
-        `<tspan x="${cx}" y="${labelY}" font-size="13">#${b.rank} (${b.totalPts.toFixed(1)})</tspan>` +
+        `<tspan x="${cx}" y="${labelY}" font-size="13">#${b.rank}${ptsSuffix}</tspan>` +
         `<tspan x="${cx}" y="${labelY + 14}" font-size="11" font-weight="600" fill="${EXPORT.muted}">${esc(b.manager)}</tspan>` +
         (realName ? `<tspan x="${cx}" y="${labelY + 27}" font-size="9" font-weight="600" fill="${EXPORT.muted}">(${esc(realName)})</tspan>` : '') +
         `</text>`);
     });
     parts.push(`</g>`);
+
+    // Same tied-points bracket as the live chart (between the bars and the rotated name row,
+    // label sitting on the line with a gap behind it), once per tier of 2+ instead of repeating
+    // the points value on every bar in that tier. No titleH offset needed -- this whole block
+    // already sits inside the translate(0 titleH) `<g>` above.
+    tiers.filter(t => t.count > 1).forEach(t => {
+      const midX = (t.startX + t.endX) / 2;
+      const label = `${t.pts.toFixed(1)} pts`;
+      const gapHalf = label.length * 3.3 + 6;
+      parts.push(`<line x1="${t.startX}" x2="${midX - gapHalf}" y1="${bracketY}" y2="${bracketY}" stroke="${EXPORT.muted}" stroke-width="1.5"/>`);
+      parts.push(`<line x1="${midX + gapHalf}" x2="${t.endX}" y1="${bracketY}" y2="${bracketY}" stroke="${EXPORT.muted}" stroke-width="1.5"/>`);
+      parts.push(`<line x1="${t.startX}" x2="${t.startX}" y1="${bracketY - 5}" y2="${bracketY + 5}" stroke="${EXPORT.muted}" stroke-width="1.5"/>`);
+      parts.push(`<line x1="${t.endX}" x2="${t.endX}" y1="${bracketY - 5}" y2="${bracketY + 5}" stroke="${EXPORT.muted}" stroke-width="1.5"/>`);
+      parts.push(`<text x="${midX}" y="${bracketY}" text-anchor="middle" dominant-baseline="middle" font-family="${EXPORT_SANS}" font-size="11" font-weight="700" fill="${EXPORT.muted}">${label}</text>`);
+    });
 
     let ly = titleH + HEIGHT + 28;
     const legendItems = [{ color: AFC_COLOR, label: 'AFC' }, { color: NFC_COLOR, label: 'NFC' }];
@@ -450,16 +496,44 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
                   {(b.pfAvg || 0).toFixed(1)}
                 </text>
                 {/* X axis is ranking first -- "#1 (28.4)" (Standings Pts in parens) -- with the
-                    team name as a smaller second line so a bar's still identifiable at a glance. */}
+                    team name as a smaller second line so a bar's still identifiable at a glance.
+                    The "(pts)" part is dropped whenever this bar shares a tier with others (a
+                    shared bracket/label sits between the bars and this row instead -- see below),
+                    which is also why this row starts lower (labelStartY) than it otherwise would. */}
                 <text
-                  x={b.x + MIN_BAR_W / 2} y={MARGIN.top + plotH + 12} fontWeight={700} fontFamily={SERIF_FONT}
-                  fill={color === "var(--accent)" ? "var(--text)" : color} textAnchor="end" transform={`rotate(-40 ${b.x + MIN_BAR_W / 2} ${MARGIN.top + plotH + 12})`}
+                  x={b.x + MIN_BAR_W / 2} y={labelStartY} fontWeight={700} fontFamily={SERIF_FONT}
+                  fill={color === "var(--accent)" ? "var(--text)" : color} textAnchor="end" transform={`rotate(-40 ${b.x + MIN_BAR_W / 2} ${labelStartY})`}
                 >
-                  <tspan x={b.x + MIN_BAR_W / 2} fontSize={13} fontFamily={DATA_FONT} fontWeight={800}>#{b.rank} ({b.totalPts.toFixed(1)})</tspan>
+                  <tspan x={b.x + MIN_BAR_W / 2} fontSize={13} fontFamily={DATA_FONT} fontWeight={800}>
+                    #{b.rank}{tiers[b.tierIdx].count === 1 ? ` (${b.totalPts.toFixed(1)})` : ''}
+                  </tspan>
                   <tspan x={b.x + MIN_BAR_W / 2} dy="14" fontSize={11} fontWeight={600} fill="var(--text2)">{b.manager}</tspan>
                   {realName && <tspan x={b.x + MIN_BAR_W / 2} dy="13" fontSize={9} fontWeight={600} fill="var(--muted)">({realName})</tspan>}
                 </text>
                 <title>#{b.rank} {b.manager}{b.conf ? ` (${b.conf})` : ''} -- {b.totalPts.toFixed(2)} standings pts, {(b.pfAvg || 0).toFixed(2)} PF/game</title>
+              </g>
+            );
+          })}
+
+          {/* One shared bracket per tied-points tier (2+ bars), between the bars and the rotated
+              name row -- the "pivot" collapse: "3.0 pts" said once for the whole cluster instead
+              of on every bar's own label. Label sits directly ON the bracket line (a gap in the
+              line behind it, estimated from the label's own character count since an exact text
+              width isn't available at render time), not below it, so it's clearly attached to the
+              bars it's grouping rather than reading as a caption for the row underneath it. */}
+          {tiers.filter(t => t.count > 1).map((t, i) => {
+            const midX = (t.startX + t.endX) / 2;
+            const label = `${t.pts.toFixed(1)} pts`;
+            const gapHalf = label.length * 3.3 + 6;
+            return (
+              <g key={i}>
+                <line x1={t.startX} x2={midX - gapHalf} y1={bracketY} y2={bracketY} stroke="var(--muted)" strokeWidth={1.5} />
+                <line x1={midX + gapHalf} x2={t.endX} y1={bracketY} y2={bracketY} stroke="var(--muted)" strokeWidth={1.5} />
+                <line x1={t.startX} x2={t.startX} y1={bracketY - 5} y2={bracketY + 5} stroke="var(--muted)" strokeWidth={1.5} />
+                <line x1={t.endX} x2={t.endX} y1={bracketY - 5} y2={bracketY + 5} stroke="var(--muted)" strokeWidth={1.5} />
+                <text x={midX} y={bracketY} textAnchor="middle" dominantBaseline="middle" fontSize={11} fontWeight={700} fill="var(--muted)">
+                  {label}
+                </text>
               </g>
             );
           })}

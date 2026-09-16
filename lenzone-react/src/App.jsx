@@ -1543,12 +1543,18 @@ export default function App() {
 
             {standingsView === "overview" && (
               <>
-                {showAfc && <StandingsTable conf="AFC" rows={afcStandings} afcData={afcData} nfcData={nfcData} />}
-                {showNfc && <StandingsTable conf="NFC" rows={nfcStandings} afcData={afcData} nfcData={nfcData} />}
                 <StandingsBarChart
                   afcStandings={afcStandings} nfcStandings={nfcStandings} confFilter={confFilter}
-                  logoMap={teamLogoMap} afcData={afcData} nfcData={nfcData}
+                  logoMap={teamLogoMap} afcData={afcData} nfcData={nfcData} mode="segregated"
                 />
+                {confFilter === "ALL" && (
+                  <StandingsBarChart
+                    afcStandings={afcStandings} nfcStandings={nfcStandings} confFilter={confFilter}
+                    logoMap={teamLogoMap} afcData={afcData} nfcData={nfcData} mode="combined"
+                  />
+                )}
+                {showAfc && <StandingsTable conf="AFC" rows={afcStandings} afcData={afcData} nfcData={nfcData} />}
+                {showNfc && <StandingsTable conf="NFC" rows={nfcStandings} afcData={afcData} nfcData={nfcData} />}
               </>
             )}
 

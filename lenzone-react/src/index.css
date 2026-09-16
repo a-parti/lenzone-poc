@@ -429,6 +429,17 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Newscast-style bottom crawl (NewsTicker.jsx) -- the track renders its content twice back to
+   back, so sliding exactly -50% loops seamlessly with no visible seam/jump. */
+@keyframes news-ticker-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.news-ticker-track {
+  display: inline-block;
+  animation: news-ticker-scroll 40s linear infinite;
+}
+
 @keyframes fade-in-up {
   from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: translateY(0); }

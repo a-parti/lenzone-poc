@@ -1,15 +1,19 @@
 import { useEffect, useRef } from 'react';
 import { getRealName } from '../lib/realNames';
 import { pickSpeechBubbleLine, findRankAndConf } from '../lib/speechBubble';
+import { usePlayerModal } from '../context/PlayerModalContext';
+import { useRosterModal } from '../context/RosterModalContext';
+import { useTeamDepthChart } from '../context/TeamDepthChartContext';
+import { useMatchupPreview } from '../context/MatchupPreviewContext';
 
 // Toned back down after "too frequent" feedback -- still a regular bit of ambient life, not
 // constant noise.
 const MIN_INTERVAL_MS = 12000;
 const MAX_INTERVAL_MS = 22000;
 const BUBBLE_HOLD_MS = 4200;
-// Usually just one bubble at a time; occasionally two. Three-at-once was part of what made it
-// feel chaotic/not clearly tied to a specific logo.
-const MAX_AT_ONCE = 2;
+// Always exactly one bubble on screen at a time -- two-plus-at-once still read as busier than
+// intended, even after already toning it down once.
+const MAX_AT_ONCE = 1;
 
 // Pops a speech bubble directly over a real, currently-visible team nameplate/logo on screen --
 // the same introduction the roster modal's own bubble gives when you click a team (see
@@ -19,6 +23,22 @@ const MAX_AT_ONCE = 2;
 // indistinguishable by selector alone.
 export default function RandomNameBubble({ enabled, afcData, nfcData, trophyLinesByManager, afcStandings, nfcStandings, weekResultByManager, managerStreaks, revengeGameByManager }) {
   const overlayRef = useRef(null);
+  // Suppressed entirely while any global card/modal is open (player card, roster card, team depth
+  // chart, or a matchup preview) -- an ambient bubble popping up on top of (or behind) whatever
+  // the viewer just opened just clutters the screen right when they're trying to look at
+  // something specific. RosterModal's OWN "I'm <name>" bubble is unaffected -- that one belongs to
+  // that specific card, not this ambient/unprompted one.
+  // All four hooks called unconditionally (never short-circuited) -- hooks must run in the same
+  // order every render, so the `.target` values are combined with || only AFTER every hook has
+  // actually been called, not inline in one `||` chain (which would skip later hooks once an
+  // earlier one is already truthy).
+  const playerModalTarget = usePlayerModal().target;
+  const rosterModalTarget = useRosterModal().target;
+  const teamDepthChartTarget = useTeamDepthChart().target;
+  const matchupPreviewTarget = useMatchupPreview().target;
+  const anyModalOpen = !!(playerModalTarget || rosterModalTarget || teamDepthChartTarget || matchupPreviewTarget);
+  const activeBubblesRef = useRef(new Map()); // el -> finish()
+
   // afcStandings/nfcStandings (this app's OWN computed lenzone.xyz standings -- see
   // rankConference() in App.jsx, never raw Sleeper roster.settings) update every time a week's
   // real scores change. The firing loop below is intentionally NOT restarted on every data change
@@ -27,16 +47,21 @@ export default function RandomNameBubble({ enabled, afcData, nfcData, trophyLine
   // moment the loop first started and silently go stale forever after.
   const latestRef = useRef({});
   useEffect(() => {
-    latestRef.current = { afcData, nfcData, trophyLinesByManager, afcStandings, nfcStandings, weekResultByManager, managerStreaks, revengeGameByManager };
-  }, [afcData, nfcData, trophyLinesByManager, afcStandings, nfcStandings, weekResultByManager, managerStreaks, revengeGameByManager]);
+    latestRef.current = { afcData, nfcData, trophyLinesByManager, afcStandings, nfcStandings, weekResultByManager, managerStreaks, revengeGameByManager, anyModalOpen };
+  }, [afcData, nfcData, trophyLinesByManager, afcStandings, nfcStandings, weekResultByManager, managerStreaks, revengeGameByManager, anyModalOpen]);
+
+  // The moment a modal OPENS, immediately dismiss any bubbles already showing -- waiting for
+  // their own hold timer to expire would still leave them overlapping the freshly-opened card for
+  // a few seconds.
+  useEffect(() => {
+    if (!anyModalOpen) return;
+    activeBubblesRef.current.forEach(finish => finish());
+  }, [anyModalOpen]);
 
   useEffect(() => {
     if (!enabled) return;
     let timeoutId;
     let cancelled = false;
-    // Elements currently showing a bubble, so a second tick doesn't double-pop the same logo
-    // while its first bubble is still up.
-    const activeEls = new Set();
 
     const scheduleNext = () => {
       const delay = MIN_INTERVAL_MS + Math.random() * (MAX_INTERVAL_MS - MIN_INTERVAL_MS);
@@ -45,9 +70,13 @@ export default function RandomNameBubble({ enabled, afcData, nfcData, trophyLine
 
     function fire() {
       if (cancelled) return;
-      const { afcData, nfcData, trophyLinesByManager, afcStandings, nfcStandings, weekResultByManager, managerStreaks, revengeGameByManager } = latestRef.current;
+      const { afcData, nfcData, trophyLinesByManager, afcStandings, nfcStandings, weekResultByManager, managerStreaks, revengeGameByManager, anyModalOpen } = latestRef.current;
+      if (anyModalOpen) { scheduleNext(); return; }
+      // Strictly one bubble on screen at a time -- skip this tick entirely (rather than adding a
+      // second) if the previous one hasn't finished its hold yet.
+      if (activeBubblesRef.current.size > 0) { scheduleNext(); return; }
       const candidates = Array.from(document.querySelectorAll('img[data-manager]')).filter(el => {
-        if (activeEls.has(el)) return false;
+        if (activeBubblesRef.current.has(el)) return false;
         const r = el.getBoundingClientRect();
         if (r.width === 0 || r.bottom < 0 || r.top > window.innerHeight) return false;
         return !!getRealName(afcData, nfcData, el.dataset.manager);
@@ -75,7 +104,6 @@ export default function RandomNameBubble({ enabled, afcData, nfcData, trophyLine
     function showBubble(el, manager, text) {
       const overlay = overlayRef.current;
       if (!overlay) return;
-      activeEls.add(el);
 
       // A little playful tilt per bubble (not always dead-straight) plus a bouncy pop-in --
       // reads more like a comic-book speech bubble/sticker than a plain UI tooltip.
@@ -128,13 +156,12 @@ export default function RandomNameBubble({ enabled, afcData, nfcData, trophyLine
         if (finished) return;
         finished = true;
         cancelAnimationFrame(rafId);
+        activeBubblesRef.current.delete(el);
         bubble.style.opacity = '0';
         bubble.style.transform = `translate(-50%,-100%) scale(0.6) rotate(${tilt}deg)`;
-        setTimeout(() => {
-          bubble.remove();
-          activeEls.delete(el);
-        }, 300);
+        setTimeout(() => bubble.remove(), 300);
       }
+      activeBubblesRef.current.set(el, finish);
       setTimeout(finish, BUBBLE_HOLD_MS);
     }
 

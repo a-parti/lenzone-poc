@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { playerLabel, projectedPoints } from '../lib/players';
 import { useTeamLogo } from '../context/TeamLogoContext';
 import { Zoomable } from '../context/ImageLightboxContext';
@@ -10,7 +11,6 @@ import ManagerMatchupRow from './ManagerMatchupRow';
 import NflGamesPanel from './NflGamesPanel';
 import CopyRecapButton from './CopyRecapButton';
 import NflBigPlaysHighlights from './NflBigPlaysHighlights';
-import NflFunFact from './NflFunFact';
 
 export default function CurrentWeekView({
   onGoToMatchup, selectedWeek, onSelectWeek, currentNflWeek, seasonWeeks, isWeekFinal, weeklyAwards, nflGames, myTeamNflTeams,
@@ -24,6 +24,11 @@ export default function CurrentWeekView({
   // matchups card above -- multiple games can be selected at once. A Set for O(1) lookup against
   // each player's real NFL team.
   const [selectedGames, setSelectedGames] = React.useState([]);
+  // Top-by-Position and NFL Big Plays are the two sections that most made this page feel busy --
+  // collapsed behind a manual toggle by default so the page reads as three sections (your matchup,
+  // your trophies, This Week's league-wide trophies) instead of five, while everything's still one
+  // click away rather than removed.
+  const [showMore, setShowMore] = useState(false);
   const toggleGame = (game) => setSelectedGames(prev => {
     const exists = prev.some(g => g.home === game.home && g.away === game.away);
     return exists ? prev.filter(g => !(g.home === game.home && g.away === game.away)) : [...prev, game];
@@ -108,21 +113,23 @@ export default function CurrentWeekView({
               Full Matchups Tab &rarr;
             </button>
           </div>
-          <MyPlayerHighlights
-            myTeamRoster={myTeamRoster} myTeamPlayersPoints={myTeamPlayersPoints} weekProjections={weekProjections}
-            myTeamConfData={myTeamConfData} myTeamFallbackField={myTeamFallbackField} playersDB={playersDB}
-            nflGames={nflGames} week={selectedWeek} myPlayersByNflTeam={myPlayersByNflTeam}
-            onSelectGame={toggleGame} weekBigPlays={weekBigPlays}
-          />
           {/* Same component as the Matchups tab -- identical scores, win%, and "Expand Rosters"
               (both sides' full lineups) so nothing here can drift from what that tab shows. Header
               hidden here since the logo+"Your Matchups" label above already identify whose card
-              this is -- the Matchups tab (which lists every manager) still shows it. */}
+              this is -- the Matchups tab (which lists every manager) still shows it. The actual
+              matchup card comes first, your player trophies right after -- "your matchup" is the
+              thing this section is named for, so it shouldn't sit below anything else here. */}
           <ManagerMatchupRow
             manager={myTeamManager} conf={myTeamConf} intra={myTeamIntra} inter={myTeamInter}
             afcSlots={afcSlots} nfcSlots={nfcSlots} playersDB={playersDB}
             weekProjections={weekProjections} byTeamWeek={byTeamWeek} week={selectedWeek}
             hideHeader highlightTeams={highlightTeams} onSelectGame={toggleGame}
+          />
+          <MyPlayerHighlights
+            myTeamRoster={myTeamRoster} myTeamPlayersPoints={myTeamPlayersPoints} weekProjections={weekProjections}
+            myTeamConfData={myTeamConfData} myTeamFallbackField={myTeamFallbackField} playersDB={playersDB}
+            nflGames={nflGames} week={selectedWeek} myPlayersByNflTeam={myPlayersByNflTeam}
+            onSelectGame={toggleGame} weekBigPlays={weekBigPlays}
           />
         </div>
       )}
@@ -139,12 +146,23 @@ export default function CurrentWeekView({
           week={selectedWeek} weekProjections={weekProjections} playersDB={playersDB}
           waiverWireMvp={waiverWireMvp}
         />
-        <TopByPositionHighlights
-          afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
-          week={selectedWeek} playersDB={playersDB}
-        />
-        <NflBigPlaysHighlights bigPlays={weekBigPlays} />
-        <NflFunFact resultsByTeam={seasonResultsByTeam} seed={selectedWeek} />
+        <button
+          type="button"
+          onClick={() => setShowMore(v => !v)}
+          className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-[var(--text2)] hover:text-white bg-[var(--surface)]/60 hover:bg-[var(--surface2)] border border-[var(--border)]/80 rounded-lg py-2 uppercase tracking-wider transition-all duration-200"
+        >
+          {showMore ? "Show Less" : "Show More (Top Performers, Big Plays)"}
+          <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${showMore ? "rotate-180" : ""}`} />
+        </button>
+        {showMore && (
+          <>
+            <TopByPositionHighlights
+              afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
+              week={selectedWeek} playersDB={playersDB}
+            />
+            <NflBigPlaysHighlights bigPlays={weekBigPlays} />
+          </>
+        )}
       </div>
 
       <NflGamesPanel

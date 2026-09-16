@@ -56,14 +56,14 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
   const myHighlighted = my && highlightTeams?.has(my.team);
   const oppHighlighted = opp && highlightTeams?.has(opp.team);
   return (
-    // Below sm, each side gets the FULL card width stacked on its own row instead of squeezing
-    // into a half-width column next to the other team -- that's what was cramming avatar, badge,
-    // name, team tag and score all on top of each other on a phone. gap-1.5 (not gap-4) between
-    // the stacked rows on mobile, a border on "my" row to separate the pair visually without a
-    // whole extra divider element.
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 sm:gap-4 text-xs py-1.5">
+    // Always kept side-by-side, even on phones -- stacking each side full-width on its own row
+    // read as one long vertical list of unrelated players instead of a matchup comparison. The
+    // enclosing MatchupRosterComparison wraps this in a horizontally-scrollable, min-width
+    // container instead, so both columns keep their shape and a phone just scrolls sideways to
+    // see the rest, the same way the standings/grid tables already do.
+    <div className="grid grid-cols-2 gap-4 text-xs py-1.5">
       <div
-        className={`${ROSTER_ROW_FLEX} min-w-0 rounded pb-1.5 border-b border-[var(--border)]/40 sm:border-b-0 sm:pb-0 ${onSelectGame && my ? "cursor-pointer" : ""} ${myHighlighted ? "bg-violet-400/20 ring-2 ring-violet-400/70" : ""}`}
+        className={`${ROSTER_ROW_FLEX} min-w-0 rounded ${onSelectGame && my ? "cursor-pointer" : ""} ${myHighlighted ? "bg-violet-400/20 ring-2 ring-violet-400/70" : ""}`}
         onClick={my ? handleRowClick(my.team) : undefined}
       >
         {my ? (
@@ -89,21 +89,18 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
           </>
         ) : <span className="text-[var(--muted)] italic">Empty</span>}
       </div>
-      {/* Mirrored (sm:flex-row-reverse) so on desktop this side reads right-to-left: avatar/
-          position hug the outer edge, score sits closest to the VS divider -- both teams' scores
-          converge toward the middle. Below sm it's stacked under "my" row instead (see the outer
-          grid above), so it drops the mirroring entirely and matches "my" row's own left-to-right
-          layout -- a right-aligned row floating alone under a full-width stack reads as a mistake,
-          not a deliberate mirror, once there's no second column for it to mirror against. */}
+      {/* Mirrored (flex-row-reverse) so this side reads right-to-left: avatar/position hug the
+          outer edge, score sits closest to the VS divider -- both teams' scores converge toward
+          the middle, matching the header's own left/right layout above. */}
       <div
-        className={`${ROSTER_ROW_FLEX} sm:flex-row-reverse min-w-0 rounded ${onSelectGame && opp ? "cursor-pointer" : ""} ${oppHighlighted ? "bg-violet-400/20 ring-2 ring-violet-400/70" : ""}`}
+        className={`${ROSTER_ROW_FLEX} flex-row-reverse min-w-0 rounded ${onSelectGame && opp ? "cursor-pointer" : ""} ${oppHighlighted ? "bg-violet-400/20 ring-2 ring-violet-400/70" : ""}`}
         onClick={opp ? handleRowClick(opp.team) : undefined}
       >
         {opp ? (
           <>
             <PlayerAvatar playerId={oppId} position={opp.position} className="w-7 h-7 sm:w-10 sm:h-10 shrink-0" />
             <div className="w-9 shrink-0 flex justify-center"><PositionBadge position={opp.position} /></div>
-            <div className={`flex flex-col sm:items-end sm:text-right ${ROSTER_NAME_WIDTH}`}>
+            <div className={`flex flex-col items-end text-right ${ROSTER_NAME_WIDTH}`}>
               <div className="flex items-center gap-1 min-w-0">
                 <InjuryBadge status={opp.injuryStatus} />
                 <PlayerNameButton playerId={oppId} name={opp.name} position={opp.position} className="font-bold text-[var(--text2)] truncate" />
@@ -112,7 +109,7 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
             </div>
             <div className="shrink-0"><NflTeamTag team={opp.team} number={opp.number} /></div>
             {(oppActualVal != null || oppProj != null) && (
-              <span className="font-mono sm:text-left ml-auto sm:ml-0 sm:mr-auto shrink-0 whitespace-nowrap flex flex-col items-end sm:items-start leading-tight">
+              <span className="font-mono text-left mr-auto shrink-0 whitespace-nowrap flex flex-col items-start leading-tight">
                 <span className={`font-bold text-base ${oppIsActual ? oppColor : "text-[var(--muted)]"}`}>
                   {oppIsActual ? oppActualVal.toFixed(2) : "--"}
                 </span>
@@ -158,7 +155,12 @@ function MatchupRosterComparison({
   const irRows = Math.max(myIrIds.length, oppIrIds.length);
   const shared = { playersDB, byTeamWeek, week, highlightTeams, onSelectGame };
   return (
-    <div className="mt-3 pt-3 border-t border-[var(--border)]/60 divide-y divide-[var(--border)]/40">
+    // Horizontally scrollable on narrow screens instead of collapsing the two-team comparison
+    // into one long vertical list -- min-w keeps both columns their full intended width so a
+    // phone scrolls sideways to see the rest of a row, the same way the grid/standings tables do,
+    // rather than every player wrapping onto its own line.
+    <div className="mt-3 pt-3 border-t border-[var(--border)]/60 overflow-x-auto scroll-thin">
+    <div className="min-w-[480px] divide-y divide-[var(--border)]/40">
       {Array.from({ length: starterRows }).map((_, i) => {
         const myId = mySnapshot?.starters?.[i];
         const oppId = oppSnapshot?.starters?.[i];
@@ -209,6 +211,7 @@ function MatchupRosterComparison({
         }}
       />
     </div>
+    </div>
   );
 }
 
@@ -232,17 +235,20 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
   // secondary caption underneath, only while there's still uncertainty left (live or pregame).
   const bigMy = isFinal ? myScore : isLive ? (myLiveScore ?? 0) : myScore;
   const bigOpp = isFinal ? oppScore : isLive ? (oppLiveScore ?? 0) : oppScore;
-  // Each side's final score is colored by whether IT beat ITS OWN pregame projection -- not a flat
-  // "final = green" -- so a final score can read red if that team came in under its projection.
-  const myBigColor = SCORE_COLOR[scoreState({ hasActual: isFinal || isLive, isLive, actual: isFinal ? myScore : null, projected: myProjected })];
-  const oppBigColor = SCORE_COLOR[scoreState({ hasActual: isFinal || isLive, isLive, actual: isFinal ? oppScore : null, projected: oppProjected })];
+  // Team-level scores (both the big actual number and the small projected caption) deliberately
+  // stay a single plain color, live/final/pregame alike -- green/red here (whether tied to
+  // beat-your-own-projection or win/loss) made it hard to tell who actually won at a glance,
+  // especially once both sides could show the same color. The W/L badge is the one true win/loss
+  // signal at this level. Per-PLAYER rows (RosterCompareRow above) are a different, deliberate
+  // case -- that green/red (beat/missed THAT player's own projection) stays, since there's no
+  // separate win/loss badge at the player level to already carry that signal.
+  const myBigColor = isLive ? "text-[var(--live)]" : "text-[var(--text)]";
+  const oppBigColor = isLive ? "text-[var(--live)]" : "text-[var(--text)]";
+  const myProjColor = "text-[var(--proj)]";
+  const oppProjColor = "text-[var(--proj)]";
   // Shown post-final too (not just live/pregame) -- "what was it projected to be" stays a useful
   // reference point even once the real result is known, not just while the outcome's in doubt.
   const showCaption = showScores && (isLive || isFinal);
-  // Win/loss/tie is its OWN explicit signal, independent of the score coloring above -- the big
-  // number's color answers "did you beat YOUR OWN projection", which a team can do while still
-  // losing the matchup outright, so a reader needs a second, unambiguous W/L/T marker to know who
-  // actually won.
   const result = isFinal && myScore != null && oppScore != null
     ? (myScore > oppScore ? "W" : myScore < oppScore ? "L" : "T")
     : null;
@@ -276,7 +282,7 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
               <span className="text-[10px] text-[var(--proj)]">{myScore.toFixed(2)} proj</span>
             )}
             {showCaption && isFinal && myProjected != null && (
-              <span className="text-[10px] text-[var(--proj)]">{myProjected.toFixed(2)} proj</span>
+              <span className={`text-[10px] ${myProjColor}`}>{myProjected.toFixed(2)} proj</span>
             )}
           </span>
         </div>
@@ -298,7 +304,7 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
               <span className="text-[10px] text-[var(--proj)]">{oppScore.toFixed(2)} proj</span>
             )}
             {showCaption && isFinal && oppProjected != null && (
-              <span className="text-[10px] text-[var(--proj)]">{oppProjected.toFixed(2)} proj</span>
+              <span className={`text-[10px] ${oppProjColor}`}>{oppProjected.toFixed(2)} proj</span>
             )}
           </span>
         </div>

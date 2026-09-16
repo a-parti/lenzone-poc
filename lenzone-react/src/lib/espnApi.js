@@ -139,17 +139,102 @@ export async function fetchSeasonResultsByTeam(seasonYear, throughWeek) {
       const homeScore = Number(home.score), awayScore = Number(away.score);
       if (!(homeScore >= 0 && awayScore >= 0)) return;
       const result = homeScore === awayScore ? 'T' : (homeScore > awayScore ? 'home' : 'away');
-      const add = (abbr, opponentAbbr, outcome) => {
+      const add = (abbr, opponentAbbr, outcome, pointsFor, pointsAgainst) => {
         const team = normalizeAbbr(abbr);
         if (!byTeam[team]) byTeam[team] = [];
-        byTeam[team].push({ week, opponent: normalizeAbbr(opponentAbbr), result: outcome, date: comp.date || e.date || null });
+        byTeam[team].push({ week, opponent: normalizeAbbr(opponentAbbr), result: outcome, date: comp.date || e.date || null, pointsFor, pointsAgainst });
       };
-      add(home.team.abbreviation, away.team.abbreviation, result === 'T' ? 'T' : (result === 'home' ? 'W' : 'L'));
-      add(away.team.abbreviation, home.team.abbreviation, result === 'T' ? 'T' : (result === 'away' ? 'W' : 'L'));
+      add(home.team.abbreviation, away.team.abbreviation, result === 'T' ? 'T' : (result === 'home' ? 'W' : 'L'), homeScore, awayScore);
+      add(away.team.abbreviation, home.team.abbreviation, result === 'T' ? 'T' : (result === 'away' ? 'W' : 'L'), awayScore, homeScore);
     });
   });
   Object.values(byTeam).forEach(list => list.sort((a, b) => a.week - b.week));
   return byTeam;
+}
+
+// Real, genuinely LIVE current NFL headlines -- ESPN's own public news feed (same site.api.espn.com
+// host already used elsewhere in this app, so no new CORS surface). Unlike a fun-fact snapshot,
+// this is meant to be re-fetched periodically (see App.jsx) so it actually stays current, not a
+// one-time hardcoded list -- real headline text + the REAL link ESPN returns for it, never guessed.
+// Each article's real `categories` array already tags which real players it's actually about
+// (type: 'athlete', a real full name ESPN itself attached to the story) -- kept here as
+// `athletes` so callers can match against a specific roster by real name, not by guessing whether
+// a player's name happens to appear in the headline text itself.
+export async function fetchNflHeadlines(limit = 8) {
+  try {
+    const res = await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?limit=${limit}`).then(r => r.json());
+    return (res?.articles || []).map(a => ({
+      headline: a.headline,
+      link: a.links?.web?.href || null,
+      published: a.published || null,
+      byline: a.byline || null, // real ESPN reporter credited for the story, when ESPN provides one
+      athletes: (a.categories || []).filter(c => c.type === 'athlete').map(c => c.description)
+    })).filter(a => a.headline && a.link);
+  } catch (err) {
+    console.error("Failed to fetch NFL headlines:", err);
+    return [];
+  }
+}
+
+// Which of these headlines are actually tagged (by ESPN itself, not a text-search guess) as being
+// about one of the given real player names -- used for "Your Player News", scoped to whichever
+// roster is currently selected. Name matching is exact (case-insensitive) against ESPN's own
+// athlete name for the story, so it only ever surfaces a real, ESPN-confirmed match.
+export function filterHeadlinesForPlayers(headlines, playerNames) {
+  const nameSet = new Set((playerNames || []).map(n => n.toLowerCase()));
+  if (nameSet.size === 0) return [];
+  return (headlines || []).filter(h => (h.athletes || []).some(a => nameSet.has(a.toLowerCase())));
+}
+
+// Real per-player fantasy notes for every rostered NFL player, league-wide, from ESPN's public
+// injuries endpoint -- despite the name, this returns every player with a real note attached
+// (most are "Active" with a real recent-game blurb, not just actual injuries), each one a real,
+// sourced (usually RotoWire-credited) analyst note with a real headline/date, e.g. "Baker recorded
+// five tackles (four solo)... during the Cardinals' 26-14 win over the Chargers on Sunday."
+// ONE request covers the whole league, so this is cheap to call once and look players up by name
+// against the result (see filterPlayerNotesForPlayers below) -- much more precise than searching
+// headline text, since it's ESPN's own real per-athlete note, not a guess.
+export async function fetchNflPlayerNotes() {
+  try {
+    const res = await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/nfl/injuries`).then(r => r.json());
+    const byName = {};
+    (res?.injuries || []).forEach(team => {
+      (team.injuries || []).forEach(entry => {
+        const athlete = entry.athlete;
+        const note = athlete?.notes?.items?.[0];
+        if (!athlete?.displayName || !note) return;
+        // Real ESPN player-page link (the "news" or "overview" rel on this athlete's own links
+        // array) so the note is clickable through to more detail, same as a headline.
+        const link = athlete.links?.find(l => l.rel?.includes('news') && !l.rel?.includes('app'))?.href
+          || athlete.links?.find(l => l.rel?.includes('overview') && !l.rel?.includes('app'))?.href
+          || null;
+        byName[athlete.displayName] = {
+          status: entry.status || athlete.status?.name || null,
+          headline: note.headline || null,
+          text: note.text || null,
+          source: note.source || null,
+          date: note.date || entry.date || null,
+          team: team.displayName || null,
+          link
+        };
+      });
+    });
+    return byName;
+  } catch (err) {
+    console.error("Failed to fetch NFL player notes:", err);
+    return {};
+  }
+}
+
+// Real per-player notes (see fetchNflPlayerNotes) for just the given real player names -- used
+// for "Your Player News", scoped to whichever roster is currently selected.
+export function filterPlayerNotesForPlayers(notesByName, playerNames) {
+  const out = [];
+  (playerNames || []).forEach(name => {
+    const note = notesByName?.[name];
+    if (note) out.push({ player: name, ...note });
+  });
+  return out;
 }
 
 export async function fetchWeekKickoffInfo(week, seasonYear) {

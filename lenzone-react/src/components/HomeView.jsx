@@ -167,7 +167,8 @@ function navSections(selectedWeek) {
     { id: "standings", title: "Standings" },
     { id: "matchups", title: "Matchups" },
     { id: "grid", title: "Grid" },
-    { id: "players", title: "Players" }
+    { id: "players", title: "Players" },
+    { id: "news", title: "News" }
   ];
 }
 
@@ -196,7 +197,9 @@ function NavListNumbered({ sections, onSelect }) {
 
 // Deliberately minimal: pick your team, then navigate everywhere else via the menu that appears
 // underneath. No stats, no cards, no banners -- that content now lives on the "Week N" tab.
-export default function HomeView({ setActiveTab, selectedWeek, afcManagers, nfcManagers, myTeamManager, onChooseMyTeam, teamBurst, soundMuted, onToggleSoundMuted }) {
+export default function HomeView({
+  setActiveTab, selectedWeek, afcManagers, nfcManagers, myTeamManager, onChooseMyTeam, teamBurst, soundMuted, onToggleSoundMuted
+}) {
   const sections = navSections(selectedWeek);
   const { mode, setMode } = useTheme();
 

@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Trophy, Swords, Megaphone, Scroll, ExternalLink, RefreshCw, Award, Lock, Unlock, X, Activity, ListOrdered, Users, Calendar, Search, Volume2, VolumeX, LayoutGrid } from 'lucide-react';
+import { Trophy, Swords, Megaphone, Scroll, ExternalLink, RefreshCw, Award, Lock, Unlock, X, Activity, ListOrdered, Users, Calendar, Search, Volume2, VolumeX, LayoutGrid, Newspaper } from 'lucide-react';
 import AnimatedLogo from './components/AnimatedLogo';
 import { CONF_STYLES } from './lib/theme';
 import { ConfFilterToggle } from './components/shared';
 import {
   fetchSleeperLeague, fetchFullSeasonData, fetchPlayersDB, fetchSeasonTransactions, fetchDraftPicks, fetchAllWeekProjections, fetchNflState, fetchNflSchedule
 } from './lib/sleeperApi';
-import { fetchWeekKickoffInfo, fetchWeekBigPlays, fetchSeasonResultsByTeam } from './lib/espnApi';
-import NflFunFact from './components/NflFunFact';
+import { fetchWeekKickoffInfo, fetchWeekBigPlays, fetchSeasonResultsByTeam, fetchNflHeadlines, fetchNflPlayerNotes, filterPlayerNotesForPlayers, filterHeadlinesForPlayers } from './lib/espnApi';
 import {
   computeStats, buildHistory, simulateCombinedPlayoffOdds, computeCrossRecords, computeCrossWeekRecord,
   computeWeeklyAwards, computeProjectedTrophies, buildConferenceList, rankConference, winProbability, roughWinProbability, computePointsAgainst, computeInConfRecord,
@@ -26,6 +25,8 @@ import TeamName from './components/TeamName';
 import ScheduleTab from './components/ScheduleTab';
 import SeasonGridTab from './components/SeasonGridTab';
 import HomeView from './components/HomeView';
+import NewsView from './components/NewsView';
+import NewsTicker from './components/NewsTicker';
 import CurrentWeekView from './components/CurrentWeekView';
 import CommandPalette from './components/CommandPalette';
 import ManagerMatchupRow from './components/ManagerMatchupRow';
@@ -36,9 +37,6 @@ import FallingPhotos from './components/FallingPhotos';
 import DancingStickmen from './components/DancingStickmen';
 import RandomNameBubble from './components/RandomNameBubble';
 import NflGamesPanel from './components/NflGamesPanel';
-import WeeklyHighlights from './components/WeeklyHighlights';
-import PlayerHighlights from './components/PlayerHighlights';
-import TopByPositionHighlights from './components/TopByPositionHighlights';
 import { RosterModalProvider } from './context/RosterModalContext';
 import { MatchupPreviewProvider, useMatchupPreview } from './context/MatchupPreviewContext';
 import MatchupPreviewModal from './components/MatchupPreviewModal';
@@ -55,7 +53,6 @@ import { TeamLogoProvider } from './context/TeamLogoContext';
 import { PlayerPhotoProvider } from './context/PlayerPhotoContext';
 import { buildConferenceColorMap, buildConferenceHexColorMap, getDraftSlotMap } from './lib/teamColors';
 import StandingsTrendChart from './components/StandingsTrendChart';
-import NflBigPlaysHighlights from './components/NflBigPlaysHighlights';
 import { getRealName } from './lib/realNames';
 import { buildTrophyLinesByManager, mergeTrophyLines } from './lib/speechBubble';
 import { scoringFieldFor, computeRosterProjection, computeBlendedRosterScore, buildOwnerMap, buildAcquisitionHistory, computeMoveCounts, playerLabel, projectedPoints, computeWaiverWireMvp } from './lib/players';
@@ -488,7 +485,7 @@ function estimateTeamScore(manager, confData, season, week, weekProjections, lat
   return { value: proj, isFinal: false };
 }
 
-const VALID_TABS = new Set(["home", "currentWeek", "standings", "matchups", "grid", "players", "teams", "charter"]);
+const VALID_TABS = new Set(["home", "currentWeek", "standings", "matchups", "grid", "players", "news", "teams", "charter"]);
 
 function tabFromHash() {
   const id = window.location.hash.slice(1);
@@ -804,6 +801,33 @@ export default function App() {
     return () => { cancelled = true; };
   }, [latestCompletedWeek]);
 
+  // Real, live current NFL headlines (ESPN's own public news feed) -- unlike the fun-fact stats
+  // above, actual news changes throughout the day, so this refetches on its own every 10 minutes
+  // (not just once), plus the headlines card's own manual refresh button.
+  const [nflHeadlines, setNflHeadlines] = useState([]);
+  // Larger batch than what's actually shown (see NflHeadlines, which only displays a handful) --
+  // "Your Player News" below cross-references this same fetch against a specific roster, so a
+  // wider pull gives that a real chance of actually finding a match.
+  const refreshHeadlines = () => fetchNflHeadlines(30).then(setNflHeadlines);
+  useEffect(() => {
+    refreshHeadlines();
+    const id = setInterval(refreshHeadlines, 10 * 60 * 1000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Real per-player fantasy notes, league-wide, one request (see lib/espnApi.js
+  // fetchNflPlayerNotes) -- cross-referenced against whichever roster is currently selected to
+  // build "Your Player News" below.
+  const [nflPlayerNotes, setNflPlayerNotes] = useState({});
+  const refreshPlayerNotes = () => fetchNflPlayerNotes().then(setNflPlayerNotes);
+  useEffect(() => {
+    refreshPlayerNotes();
+    const id = setInterval(refreshPlayerNotes, 10 * 60 * 1000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleLeagueIdChange = (conf, value) => {
     if (conf === "AFC") {
       setAfcLeagueId(value);
@@ -846,7 +870,11 @@ export default function App() {
   // filtered out of view entirely and the tab appears to do nothing.
   const goToMatchup = (manager, week) => {
     setConfFilter("ALL");
-    setSelectedManager(manager);
+    // Your own matchup is always pinned at the top of the Matchups tab now, so jumping to your
+    // OWN card (e.g. "Full Matchups Tab ->" from Home/This Week) shouldn't also filter the full
+    // list down to just you -- that filter is only useful when the click was actually pointing at
+    // someone else (a trophy card, a grid cell, a matchup preview) that isn't shown up top already.
+    setSelectedManager(manager && manager !== myTeamManager ? manager : "ALL");
     if (week != null) setSelectedWeek(week);
     setMatchupsView("week");
     setActiveTab("matchups");
@@ -888,17 +916,12 @@ export default function App() {
     // actually resets it back to All/All instead of leaving a stale manager/position filter behind.
   };
 
-  // Once real roster data has loaded, focus the Standings/Matchups conference filter on the
-  // remembered team (picked via "I am ___" on Home) exactly once -- afterward the user's own filter
-  // choices win. Deliberately does NOT touch selectedManager -- see chooseMyTeam above.
-  const appliedRememberedTeamRef = useRef(false);
-  useEffect(() => {
-    if (appliedRememberedTeamRef.current) return;
-    if (!myTeamManager || !myTeamConf) return;
-    if (afcData.rosters.length === 0 && nfcData.rosters.length === 0) return;
-    appliedRememberedTeamRef.current = true;
-    setConfFilter(myTeamConf);
-  }, [myTeamManager, myTeamConf, afcData.rosters.length, nfcData.rosters.length]);
+  // Standings/Matchups conference filter defaults to "ALL" and stays there regardless of which
+  // "I am" team is picked -- it used to auto-narrow to your own conference the moment a team was
+  // remembered, which meant the Matchups tab silently hid the other conference's matchups without
+  // ever being asked to. The Matchups tab instead just orders your own conference's section first
+  // (see myTeamConf-based ordering below) -- everyone's still shown unless the viewer manually
+  // picks a conference from the filter themselves.
 
   const myTeamConfData = myTeamConf === "AFC" ? afcData : myTeamConf === "NFC" ? nfcData : null;
   const myTeamSeason = myTeamConf === "AFC" ? afcSeason : myTeamConf === "NFC" ? nfcSeason : null;
@@ -914,6 +937,34 @@ export default function App() {
     });
     return teams;
   }, [myTeamRoster, playersDB]);
+  // Real names of every player on the currently-selected ("I am") roster -- used to cross-reference
+  // the real ESPN player-notes/headlines feeds above into "Your Player News", scoped to whichever
+  // team is picked. Real Sleeper player data via playerLabel, never guessed.
+  const myTeamPlayerNames = useMemo(
+    () => (myTeamRoster?.players || []).map(pid => playerLabel(playersDB, pid).name).filter(Boolean),
+    [myTeamRoster, playersDB]
+  );
+  // Real Sleeper team-abbreviation/position/jersey-number for each of "my" players, keyed by name
+  // so it can be merged onto the ESPN-sourced notes below (ESPN's own note only carries a full
+  // team NAME, not the short "CIN #5 RB"-style tag the rest of this app already uses everywhere
+  // else -- Sleeper's roster data already has that, just needs attaching here).
+  const myTeamPlayerInfoByName = useMemo(() => {
+    const map = {};
+    (myTeamRoster?.players || []).forEach(pid => {
+      const p = playerLabel(playersDB, pid);
+      if (p?.name) map[p.name] = { nflTeam: p.team, position: p.position, number: p.number };
+    });
+    return map;
+  }, [myTeamRoster, playersDB]);
+  const myPlayerNotes = useMemo(
+    () => filterPlayerNotesForPlayers(nflPlayerNotes, myTeamPlayerNames)
+      .map(n => ({ ...n, ...myTeamPlayerInfoByName[n.player] })),
+    [nflPlayerNotes, myTeamPlayerNames, myTeamPlayerInfoByName]
+  );
+  const myPlayerHeadlines = useMemo(
+    () => filterHeadlinesForPlayers(nflHeadlines, myTeamPlayerNames),
+    [nflHeadlines, myTeamPlayerNames]
+  );
   // Same shape CurrentWeekView builds for its own NFL games panel -- lifted up here so the
   // Matchups tab's copy of that panel can show the same "(N of yours)" counts instead of nothing.
   const myPlayersByNflTeam = useMemo(() => {
@@ -1148,15 +1199,6 @@ export default function App() {
     nfcWins: nfcManagers.reduce((sum, m) => sum + (crossRecordsForSeason[m]?.wins || 0), 0),
     ties: afcManagers.reduce((sum, m) => sum + (crossRecordsForSeason[m]?.ties || 0), 0)
   };
-  // Real cumulative points scored by every AFC team combined vs every NFC team combined, all
-  // season -- afcStandings/nfcStandings' `.pf` field is each manager's own real season-total
-  // points-for (see buildConferenceList in statsMath.js), so summing it across a conference gives
-  // a genuine whole-conference point total, not an estimate.
-  const conferenceCumulativeScore = {
-    afc: afcStandings.reduce((sum, t) => sum + (t.pf || 0), 0),
-    nfc: nfcStandings.reduce((sum, t) => sum + (t.pf || 0), 0)
-  };
-
   const afcManagerRows = afcManagers.filter(m => selectedManager === "ALL" || m === selectedManager);
   const nfcManagerRows = nfcManagers.filter(m => selectedManager === "ALL" || m === selectedManager);
 
@@ -1223,6 +1265,7 @@ export default function App() {
     { id: "matchups", label: "Matchups", shortLabel: "Matchups", icon: Swords },
     { id: "grid", label: "Grid", shortLabel: "Grid", icon: LayoutGrid },
     { id: "players", label: "Players", shortLabel: "Players", icon: Search },
+    { id: "news", label: "News", shortLabel: "News", icon: Newspaper },
     ...(isAdmin ? [{ id: "teams", label: "MS Teams Broadcast", shortLabel: "Broadcast", icon: Megaphone }] : [])
   ];
 
@@ -1347,6 +1390,12 @@ export default function App() {
         trophyLinesByManager={trophyLinesByManager} afcStandings={afcStandings} nfcStandings={nfcStandings}
         weekResultByManager={weekResultByManager} managerStreaks={managerStreaks} revengeGameByManager={revengeGameByManager}
       />
+      {/* Newscast-style scrolling crawl -- skipped on Home and the dedicated News tab since both
+          already show this same real data in full; everywhere else it's the one ambient reminder
+          that news exists without needing its own click. */}
+      {activeTab !== "home" && activeTab !== "news" && (
+        <NewsTicker myPlayerNotes={myPlayerNotes} myPlayerHeadlines={myPlayerHeadlines} nflHeadlines={nflHeadlines} />
+      )}
 
       <main className="max-w-7xl mx-auto">
         {/* Desktop Navigation Tabs -- also hidden on Home; the radial menu is its navigation */}
@@ -1493,14 +1542,6 @@ export default function App() {
         {activeTab === "matchups" && (
           <div className="space-y-8 max-w-7xl mx-auto w-full">
             <div className="bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-4 flex flex-wrap items-center gap-x-8 gap-y-2">
-              <div className="flex items-center gap-2">
-                <span className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">Cumulative Score:</span>
-                <p className="text-lg font-extrabold font-mono">
-                  <span className={CONF_STYLES.AFC.text}>AFC {conferenceCumulativeScore.afc.toFixed(2)}</span>
-                  <span className="text-[var(--muted)] mx-2">-</span>
-                  <span className={CONF_STYLES.NFC.text}>{conferenceCumulativeScore.nfc.toFixed(2)} NFC</span>
-                </p>
-              </div>
               {isSelectedWeekFinal && weekRecord.counted > 0 && (
                 <div className="flex items-center gap-2">
                   <span className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">Week {selectedWeek} Series:</span>
@@ -1613,74 +1654,66 @@ export default function App() {
               </div>
             )}
 
-            {/* Clicking a trophy card pops that manager's matchup up as a preview card (global
-                MatchupPreviewContext) instead of filtering/navigating -- works regardless of the
-                current conference filter, since it's not changing what's shown in this list. */}
-            <WeeklyHighlights
-              awards={weeklyAwards} benchPointsAward={benchPointsAward} week={selectedWeek} isWeekFinal={isSelectedWeekFinal}
-              afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason} playersDB={playersDB}
-              managerStreaks={managerStreaks}
-            />
-            <PlayerHighlights
-              afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
-              week={selectedWeek} weekProjections={weekProjections} playersDB={playersDB}
-              waiverWireMvp={waiverWireMvp}
-            />
-            <TopByPositionHighlights
-              afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
-              week={selectedWeek} playersDB={playersDB}
-            />
-            <NflBigPlaysHighlights bigPlays={weekBigPlays} />
+            {/* Trophies/highlights deliberately live on This Week, not here -- this tab is just a
+                clear, uncluttered way to look at every matchup, your own first. */}
+            <p className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)] pt-2 border-t border-[var(--border)]/60">
+              Everyone Else's Matchups
+            </p>
 
-            {showAfc && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <h2 className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)]">AFC Matchups &mdash; Week {selectedWeek}</h2>
+            {(() => {
+              const afcBlock = showAfc && (
+                <div key="afc" className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <h2 className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)]">AFC Matchups &mdash; Week {selectedWeek}</h2>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4">
+                    {afcManagerRows.map(m => (
+                      <ManagerMatchupRow
+                        key={m}
+                        manager={m}
+                        conf="AFC"
+                        intra={getIntraInfo(m, afcSeason, allStats, selectedWeek, afcData, weekProjections, latestCompletedWeek)}
+                        inter={getInterInfo(m, "AFC", weekCrossPairs, afcSeason, nfcSeason, allStats, selectedWeek, afcData, nfcData, weekProjections, latestCompletedWeek)}
+                        afcSlots={afcData.startingSlots || []}
+                        nfcSlots={nfcData.startingSlots || []}
+                        playersDB={playersDB}
+                        weekProjections={weekProjections}
+                        byTeamWeek={enrichedByTeamWeek} week={selectedWeek}
+                        highlightTeams={matchupsHighlightTeams} onSelectGame={toggleMatchupsHighlightGame}
+                      />
+                    ))}
+                  </div>
                 </div>
-                <div className="grid grid-cols-1 gap-4">
-                  {afcManagerRows.map(m => (
-                    <ManagerMatchupRow
-                      key={m}
-                      manager={m}
-                      conf="AFC"
-                      intra={getIntraInfo(m, afcSeason, allStats, selectedWeek, afcData, weekProjections, latestCompletedWeek)}
-                      inter={getInterInfo(m, "AFC", weekCrossPairs, afcSeason, nfcSeason, allStats, selectedWeek, afcData, nfcData, weekProjections, latestCompletedWeek)}
-                      afcSlots={afcData.startingSlots || []}
-                      nfcSlots={nfcData.startingSlots || []}
-                      playersDB={playersDB}
-                      weekProjections={weekProjections}
-                      byTeamWeek={enrichedByTeamWeek} week={selectedWeek}
-                      highlightTeams={matchupsHighlightTeams} onSelectGame={toggleMatchupsHighlightGame}
-                    />
-                  ))}
+              );
+              const nfcBlock = showNfc && (
+                <div key="nfc" className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <h2 className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)]">NFC Matchups &mdash; Week {selectedWeek}</h2>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4">
+                    {nfcManagerRows.map(m => (
+                      <ManagerMatchupRow
+                        key={m}
+                        manager={m}
+                        conf="NFC"
+                        intra={getIntraInfo(m, nfcSeason, allStats, selectedWeek, nfcData, weekProjections, latestCompletedWeek)}
+                        inter={getInterInfo(m, "NFC", weekCrossPairs, afcSeason, nfcSeason, allStats, selectedWeek, afcData, nfcData, weekProjections, latestCompletedWeek)}
+                        afcSlots={afcData.startingSlots || []}
+                        nfcSlots={nfcData.startingSlots || []}
+                        playersDB={playersDB}
+                        weekProjections={weekProjections}
+                        byTeamWeek={enrichedByTeamWeek} week={selectedWeek}
+                        highlightTeams={matchupsHighlightTeams} onSelectGame={toggleMatchupsHighlightGame}
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
-
-            {showNfc && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <h2 className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)]">NFC Matchups &mdash; Week {selectedWeek}</h2>
-                </div>
-                <div className="grid grid-cols-1 gap-4">
-                  {nfcManagerRows.map(m => (
-                    <ManagerMatchupRow
-                      key={m}
-                      manager={m}
-                      conf="NFC"
-                      intra={getIntraInfo(m, nfcSeason, allStats, selectedWeek, nfcData, weekProjections, latestCompletedWeek)}
-                      inter={getInterInfo(m, "NFC", weekCrossPairs, afcSeason, nfcSeason, allStats, selectedWeek, afcData, nfcData, weekProjections, latestCompletedWeek)}
-                      afcSlots={afcData.startingSlots || []}
-                      nfcSlots={nfcData.startingSlots || []}
-                      playersDB={playersDB}
-                      weekProjections={weekProjections}
-                      byTeamWeek={enrichedByTeamWeek} week={selectedWeek}
-                      highlightTeams={matchupsHighlightTeams} onSelectGame={toggleMatchupsHighlightGame}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
+              );
+              // Your own conference's matchups render first under "Everyone Else's Matchups" --
+              // both conferences still show by default (the filter above is left at "ALL" unless
+              // the viewer manually narrows it), only the order favors your own side.
+              return myTeamConf === "NFC" ? <>{nfcBlock}{afcBlock}</> : <>{afcBlock}{nfcBlock}</>;
+            })()}
             </div>
             <div className="lg:sticky lg:top-4">
               <NflGamesPanel
@@ -1778,6 +1811,16 @@ export default function App() {
               />
             )}
           </div>
+        )}
+
+        {/* TAB: NEWS -- same real ESPN-sourced fun-fact/headlines/your-player-news widgets, just
+            given the same full-width page other tabs get instead of a narrow centered column. */}
+        {activeTab === "news" && (
+          <NewsView
+            seasonResultsByTeam={seasonResultsByTeam} nflHeadlines={nflHeadlines} onRefreshHeadlines={refreshHeadlines}
+            myTeamManager={myTeamManager} myPlayerNotes={myPlayerNotes} myPlayerHeadlines={myPlayerHeadlines}
+            onRefreshPlayerNews={() => Promise.all([refreshHeadlines(), refreshPlayerNotes()])}
+          />
         )}
 
         {/* TAB: MS TEAMS RECAP (admin only) */}

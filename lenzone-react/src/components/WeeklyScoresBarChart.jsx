@@ -276,26 +276,43 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
   let pinXByManager = null;
   if (pinnedBar && pinnedBar.manager !== focusManager) {
     const placedNames = new Set();
-    const placeFirst = [];
+    // Three distinct, clearly separated clusters -- "you and your matchups" (focus mode only),
+    // "your selection and their matchups" (whoever got clicked, plus their real opponents), then
+    // everyone else -- with a full GROUP_GAP between each, same visual language the base layout
+    // already uses to separate the focus group from the rest.
+    const focusSegment = [];
     if (focusManager) {
       const focusBar = bars.find(b => b.manager === focusManager);
-      if (focusBar) { placeFirst.push(focusBar); placedNames.add(focusManager); }
+      if (focusBar) {
+        focusSegment.push(focusBar);
+        placedNames.add(focusManager);
+        // Your own two real opponents stay grouped with you -- they're the default focus-mode
+        // grouping already, and clicking a different team shouldn't break that up.
+        (focusOpponents || []).forEach(name => {
+          if (name && !placedNames.has(name) && bars.some(b => b.manager === name)) {
+            focusSegment.push(positioned.find(b => b.manager === name));
+            placedNames.add(name);
+          }
+        });
+      }
     }
-    placeFirst.push(pinnedBar);
+    const pinnedSegment = [pinnedBar];
     placedNames.add(pinnedBar.manager);
     [pinnedBar.opponent, pinnedBar.crossOpponent].forEach(name => {
       if (name && !placedNames.has(name) && bars.some(b => b.manager === name)) {
-        placeFirst.push(positioned.find(b => b.manager === name));
+        pinnedSegment.push(positioned.find(b => b.manager === name));
         placedNames.add(name);
       }
     });
-    const rest = positioned.filter(b => !placedNames.has(b.manager));
-    const newOrder = [...placeFirst, ...rest];
+    const restSegment = positioned.filter(b => !placedNames.has(b.manager));
     pinXByManager = {};
     let px = MARGIN.left;
-    newOrder.forEach(b => {
-      pinXByManager[b.manager] = px;
-      px += MIN_BAR_W + BAR_GAP;
+    [focusSegment, pinnedSegment, restSegment].filter(seg => seg.length > 0).forEach((segment, si) => {
+      if (si > 0) px += GROUP_GAP;
+      segment.forEach(b => {
+        pinXByManager[b.manager] = px;
+        px += MIN_BAR_W + BAR_GAP;
+      });
     });
   }
 
@@ -791,8 +808,10 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
             const isOpponentOfHovered = !!hoveredBarForLine && (b.manager === hoveredBarForLine.opponent || b.manager === hoveredBarForLine.crossOpponent);
             // Your own bar (focus mode) stays highlighted even while hovering someone else -- it's
             // the reference point everything else is being read against, so it shouldn't fade out
-            // right when it's most useful to keep an eye on.
-            const isDimmed = hovered && !isHovered && !isOpponentOfHovered && b.manager !== focusManager;
+            // right when it's most useful to keep an eye on. A ctrl/shift-selected bar is a
+            // deliberate, persistent choice too -- it shouldn't fade out (dashed ring and all)
+            // just because you're now hovering a different bar to compare against.
+            const isDimmed = hovered && !isHovered && !isOpponentOfHovered && b.manager !== focusManager && !selected.has(b.manager);
             const barY = yFor(b.score);
             const color = colorFor(b);
             const barHeight = MARGIN.top + plotH - barY;

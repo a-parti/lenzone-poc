@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Trophy, Swords, Megaphone, Scroll, ExternalLink, RefreshCw, Award, Lock, Unlock, X, Activity, ListOrdered, Users, Calendar, Search, Volume2, VolumeX, LayoutGrid, Newspaper } from 'lucide-react';
+import { Trophy, Swords, Megaphone, Scroll, ExternalLink, RefreshCw, Award, Lock, Unlock, X, Activity, ListOrdered, Users, Calendar, Search, Volume2, VolumeX, LayoutGrid, Newspaper, MessageCircle, MessageCircleOff } from 'lucide-react';
 import AnimatedLogo from './components/AnimatedLogo';
 import { CONF_STYLES } from './lib/theme';
 import { ConfFilterToggle } from './components/shared';
@@ -604,6 +604,17 @@ export default function App() {
   // sound, no burst.
   const [teamBurst, setTeamBurst] = useState(null);
   const [soundMuted, setSoundMuted] = useState(() => localStorage.getItem('lenzone_sound_muted') === 'true');
+  // Toggles the ambient "I'm <real name>" speech bubbles (RandomNameBubble) on/off -- the
+  // click-triggered one in RosterModal stays on regardless, since that's a deliberate action, not
+  // an unprompted ambient one someone might want to turn off.
+  const [bubblesEnabled, setBubblesEnabled] = useState(() => localStorage.getItem('lenzone_bubbles_enabled') !== 'false');
+  const toggleBubblesEnabled = () => {
+    setBubblesEnabled(prev => {
+      const next = !prev;
+      localStorage.setItem('lenzone_bubbles_enabled', String(next));
+      return next;
+    });
+  };
   const toggleSoundMuted = () => {
     setSoundMuted(prev => {
       const next = !prev;
@@ -1398,6 +1409,9 @@ export default function App() {
               <Button variant="icon" onClick={toggleSoundMuted} title={soundMuted ? "Unmute team easter-egg sounds" : "Mute team easter-egg sounds"}>
                 {soundMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
               </Button>
+              <Button variant="icon" onClick={toggleBubblesEnabled} title={bubblesEnabled ? "Turn off random \"I'm ___\" name bubbles" : "Turn on random \"I'm ___\" name bubbles"}>
+                {bubblesEnabled ? <MessageCircle className="w-4 h-4" /> : <MessageCircleOff className="w-4 h-4" />}
+              </Button>
             </div>
           </div>
         </header>
@@ -1408,7 +1422,7 @@ export default function App() {
       <FallingPhotos enabled={activeTab !== "home"} />
       <DancingStickmen enabled={activeTab !== "home"} />
       <RandomNameBubble
-        enabled={activeTab !== "home"} afcData={afcData} nfcData={nfcData}
+        enabled={activeTab !== "home" && bubblesEnabled} afcData={afcData} nfcData={nfcData}
         trophyLinesByManager={trophyLinesByManager} afcStandings={afcStandings} nfcStandings={nfcStandings}
         weekResultByManager={weekResultByManager} managerStreaks={managerStreaks} revengeGameByManager={revengeGameByManager}
       />

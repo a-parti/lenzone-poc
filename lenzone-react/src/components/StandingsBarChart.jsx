@@ -5,11 +5,20 @@ import { getRealName } from '../lib/realNames';
 import lenzoneLogoRing from '../assets/lenzone-logo-ring.png';
 import lenzoneLogoBall from '../assets/lenzone-logo-ball.png';
 
-const HEIGHT = 380;
-// bottom carries a little extra room for the tied-points bracket row (see `tiers` below), which
-// sits right between the bar bottoms and the rotated name labels -- not tacked on below the
-// labels, which read as a stray disconnected row down at the very edge of the chart.
-const MARGIN = { top: 40, right: 16, bottom: 156, left: 56 };
+// HEIGHT bumped along with MARGIN.bottom (not just the margin alone) -- the tied-points bracket
+// row plus the 3-line rotated name block genuinely need more real vertical room than before, not
+// just room shifted around within the same fixed canvas size, or the diagonal text clips against
+// the bottom edge.
+const HEIGHT = 420;
+// bottom carries the tied-points bracket row (see `tiers` below), which sits right between the
+// bar bottoms and the rotated name labels -- not tacked on below the labels, which read as a
+// stray disconnected row down at the very edge of the chart -- plus real room for the 3-line
+// rotated name block itself (rank, team name, real name) so it doesn't clip at the bottom edge.
+// left is sized for the FIRST bar's rotated name swinging up-and-left off its own anchor point
+// (textAnchor="end" + a negative rotation), same reasoning as WeeklyScoresBarChart's own left
+// margin -- 56px was only ever enough for the y-axis ticks/label, nowhere near enough room for the
+// league's longest team name (e.g. "Justhereforthegroupchat") to swing left without clipping.
+const MARGIN = { top: 40, right: 16, bottom: 190, left: 185 };
 const MIN_BAR_W = 58;
 const BAR_GAP = 10;
 const GROUP_GAP = 30;
@@ -20,6 +29,13 @@ const NFC_COLOR = "#60a5fa"; // matches WeeklyScoresBarChart's NFC_COLOR / CONF_
 // (bold geometric sans) -- so the two chart types read as one consistent visual system.
 const DATA_FONT = "'DM Sans', ui-sans-serif, sans-serif";
 const SERIF_FONT = "'Lora', Georgia, serif";
+
+function median(arr) {
+  if (!arr.length) return null;
+  const sorted = [...arr].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
 
 function niceStep(max, targetCount = 5) {
   const rawStep = max / targetCount || 1;
@@ -117,6 +133,24 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
   const maxPf = Math.max(1, ...bars.map(b => b.pfAvg || 0));
   const { ticks, domainMax } = niceTicks(maxPf);
   const yFor = (v) => MARGIN.top + plotH - (v / domainMax) * plotH;
+
+  // Median-PF/game reference lines -- combined mode gets ONE overall median across everyone
+  // (there's only one merged ranking to compare against); segregated mode gets each showing
+  // conference's own median instead, since AFC and NFC are two separate pools there.
+  const medianLines = [];
+  if (mode === "combined") {
+    const m = median(bars.map(b => b.pfAvg || 0));
+    if (m != null) medianLines.push({ label: "Overall Median", color: "var(--accent)", value: m });
+  } else {
+    if (confFilter !== "NFC" && afcStandings?.length) {
+      const m = median(afcStandings.map(r => r.pfAvg || 0));
+      if (m != null) medianLines.push({ label: "AFC Median", color: AFC_COLOR, value: m });
+    }
+    if (confFilter !== "AFC" && nfcStandings?.length) {
+      const m = median(nfcStandings.map(r => r.pfAvg || 0));
+      if (m != null) medianLines.push({ label: "NFC Median", color: NFC_COLOR, value: m });
+    }
+  }
   // The tied-points bracket sits in its own row between the bar bottoms and the rotated name
   // labels (not tacked on below everything, and not fighting the labels for the same row) --
   // labelStartY is pushed down from where it used to start to make room for that row above it.
@@ -133,6 +167,10 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
   const EXPORT_SANS = "Arial, Helvetica, sans-serif";
   const EXPORT_SERIF = "Georgia, 'Times New Roman', serif";
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  // The combined chart's overall median line uses the app's live "var(--accent)" token, which an
+  // isolated rasterized SVG can't resolve (no access to the page's CSS) -- pinned to this app's own
+  // actual accent hex (index.css), same fallback WeeklyScoresBarChart's own export uses.
+  const resolveExportColor = (c) => (c === "var(--accent)" ? "#e76f51" : c);
 
   const fetchViaFetchApi = async (url) => {
     const res = await fetch(url);
@@ -205,7 +243,14 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
       parts.push(`<line x1="${MARGIN.left}" x2="${width - MARGIN.right}" y1="${ty}" y2="${ty}" stroke="${EXPORT.border}" stroke-opacity="0.5" stroke-width="1"/>`);
       parts.push(`<text x="${MARGIN.left - 10}" y="${ty}" text-anchor="end" dominant-baseline="middle" font-family="${EXPORT_SANS}" font-size="13" fill="${EXPORT.muted}">${t.toFixed(0)}</text>`);
     });
-    parts.push(`<text x="78" y="${MARGIN.top + plotH / 2}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="13" font-weight="700" fill="${EXPORT.muted}" transform="rotate(-90 78 ${MARGIN.top + plotH / 2})">PF / Game</text>`);
+    parts.push(`<text x="150" y="${MARGIN.top + plotH / 2}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="13" font-weight="700" fill="${EXPORT.muted}" transform="rotate(-90 150 ${MARGIN.top + plotH / 2})">PF / Game</text>`);
+
+    medianLines.forEach(m => {
+      const my = yFor(m.value);
+      const mColor = resolveExportColor(m.color);
+      parts.push(`<line x1="${MARGIN.left}" x2="${width - MARGIN.right}" y1="${my}" y2="${my}" stroke="${mColor}" stroke-width="2" stroke-dasharray="7 5" opacity="0.85"/>`);
+      parts.push(`<text x="${width - MARGIN.right + 8}" y="${my}" dominant-baseline="middle" font-family="${EXPORT_SANS}" font-size="11" font-weight="700" fill="${mColor}">${esc(m.label.split(' ')[0])} ${m.value.toFixed(1)}</text>`);
+    });
 
     if (groupSpans.length > 1) {
       groupSpans.forEach(g => {
@@ -234,9 +279,9 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
       const realName = getRealName(afcData, nfcData, b.manager);
       const ptsSuffix = tiers[b.tierIdx].count === 1 ? ` (${b.totalPts.toFixed(1)})` : '';
       parts.push(`<text font-family="${EXPORT_SERIF}" font-weight="700" fill="${color}" text-anchor="end" transform="rotate(-40 ${cx} ${labelY})">` +
-        `<tspan x="${cx}" y="${labelY}" font-size="13">#${b.rank}${ptsSuffix}</tspan>` +
-        `<tspan x="${cx}" y="${labelY + 14}" font-size="11" font-weight="600" fill="${EXPORT.muted}">${esc(b.manager)}</tspan>` +
-        (realName ? `<tspan x="${cx}" y="${labelY + 27}" font-size="9" font-weight="600" fill="${EXPORT.muted}">(${esc(realName)})</tspan>` : '') +
+        `<tspan x="${cx}" y="${labelY}" font-size="16">#${b.rank}${ptsSuffix}</tspan>` +
+        `<tspan x="${cx}" y="${labelY + 16}" font-size="14" font-weight="600" fill="${EXPORT.muted}">${esc(b.manager)}</tspan>` +
+        (realName ? `<tspan x="${cx}" y="${labelY + 30}" font-size="11" font-weight="600" fill="${EXPORT.muted}">(${esc(realName)})</tspan>` : '') +
         `</text>`);
     });
     parts.push(`</g>`);
@@ -416,11 +461,25 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
             </g>
           ))}
           <text
-            x={16} y={MARGIN.top + plotH / 2} textAnchor="middle" fontSize={11} fontWeight={700} fill="var(--muted)"
-            transform={`rotate(-90 16 ${MARGIN.top + plotH / 2})`}
+            x={150} y={MARGIN.top + plotH / 2} textAnchor="middle" fontSize={11} fontWeight={700} fill="var(--muted)"
+            transform={`rotate(-90 150 ${MARGIN.top + plotH / 2})`}
           >
             PF / Game
           </text>
+
+          {/* Median PF/game reference line(s) -- AFC/NFC medians for the segregated chart, one
+              overall median for the combined chart (see medianLines above). */}
+          {medianLines.map(m => (
+            <g key={m.label}>
+              <line
+                x1={MARGIN.left} x2={width - MARGIN.right} y1={yFor(m.value)} y2={yFor(m.value)}
+                stroke={m.color} strokeWidth={2} strokeDasharray="7 5" opacity={0.85}
+              />
+              <text x={width - MARGIN.right + 8} y={yFor(m.value)} dominantBaseline="middle" fontSize={11} fontWeight={700} fill={m.color}>
+                {m.label.split(' ')[0]} {m.value.toFixed(1)}
+              </text>
+            </g>
+          ))}
 
           {/* Conference labels + a divider, only when both are showing at once (segregated ALL
               filter) -- a single-conference filter, or combined mode, already says so in the
@@ -504,11 +563,11 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
                   x={b.x + MIN_BAR_W / 2} y={labelStartY} fontWeight={700} fontFamily={SERIF_FONT}
                   fill={color === "var(--accent)" ? "var(--text)" : color} textAnchor="end" transform={`rotate(-40 ${b.x + MIN_BAR_W / 2} ${labelStartY})`}
                 >
-                  <tspan x={b.x + MIN_BAR_W / 2} fontSize={13} fontFamily={DATA_FONT} fontWeight={800}>
+                  <tspan x={b.x + MIN_BAR_W / 2} fontSize={16} fontFamily={DATA_FONT} fontWeight={800}>
                     #{b.rank}{tiers[b.tierIdx].count === 1 ? ` (${b.totalPts.toFixed(1)})` : ''}
                   </tspan>
-                  <tspan x={b.x + MIN_BAR_W / 2} dy="14" fontSize={11} fontWeight={600} fill="var(--text2)">{b.manager}</tspan>
-                  {realName && <tspan x={b.x + MIN_BAR_W / 2} dy="13" fontSize={9} fontWeight={600} fill="var(--muted)">({realName})</tspan>}
+                  <tspan x={b.x + MIN_BAR_W / 2} dy="16" fontSize={14} fontWeight={600} fill="var(--text2)">{b.manager}</tspan>
+                  {realName && <tspan x={b.x + MIN_BAR_W / 2} dy="14" fontSize={11} fontWeight={600} fill="var(--muted)">({realName})</tspan>}
                 </text>
                 <title>#{b.rank} {b.manager}{b.conf ? ` (${b.conf})` : ''} -- {b.totalPts.toFixed(2)} standings pts, {(b.pfAvg || 0).toFixed(2)} PF/game</title>
               </g>
@@ -539,9 +598,14 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
           })}
         </svg>
       </div>
-      <div className="flex items-center gap-4 mt-3 text-xs font-semibold">
+      <div className="flex items-center flex-wrap gap-4 mt-3 text-xs font-semibold">
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: AFC_COLOR }} /> AFC</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: NFC_COLOR }} /> NFC</span>
+        {medianLines.map(m => (
+          <span key={m.label} className="flex items-center gap-1.5" style={{ color: m.color }}>
+            <span className="w-3.5 border-t-2 border-dashed" style={{ borderColor: m.color }} /> {m.label} ({m.value.toFixed(1)})
+          </span>
+        ))}
       </div>
     </div>
   );

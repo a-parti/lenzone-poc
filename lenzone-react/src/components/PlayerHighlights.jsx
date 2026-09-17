@@ -4,6 +4,7 @@ import { computePlayerHighlights, playerLabel } from '../lib/players';
 import { usePlayerModal } from '../context/PlayerModalContext';
 import { PositionBadge, NflTeamTag } from './shared';
 import PlayerAvatar from './PlayerAvatar';
+import { useNameDisplay } from '../context/NameDisplayContext';
 
 // Explicit sign rather than a hardcoded "+" prefix -- a hardcoded prefix reads as "+-2.97" for a
 // negative value, which is exactly the kind of value this shows for a miss.
@@ -67,6 +68,7 @@ export function PlayerCard({ icon: Icon, label, entry, playersDB, value, accent,
 // tab's "This Week" view, same as WeeklyHighlights, so the two never drift.
 export default function PlayerHighlights({ afcData, nfcData, afcSeason, nfcSeason, week, weekProjections, playersDB, waiverWireMvp }) {
   const { openPlayer } = usePlayerModal();
+  const { displayName } = useNameDisplay();
   const highlights = useMemo(
     () => computePlayerHighlights(afcData, nfcData, afcSeason, nfcSeason, week, weekProjections),
     [afcData, nfcData, afcSeason, nfcSeason, week, weekProjections]
@@ -129,7 +131,9 @@ export default function PlayerHighlights({ afcData, nfcData, afcSeason, nfcSeaso
           value={(
             <div className="flex flex-col leading-tight">
               <span className="text-sm font-mono font-bold text-[var(--pos)]">{waiverWireMvp.points.toFixed(2)} pts</span>
-              <span className="text-[10px] text-[var(--muted)]">picked up by {waiverWireMvp.manager}</span>
+              <span className="text-[10px] text-[var(--muted)]">
+                picked up by {displayName(waiverWireMvp.manager, afcData?.rosters?.some(r => r.manager === waiverWireMvp.manager) ? 'AFC' : 'NFC')}
+              </span>
             </div>
           )}
           accent="text-[var(--pos)]" onClick={() => openFor(waiverWireMvp)}

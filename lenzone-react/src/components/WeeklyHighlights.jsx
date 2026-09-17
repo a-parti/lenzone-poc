@@ -4,6 +4,7 @@ import { useTeamColor } from '../context/TeamColorContext';
 import { useTeamLogo } from '../context/TeamLogoContext';
 import { useMatchupPreview } from '../context/MatchupPreviewContext';
 import { computeLineupAccuracy, computeWorstLineupDecision } from '../lib/players';
+import { useNameDisplay } from '../context/NameDisplayContext';
 
 // nameManager is the one real manager this card is "about" for logo purposes -- for the two-team
 // cards (Closest Game, Biggest Blowout) that's just the first team listed, since showing both
@@ -40,7 +41,7 @@ function HighlightCard({ icon: Icon, label, name, nameManager, value, accent, on
 // color (via its own useTeamColor), not one flat color applied to the whole "A vs B" string, so the
 // two sides read as distinct teams at a glance. Also shows each side's real score (not just the
 // margin) since "2.74 pt margin" alone doesn't tell you who actually won or what the game looked like.
-function MatchupHighlightCard({ icon: Icon, label, teamA, teamB, scoreA, scoreB, marginLabel, accent, onClick }) {
+function MatchupHighlightCard({ icon: Icon, label, teamA, teamB, teamALabel = teamA, teamBLabel = teamB, scoreA, scoreB, marginLabel, accent, onClick }) {
   const colorA = useTeamColor(teamA);
   const colorB = useTeamColor(teamB);
   return (
@@ -55,11 +56,11 @@ function MatchupHighlightCard({ icon: Icon, label, teamA, teamB, scoreA, scoreB,
       </div>
       <div className="space-y-1">
         <div className="flex items-baseline justify-between gap-2">
-          <span className={`font-bold text-sm leading-snug min-w-0 ${colorA.text}`}>{teamA}</span>
+          <span className={`font-bold text-sm leading-snug min-w-0 ${colorA.text}`}>{teamALabel}</span>
           <span className="font-mono text-sm font-bold text-[var(--text)] shrink-0">{scoreA.toFixed(2)}</span>
         </div>
         <div className="flex items-baseline justify-between gap-2">
-          <span className={`font-bold text-sm leading-snug min-w-0 ${colorB.text}`}>{teamB}</span>
+          <span className={`font-bold text-sm leading-snug min-w-0 ${colorB.text}`}>{teamBLabel}</span>
           <span className="font-mono text-sm font-bold text-[var(--text)] shrink-0">{scoreB.toFixed(2)}</span>
         </div>
       </div>
@@ -79,7 +80,9 @@ export default function WeeklyHighlights({
   afcData, nfcData, afcSeason, nfcSeason, playersDB, managerStreaks
 }) {
   const { openPreview } = useMatchupPreview();
+  const { displayName } = useNameDisplay();
   const confFor = (manager) => (afcData?.rosters?.some(r => r.manager === manager) ? "AFC" : "NFC");
+  const visibleName = (manager) => displayName(manager, confFor(manager));
   const showMatchup = (manager) => openPreview(manager, confFor(manager), week);
   // Longest active real streak league-wide (2+ games, either direction) -- ties broken by
   // whichever manager sorts first, since there's no principled real tiebreaker for "equally hot".
@@ -125,44 +128,44 @@ export default function WeeklyHighlights({
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
       <HighlightCard
-        icon={icon} label={`${prefix}High Score`} name={high.manager} nameManager={high.manager} value={`${high.points.toFixed(2)} pts`} accent="text-amber-400"
+        icon={icon} label={`${prefix}High Score`} name={visibleName(high.manager)} nameManager={high.manager} value={`${high.points.toFixed(2)} pts`} accent="text-amber-400"
         onClick={() => showMatchup(high.manager)}
       />
       <HighlightCard
-        icon={TrendingDown} label={`${prefix}Low Score`} name={low.manager} nameManager={low.manager} value={`${low.points.toFixed(2)} pts`} accent="text-rose-400"
+        icon={TrendingDown} label={`${prefix}Low Score`} name={visibleName(low.manager)} nameManager={low.manager} value={`${low.points.toFixed(2)} pts`} accent="text-rose-400"
         onClick={() => showMatchup(low.manager)}
       />
       {closest && (
         <MatchupHighlightCard
-          icon={Zap} label={`${prefix}Closest Game`} teamA={closest.a} teamB={closest.b}
+          icon={Zap} label={`${prefix}Closest Game`} teamA={closest.a} teamB={closest.b} teamALabel={visibleName(closest.a)} teamBLabel={visibleName(closest.b)}
           scoreA={closest.sa} scoreB={closest.sb} marginLabel={`${closest.margin.toFixed(2)} pt margin`}
           accent="text-blue-400" onClick={() => showMatchup(closest.a)}
         />
       )}
       {blowout && (
         <MatchupHighlightCard
-          icon={Flame} label={`${prefix}Biggest Blowout`} teamA={blowout.a} teamB={blowout.b}
+          icon={Flame} label={`${prefix}Biggest Blowout`} teamA={blowout.a} teamB={blowout.b} teamALabel={visibleName(blowout.a)} teamBLabel={visibleName(blowout.b)}
           scoreA={blowout.sa} scoreB={blowout.sb} marginLabel={`${blowout.margin.toFixed(2)} pt margin`}
           accent="text-orange-400" onClick={() => showMatchup(blowout.a)}
         />
       )}
       {benchPointsAward && (
         <HighlightCard
-          icon={Frown} label="Most Points Left on Bench" name={benchPointsAward.manager} nameManager={benchPointsAward.manager}
+          icon={Frown} label="Most Points Left on Bench" name={visibleName(benchPointsAward.manager)} nameManager={benchPointsAward.manager}
           value={`${benchPointsAward.points.toFixed(2)} pts benched`} accent="text-violet-400"
           onClick={() => showMatchup(benchPointsAward.manager)}
         />
       )}
       {lineupAccuracy && (
         <HighlightCard
-          icon={Crosshair} label="Lineup IQ" name={lineupAccuracy.manager} nameManager={lineupAccuracy.manager}
+          icon={Crosshair} label="Lineup IQ" name={visibleName(lineupAccuracy.manager)} nameManager={lineupAccuracy.manager}
           value={`${lineupAccuracy.pct.toFixed(0)}% of optimal (${lineupAccuracy.actual.toFixed(2)}/${lineupAccuracy.optimal.toFixed(2)})`}
           accent="text-cyan-400" onClick={() => showMatchup(lineupAccuracy.manager)}
         />
       )}
       {worstLineupDecision && (
         <HighlightCard
-          icon={ThumbsDown} label="Left the Most on the Table" name={worstLineupDecision.manager} nameManager={worstLineupDecision.manager}
+          icon={ThumbsDown} label="Left the Most on the Table" name={visibleName(worstLineupDecision.manager)} nameManager={worstLineupDecision.manager}
           value={`Scored ${worstLineupDecision.actual.toFixed(2)}, could've had ${worstLineupDecision.optimal.toFixed(2)} (-${worstLineupDecision.deficit.toFixed(2)})`}
           accent="text-red-400" onClick={() => showMatchup(worstLineupDecision.manager)}
         />
@@ -171,7 +174,7 @@ export default function WeeklyHighlights({
         <HighlightCard
           icon={longestStreak.streak.type === 'W' ? Flame : Snowflake}
           label={longestStreak.streak.type === 'W' ? "Hot Streak" : "Cold Streak"}
-          name={longestStreak.manager} nameManager={longestStreak.manager}
+          name={visibleName(longestStreak.manager)} nameManager={longestStreak.manager}
           value={`${longestStreak.streak.count} straight ${longestStreak.streak.type === 'W' ? "wins" : "losses"}`}
           accent={longestStreak.streak.type === 'W' ? "text-orange-400" : "text-sky-300"}
           onClick={() => showMatchup(longestStreak.manager)}

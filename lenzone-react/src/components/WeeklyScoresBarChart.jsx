@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Download, Copy, Check, X as XIcon, Link as LinkIcon, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { useMatchupPreview } from '../context/MatchupPreviewContext';
 import { HIGH_SCORE_PRIZES } from '../lib/highScorePrizes';
-import { getRealName } from '../lib/realNames';
+import { useNameDisplay } from '../context/NameDisplayContext';
 import lenzoneLogoRing from '../assets/lenzone-logo-ring.png';
 import lenzoneLogoBall from '../assets/lenzone-logo-ball.png';
 
@@ -102,8 +102,14 @@ function niceTicks(max, targetCount = 5) {
 //   scoring MORE) are colored; everyone else is a flat neutral bar.
 const LOGO_SIZE = 40;
 
-export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeason, nfcSeason, schedule, week, focusManager, focusOpponents, logoMap, hexColorMap, afcData, nfcData, projectedScores = {}, isWeekFinal = false }) {
+export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeason, nfcSeason, schedule, week, focusManager, focusOpponents, logoMap, hexColorMap, projectedScores = {}, isWeekFinal = false }) {
   const [hovered, setHovered] = useState(null);
+  const { mode: nameMode, displayName, managerName } = useNameDisplay();
+  const graphName = (manager, conf) => {
+    const primary = displayName(manager, conf);
+    const secondary = nameMode === 'teams' ? managerName(manager, conf) : null;
+    return secondary ? `${primary} (${secondary})` : primary;
+  };
   // Ctrl/Cmd/Shift-click toggles a team into this multi-select set instead of opening its matchup
   // preview (a plain click still does that, unchanged). "Filter to Selection" then narrows the
   // whole chart down to just these bars; "Clear Selection" resets both.
@@ -520,7 +526,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
       const fy = yFor(focusScore);
       const accentColor = (hexColorMap?.[focusManager]) || "#e76f51";
       parts.push(`<line x1="${MARGIN.left}" x2="${width - MARGIN.right}" y1="${fy}" y2="${fy}" stroke="${accentColor}" stroke-width="3" stroke-dasharray="9 5"/>`);
-      parts.push(`<text x="${width - MARGIN.right + 8}" y="${fy}" dominant-baseline="middle" font-family="${EXPORT_SANS}" font-size="15" font-weight="800" fill="${accentColor}">You: ${focusScore.toFixed(1)} ${scoreTypeLabel}</text>`);
+      parts.push(`<text x="${width - MARGIN.right + 8}" y="${fy}" dominant-baseline="middle" font-family="${EXPORT_SANS}" font-size="15" font-weight="800" fill="${accentColor}">You: ${focusScore.toFixed(2)} ${scoreTypeLabel}</text>`);
     }
 
     positioned.forEach(b => {
@@ -541,14 +547,15 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
         const emoji = HIGH_SCORE_PRIZES[week]?.choice === "wine" ? "\u{1F377}" : HIGH_SCORE_PRIZES[week]?.choice === "cash" ? "\u{1F4B0}" : "\u{1F4B0}\u{1F377}";
         parts.push(`<text x="${cx}" y="${barY - 24}" text-anchor="middle" font-size="17">${emoji}</text>`);
       }
-      parts.push(`<text x="${cx}" y="${barY - 15}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="17" font-weight="800" fill="${EXPORT.text}">${b.score.toFixed(1)}</text>`);
+      parts.push(`<text x="${cx}" y="${barY - 15}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="17" font-weight="800" fill="${EXPORT.text}">${b.score.toFixed(2)}</text>`);
       parts.push(`<text x="${cx}" y="${barY - 2}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="10" font-weight="800" fill="${EXPORT.muted}">${b.scoreType}</text>`);
       const labelY = MARGIN.top + plotH + 12;
-      const realName = getRealName(afcData, nfcData, b.manager);
+      const visibleName = displayName(b.manager, b.conf);
+      const secondaryName = nameMode === 'teams' ? managerName(b.manager, b.conf) : null;
       const labelColor = b.conf === 'AFC' ? AFC_COLOR : NFC_COLOR;
       parts.push(`<text font-family="${EXPORT_SERIF}" font-weight="700" fill="${labelColor}" text-anchor="end" transform="rotate(-40 ${cx} ${labelY})">` +
-        `<tspan x="${cx}" y="${labelY}" font-size="16">${esc(b.manager)}</tspan>` +
-        (realName ? `<tspan x="${cx}" y="${labelY + 18}" font-size="13" font-weight="600" fill="${EXPORT.muted}">(${esc(realName)})</tspan>` : '') +
+        `<tspan x="${cx}" y="${labelY}" font-size="16">${esc(visibleName)}</tspan>` +
+        (secondaryName ? `<tspan x="${cx}" y="${labelY + 18}" font-size="13" font-weight="600" fill="${EXPORT.muted}">(${esc(secondaryName)})</tspan>` : '') +
         `</text>`);
     });
     parts.push(`</g>`);
@@ -808,7 +815,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
             <g>
               <line x1={MARGIN.left} x2={width - MARGIN.right} y1={yFor(focusScore)} y2={yFor(focusScore)} stroke="var(--accent)" strokeWidth={3} strokeDasharray="9 5" />
               <text x={width - MARGIN.right + 8} y={yFor(focusScore)} dominantBaseline="middle" fontSize={13} fontWeight={800} fill="var(--accent)">
-                You: {focusScore.toFixed(1)} {scoreTypeLabel}
+                You: {focusScore.toFixed(2)} {scoreTypeLabel}
               </text>
             </g>
           )}
@@ -823,7 +830,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
                 stroke={colorFor(hoveredBarForLine)} strokeWidth={2} strokeDasharray="4 4" opacity={0.85}
               />
               <text x={width - MARGIN.right + 8} y={yFor(hoveredBarForLine.score)} dominantBaseline="middle" fontSize={11} fontWeight={700} fill={colorFor(hoveredBarForLine)}>
-                {hoveredBarForLine.manager}: {hoveredBarForLine.score.toFixed(1)} {hoveredBarForLine.scoreType}
+                {graphName(hoveredBarForLine.manager, hoveredBarForLine.conf)}: {hoveredBarForLine.score.toFixed(2)} {hoveredBarForLine.scoreType}
               </text>
             </g>
           )}
@@ -856,7 +863,8 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
             const logoCy = barY + LOGO_SIZE / 2 + 8;
             const showLogo = logoUrl && barHeight >= LOGO_SIZE + 14;
             const isSelected = selected.has(b.manager);
-            const realName = getRealName(afcData, nfcData, b.manager);
+            const visibleName = displayName(b.manager, b.conf);
+            const secondaryName = nameMode === 'teams' ? managerName(b.manager, b.conf) : null;
             // The actual "move out of the way / slide in next to" animation: dx shifts this bar
             // from its normal sorted position to its slot in the click-pinned reflow (0 when
             // nothing's pinned, or when this bar isn't affected by the current pin), and the
@@ -931,7 +939,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
                   </text>
                 )}
                 <text x={b.x + MIN_BAR_W / 2} y={barY - 16} textAnchor="middle" fontSize={14} fontWeight={800} fill="var(--text)">
-                  {b.score.toFixed(1)}
+                  {b.score.toFixed(2)}
                 </text>
                 <text x={b.x + MIN_BAR_W / 2} y={barY - 4} textAnchor="middle" fontSize={9} fontWeight={800} fill={b.scoreType === "Proj" ? "var(--proj)" : "var(--muted)"}>
                   {b.scoreType}
@@ -949,13 +957,13 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
                   onClick={(e) => { e.stopPropagation(); openPreview(b.manager, b.conf, week); }}
                   style={{ cursor: 'pointer' }}
                 >
-                  <tspan x={b.x + MIN_BAR_W / 2} fontSize={13}>{b.manager}</tspan>
-                  {realName && <tspan x={b.x + MIN_BAR_W / 2} dy="14" fontSize={10} fontWeight={600} fill="var(--muted)">({realName})</tspan>}
+                  <tspan x={b.x + MIN_BAR_W / 2} fontSize={13}>{visibleName}</tspan>
+                  {secondaryName && <tspan x={b.x + MIN_BAR_W / 2} dy="14" fontSize={10} fontWeight={600} fill="var(--muted)">({secondaryName})</tspan>}
                 </text>
                 <title>
-                  {b.manager} ({b.conf}): {b.score.toFixed(2)} {b.scoreType}
+                  {graphName(b.manager, b.conf)} ({b.conf}): {b.score.toFixed(2)} {b.scoreType}
                   {b.scoreType === "Proj" && b.actualScore != null ? `; ${b.actualScore.toFixed(2)} Actual posted` : ''}
-                  {b.opponent ? ` vs ${b.opponent}${b.result ? ` (${b.result})` : ''}` : ''}
+                  {b.opponent ? ` vs ${graphName(b.opponent, b.conf)}${b.result ? ` (${b.result})` : ''}` : ''}
                 </title>
               </g>
             );

@@ -49,10 +49,14 @@ export function computeCustomProjectedPoints(stats, scoringSettings) {
 export function projectedPoints(weekProjections, id, scoringSettings, fallbackField) {
   const stats = weekProjections?.[id];
   if (!stats) return null;
-  const custom = computeCustomProjectedPoints(stats, scoringSettings);
-  if (custom !== null) return custom;
+  // Prefer Sleeper's own displayed scoring-format projection verbatim. Both LENZONE conferences
+  // use standard half-PPR scoring, and recomputing from the raw stat forecast introduces small
+  // rounding differences (e.g. Sleeper 10.92 vs a 10.942 dot product) that then accumulate in the
+  // team total. The league-rule calculation remains a fallback for any future custom format where
+  // Sleeper does not return the requested aggregate field.
   const val = stats[fallbackField] ?? stats.pts_ppr ?? stats.pts_half_ppr ?? stats.pts_std;
-  return typeof val === 'number' ? val : null;
+  if (typeof val === 'number') return val;
+  return computeCustomProjectedPoints(stats, scoringSettings);
 }
 
 // Sums a roster's real starter-slot projections for a given week -- the pregame team total,

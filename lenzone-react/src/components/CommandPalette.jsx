@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Search, ArrowUpRight, Users, User } from 'lucide-react';
 import { usePlayerModal } from '../context/PlayerModalContext';
 import { useRosterModal } from '../context/RosterModalContext';
+import { useNameDisplay } from '../context/NameDisplayContext';
 
 function SectionLabel({ children }) {
   return <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-[var(--muted)]">{children}</p>;
@@ -14,6 +15,7 @@ export default function CommandPalette({ tabs, onSelect, open, setOpen, playersD
   const [query, setQuery] = useState('');
   const { openPlayer } = usePlayerModal();
   const { openRoster } = useRosterModal();
+  const { displayName } = useNameDisplay();
 
   useEffect(() => {
     const handler = (e) => {
@@ -39,7 +41,9 @@ export default function CommandPalette({ tabs, onSelect, open, setOpen, playersD
     ...(afcManagers || []).map(m => ({ manager: m, conf: 'AFC' })),
     ...(nfcManagers || []).map(m => ({ manager: m, conf: 'NFC' }))
   ], [afcManagers, nfcManagers]);
-  const matchedTeams = q ? managers.filter(t => t.manager.toLowerCase().includes(q)).slice(0, 6) : [];
+  const matchedTeams = q ? managers.filter(t =>
+    t.manager.toLowerCase().includes(q) || displayName(t.manager, t.conf).toLowerCase().includes(q)
+  ).slice(0, 6) : [];
 
   // Only searches once 2+ characters are typed (playersDB can be thousands of entries) and skips
   // anyone without a current NFL team (retired/practice-squad-only players aren't fantasy-relevant).
@@ -101,7 +105,7 @@ export default function CommandPalette({ tabs, onSelect, open, setOpen, playersD
 
           {matchedTeams.length > 0 && (
             <>
-              <SectionLabel>Fantasy Teams</SectionLabel>
+              <SectionLabel>Teams & Managers</SectionLabel>
               {matchedTeams.map(t => (
                 <button
                   key={`${t.conf}-${t.manager}`}
@@ -110,7 +114,7 @@ export default function CommandPalette({ tabs, onSelect, open, setOpen, playersD
                   className="w-full flex items-center gap-2.5 px-4 py-2.5 text-left hover:bg-[var(--surface2)] transition-colors duration-150"
                 >
                   <Users className="w-4 h-4 text-[var(--muted)] shrink-0" />
-                  <span className="font-semibold text-sm text-[var(--text)] flex-1 truncate">{t.manager}</span>
+                  <span className="font-semibold text-sm text-[var(--text)] flex-1 truncate">{displayName(t.manager, t.conf)}</span>
                   <span className="text-[10px] font-bold text-[var(--muted)] uppercase">{t.conf}</span>
                 </button>
               ))}

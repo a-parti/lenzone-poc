@@ -4,6 +4,7 @@ import { positionStyle } from '../lib/theme';
 import { nflTeamColor, readableTextOn, nflTeamLogoUrl } from '../lib/nflTeams';
 import { ALL_SCHEMES, useTheme } from '../context/ThemeContext';
 import { useTeamDepthChart } from '../context/TeamDepthChartContext';
+import { useNameDisplay } from '../context/NameDisplayContext';
 
 // Shared across every full-screen modal so Escape always closes whichever one is open, without
 // each modal component re-implementing its own key listener.
@@ -281,6 +282,7 @@ export function ThemeToggle() {
 const optionStyle = { backgroundColor: 'var(--surface2)', color: 'var(--text)' };
 
 export function TeamPicker({ afcManagers, nfcManagers, value, onChange, prefix = "I am", variant = "compact" }) {
+  const { mode: nameDisplayMode, displayName } = useNameDisplay();
   if (!(afcManagers?.length > 0 || nfcManagers?.length > 0)) return null;
   const isBlend = variant === "blend";
   return (
@@ -300,12 +302,12 @@ export function TeamPicker({ afcManagers, nfcManagers, value, onChange, prefix =
               : "bg-[var(--surface2)] border border-[var(--border)] rounded-lg px-3 py-1.5 font-semibold text-[var(--text)] text-sm focus:outline-none focus:border-[var(--accent)] w-full max-w-[22rem]"
           }
         >
-          <option value="" style={optionStyle}>choose your team&hellip;</option>
+          <option value="" style={optionStyle}>choose your {nameDisplayMode === 'managers' ? 'name' : 'team'}&hellip;</option>
           <optgroup label="AFC" style={optionStyle}>
-            {(afcManagers || []).map(m => <option key={m} value={m} style={optionStyle}>{m}</option>)}
+            {(afcManagers || []).map(m => <option key={m} value={m} style={optionStyle}>{displayName(m, 'AFC')}</option>)}
           </optgroup>
           <optgroup label="NFC" style={optionStyle}>
-            {(nfcManagers || []).map(m => <option key={m} value={m} style={optionStyle}>{m}</option>)}
+            {(nfcManagers || []).map(m => <option key={m} value={m} style={optionStyle}>{displayName(m, 'NFC')}</option>)}
           </optgroup>
         </select>
         {/* A continuously looping shimmer underline instead of a static border -- reliable

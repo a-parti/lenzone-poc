@@ -440,6 +440,44 @@ body {
   animation: news-ticker-scroll 40s linear infinite;
 }
 
+/* The ticker should read as a distinct news banner instead of disappearing into the page's
+   regular glass surfaces. Its fill is deliberately derived from the selected scheme's accent,
+   while all crawl text uses the scheme's foreground color (which is already paired for contrast
+   with --bg). The banner never uses its own fill as its text color. */
+.news-ticker-banner {
+  background-color: var(--surface2);
+  border-top-color: var(--accent);
+  color: var(--text);
+}
+.news-ticker-label {
+  background-color: var(--accent);
+  color: var(--accent-text);
+}
+.news-ticker-track {
+  color: var(--text);
+}
+.news-ticker-separator {
+  color: var(--text);
+  opacity: 0.55;
+}
+.news-ticker-link {
+  color: inherit;
+  text-decoration-color: var(--text);
+  text-underline-offset: 3px;
+}
+.news-ticker-link:hover {
+  opacity: 0.78;
+}
+@supports (color: color-mix(in srgb, red, blue)) {
+  .news-ticker-banner.material-banner {
+    background-color: color-mix(in srgb, var(--accent) 42%, var(--bg));
+    border-top-color: color-mix(in srgb, var(--accent) 72%, var(--text));
+    box-shadow:
+      0 -1px 0 color-mix(in srgb, var(--text) 18%, transparent) inset,
+      0 -10px 28px -14px color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+}
+
 /* "Material" card finish -- layered on TOP of each card's existing Tailwind background/border
    utility classes (never replaces them), so this is purely additive polish: a soft light sheen in
    the upper-left corner (like light catching a glass panel), a fine inset top-edge highlight, and
@@ -484,10 +522,59 @@ body {
     0 3px 10px -3px rgba(0, 0, 0, 0.35);
 }
 
+/* Schedule grid material treatment. The table keeps the active theme colors, while these layers
+   add a fine manufactured texture, a shallow vertical sheen, and stronger physical seams. Since
+   the texture is an image layer rather than a replacement background color, highlighted/current
+   week and W/L cells retain their semantic tint in both light and dark modes. */
+.schedule-grid-shell {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.11) inset,
+    0 18px 42px -24px rgba(0, 0, 0, 0.65),
+    0 5px 14px -8px rgba(0, 0, 0, 0.42);
+}
+.schedule-grid-header,
+.schedule-grid-cell {
+  border-bottom-width: 2px;
+  border-bottom-color: var(--border2);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.055) inset;
+}
+.schedule-grid-conference-start > .schedule-grid-cell {
+  border-top: 6px solid #20a39e;
+}
+@supports (color: color-mix(in srgb, red, blue)) {
+  .schedule-grid-shell {
+    background-image:
+      radial-gradient(110% 70% at 12% -18%, color-mix(in srgb, var(--text) 13%, transparent), transparent 54%),
+      linear-gradient(145deg, color-mix(in srgb, var(--surface) 88%, var(--text)), var(--surface) 42%, color-mix(in srgb, var(--surface) 92%, var(--bg)));
+  }
+  .schedule-grid-header {
+    background-image:
+      linear-gradient(180deg, color-mix(in srgb, var(--surface2) 70%, var(--text) 9%), color-mix(in srgb, var(--surface) 88%, var(--bg))),
+      repeating-linear-gradient(135deg, color-mix(in srgb, var(--text) 2.5%, transparent) 0 1px, transparent 1px 9px);
+  }
+  .schedule-grid-cell {
+    background-image:
+      linear-gradient(180deg, color-mix(in srgb, var(--text) 4%, transparent), transparent 38%, color-mix(in srgb, var(--bg) 5%, transparent)),
+      repeating-linear-gradient(135deg, color-mix(in srgb, var(--text) 1.8%, transparent) 0 1px, transparent 1px 10px);
+  }
+  [data-mode="light"] .schedule-grid-shell {
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.9) inset,
+      0 18px 40px -25px rgba(35, 41, 47, 0.35),
+      0 5px 13px -8px rgba(35, 41, 47, 0.22);
+  }
+  [data-mode="light"] .schedule-grid-header,
+  [data-mode="light"] .schedule-grid-cell {
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.72) inset;
+  }
+}
+
 /* Same finish, tuned for the bottom-fixed news ticker / header bars -- flatter (no rounded
    corners to clip against), sheen runs the full width instead of one corner. */
 .material-banner {
-  position: relative;
+  /* Do not set position here: NewsTicker supplies `position: fixed`, and overriding it makes the
+     crawl scroll away with the page. A fixed element already establishes the positioning context
+     needed by the sheen pseudo-element below. */
   isolation: isolate;
   box-shadow: 0 -1px 0 0 rgba(255, 255, 255, 0.07) inset, 0 -8px 24px -12px rgba(0, 0, 0, 0.4);
 }

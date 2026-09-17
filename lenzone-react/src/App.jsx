@@ -4,7 +4,7 @@ import AnimatedLogo from './components/AnimatedLogo';
 import { CONF_STYLES } from './lib/theme';
 import { ConfFilterToggle } from './components/shared';
 import {
-  fetchSleeperLeague, fetchFullSeasonData, fetchPlayersDB, fetchSeasonTransactions, fetchDraftPicks, fetchAllWeekProjections, fetchNflState, fetchNflSchedule
+  fetchSleeperLeague, fetchFullSeasonData, fetchWeekMatchups, fetchPlayersDB, fetchSeasonTransactions, fetchDraftPicks, fetchAllWeekProjections, fetchWeekProjections, fetchNflState, fetchNflSchedule
 } from './lib/sleeperApi';
 import { fetchWeekKickoffInfo, fetchWeekBigPlays, fetchSeasonResultsByTeam, fetchNflHeadlines, fetchNflPlayerNotes, filterPlayerNotesForPlayers, filterHeadlinesForPlayers } from './lib/espnApi';
 import {
@@ -52,6 +52,8 @@ import TeamDefaultsAdmin from './components/TeamDefaultsAdmin';
 import { ImageLightboxProvider, Zoomable } from './context/ImageLightboxContext';
 import { TeamLogoProvider } from './context/TeamLogoContext';
 import { PlayerPhotoProvider } from './context/PlayerPhotoContext';
+import { NameDisplayProvider, useNameDisplay } from './context/NameDisplayContext';
+import NameDisplayToggle from './components/NameDisplayToggle';
 import { buildConferenceColorMap, buildConferenceHexColorMap, getDraftSlotMap } from './lib/teamColors';
 import StandingsTrendChart from './components/StandingsTrendChart';
 import StandingsBarChart from './components/StandingsBarChart';
@@ -145,6 +147,15 @@ function parseFaab(faab) {
   return isNaN(n) ? 0 : n;
 }
 
+function playoffPulse(pct) {
+  if (pct == null) return { label: 'Waiting', color: 'text-[var(--muted)]' };
+  if (pct >= 80) return { label: 'Cruising', color: 'text-[var(--pos)]' };
+  if (pct >= 65) return { label: 'Looking Good', color: 'text-[var(--pos)]' };
+  if (pct >= 45) return { label: 'Bubble', color: 'text-[var(--live)]' };
+  if (pct >= 25) return { label: 'Needs a Run', color: 'text-[var(--live)]' };
+  return { label: 'Needs Chaos', color: 'text-[var(--neg)]' };
+}
+
 const STANDINGS_SORT_ACCESSORS = {
   rank: item => item.rank,
   manager: item => item.manager.toLowerCase(),
@@ -173,8 +184,9 @@ function SortHeader({ label, sortKey, activeKey, dir, onClick }) {
   );
 }
 
-function StandingsTable({ conf, rows, afcData, nfcData }) {
+function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek }) {
   const style = CONF_STYLES[conf];
+  const { mode: nameDisplayMode } = useNameDisplay();
   const [sortKey, setSortKey] = useState('rank');
   const [sortDir, setSortDir] = useState('asc');
 
@@ -196,9 +208,17 @@ function StandingsTable({ conf, rows, afcData, nfcData }) {
 
   return (
     <div className="bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl overflow-hidden shadow-xl">
-      <div className="px-4 py-3 border-b border-[var(--border)]/80 flex items-center gap-2">
-        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${style.badge}`}>{conf}</span>
-        <span className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)]">Conference Standings</span>
+      <div className="px-4 py-3 border-b border-[var(--border)]/80 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${style.badge}`}>{conf}</span>
+          <span className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)]">Conference Standings</span>
+        </div>
+        <span
+          className="text-[10px] font-semibold text-[var(--muted)]"
+          title="Monte Carlo estimate using completed standings, the remaining schedule, and scoring history. Live games do not change it."
+        >
+          Playoff Pulse · updates after Week {latestCompletedWeek}
+        </span>
       </div>
 
       <div className="hidden md:block overflow-x-auto">
@@ -206,20 +226,22 @@ function StandingsTable({ conf, rows, afcData, nfcData }) {
           <thead className="bg-[var(--bg)]/80 tracking-wider text-xs uppercase font-semibold text-[var(--text2)] border-b border-[var(--border)]/80">
             <tr>
               <SortHeader label="Rank" sortKey="rank" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
-              <SortHeader label="Team Name" sortKey="manager" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
-              <th className="py-3 px-4">Manager</th>
+              <SortHeader label={nameDisplayMode === 'teams' ? 'Team Name' : 'Manager'} sortKey="manager" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
+              <th className="py-3 px-4">{nameDisplayMode === 'teams' ? 'Manager' : 'Fantasy Team'}</th>
               <SortHeader label="Intra-Conf" sortKey="inConfRecord" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
               <SortHeader label="Inter-Conf" sortKey="interConfRecord" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
               <SortHeader label="Standings Pts" sortKey="totalPts" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
               <SortHeader label="PF (avg)" sortKey="pf" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
               <SortHeader label="PA (avg)" sortKey="pa" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
-              {/* Playoff % hidden for now -- pending further work on the model, see statsMath.js computeStats */}
+              <SortHeader label="Playoff Pulse" sortKey="playoffPct" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
               <SortHeader label="FAAB" sortKey="faab" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
               <SortHeader label="Moves" sortKey="moves" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--border)]/60">
-            {sortedRows.map((item, idx) => (
+            {sortedRows.map((item, idx) => {
+              const pulse = playoffPulse(item.playoffPct);
+              return (
               <tr key={idx} className="hover:bg-[var(--surface2)]/30 transition-all duration-200">
                 <td className="py-3 px-4 font-bold text-[var(--text2)]">{item.rank}</td>
                 <td className="py-3 px-4 font-bold text-[var(--text)]">
@@ -227,22 +249,31 @@ function StandingsTable({ conf, rows, afcData, nfcData }) {
                     <TeamName manager={item.manager} conf={conf} className="font-bold" />
                   </div>
                 </td>
-                <td className="py-3 px-4 text-[var(--text2)]">{getRealName(afcData, nfcData, item.manager) || "—"}</td>
+                <td className="py-3 px-4 text-[var(--text2)]">
+                  {nameDisplayMode === 'teams' ? (getRealName(afcData, nfcData, item.manager, conf) || "—") : item.manager}
+                </td>
                 <td className="py-3 px-4">{item.inConfRecord}</td>
                 <td className="py-3 px-4">{item.interConfRecord}</td>
                 <td className={`py-3 px-4 font-extrabold ${style.text}`}>{item.totalPts.toFixed(1)}</td>
                 <td className="py-3 px-4 font-mono">{item.pfAvg.toFixed(2)}</td>
                 <td className="py-3 px-4 font-mono text-[var(--text2)]">{item.paAvg.toFixed(2)}</td>
+                <td className="py-3 px-4" title="Estimated from 2,500 simulations; frozen until the next completed week.">
+                  <div className={`font-extrabold tabular-nums ${pulse.color}`}>{item.playoffPct != null ? `${Math.round(item.playoffPct)}%` : '—'}</div>
+                  <div className={`text-[9px] font-bold uppercase tracking-wide whitespace-nowrap ${pulse.color}`}>{pulse.label}</div>
+                </td>
                 <td className="py-3 px-4 text-emerald-400">{item.faab}</td>
                 <td className="py-3 px-4 font-mono text-[var(--text2)]">{item.moves}</td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
 
       <div className="md:hidden divide-y divide-[var(--border)]/60">
-        {sortedRows.map((item, idx) => (
+        {sortedRows.map((item, idx) => {
+          const pulse = playoffPulse(item.playoffPct);
+          return (
           <div key={idx} className={`p-4 border-l-2 ${style.border} hover:bg-[var(--surface2)]/30 transition-all duration-200`}>
             <div className="flex justify-between items-center mb-3">
               <div className="flex items-center gap-2">
@@ -260,8 +291,8 @@ function StandingsTable({ conf, rows, afcData, nfcData }) {
                 <p className="text-[var(--text)] font-semibold text-sm">{item.interConfRecord}</p>
               </div>
               <div>
-                <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">Manager</p>
-                <p className="text-[var(--text2)] text-sm">{getRealName(afcData, nfcData, item.manager) || "—"}</p>
+                <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">{nameDisplayMode === 'teams' ? 'Manager' : 'Fantasy Team'}</p>
+                <p className="text-[var(--text2)] text-sm">{nameDisplayMode === 'teams' ? (getRealName(afcData, nfcData, item.manager, conf) || "—") : item.manager}</p>
               </div>
               <div>
                 <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">Pts</p>
@@ -275,6 +306,10 @@ function StandingsTable({ conf, rows, afcData, nfcData }) {
                 <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">PA (avg)</p>
                 <p className="text-[var(--text2)] font-mono text-sm">{item.paAvg.toFixed(2)}</p>
               </div>
+              <div title="Estimated from 2,500 simulations; frozen until the next completed week.">
+                <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">Playoff Pulse</p>
+                <p className={`font-extrabold text-sm ${pulse.color}`}>{item.playoffPct != null ? `${Math.round(item.playoffPct)}% · ${pulse.label}` : '—'}</p>
+              </div>
               <div>
                 <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">FAAB</p>
                 <p className="text-emerald-400 font-semibold text-sm">{item.faab}</p>
@@ -285,7 +320,8 @@ function StandingsTable({ conf, rows, afcData, nfcData }) {
               </div>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -416,12 +452,13 @@ function buildMatchupInfo({
       winPctIsRough = true;
     }
   } else {
-    myFinalScore = myHasData ? myStats.mean : myProjected;
-    oppFinalScore = oppHasData ? oppStats.mean : oppProjected;
-    const statsWinPct = (myHasData && oppHasData) ? winProbability(myStats.mean, myStats.std, oppStats.mean, oppStats.std) : null;
-    const roughWinPct = statsWinPct === null ? roughWinProbability(myFinalScore, oppFinalScore) : null;
-    myWinPct = statsWinPct ?? roughWinPct;
-    winPctIsRough = statsWinPct === null && roughWinPct !== null;
+    // Pregame team projections must stay anchored to Sleeper's weekly player projection feed.
+    // Historical scoring averages are useful context for variance/odds, but substituting them as
+    // the displayed "Proj" total made Matchups disagree with the canonical This Week total.
+    myFinalScore = myProjected;
+    oppFinalScore = oppProjected;
+    myWinPct = roughWinProbability(myProjected, oppProjected);
+    winPctIsRough = myWinPct !== null;
   }
 
   return {
@@ -487,6 +524,28 @@ function estimateTeamScore(manager, confData, season, week, weekProjections, lat
   return { value: proj, isFinal: false };
 }
 
+// Merge one freshly fetched Sleeper matchup week into the existing season object. This lets the
+// live refresh update real team/player points without re-downloading all 14 weeks every minute.
+function mergeMatchupWeek(previous, week, pairs) {
+  if (!Array.isArray(pairs) || pairs.length === 0) return previous;
+  const scores = {};
+  const schedule = [];
+  const snapshots = {};
+  pairs.forEach(([a, b]) => {
+    scores[a.manager] = a.points;
+    scores[b.manager] = b.points;
+    schedule.push([a.manager, b.manager]);
+    snapshots[a.manager] = { starters: a.starters, startersPoints: a.startersPoints, playersPoints: a.playersPoints };
+    snapshots[b.manager] = { starters: b.starters, startersPoints: b.startersPoints, playersPoints: b.playersPoints };
+  });
+  return {
+    ...previous,
+    scoreByWeek: { ...previous.scoreByWeek, [week]: scores },
+    scheduleByWeek: { ...previous.scheduleByWeek, [week]: schedule },
+    rosterSnapshotByWeek: { ...previous.rosterSnapshotByWeek, [week]: snapshots }
+  };
+}
+
 const VALID_TABS = new Set(["home", "currentWeek", "standings", "matchups", "grid", "players", "news", "teams", "charter"]);
 
 // The hash can carry a "?week=N" suffix (e.g. "#matchups?week=3") so a shared link -- see
@@ -531,6 +590,9 @@ export default function App() {
   // the old Schedule tab), merged into a single tab with a toggle instead of two separate tabs.
   const [matchupsView, setMatchupsView] = useState("week");
   const [standingsView, setStandingsView] = useState("overview");
+  // Deliberately resets to fantasy-team names on every fresh page load. The toggle is a viewing
+  // preference for the current visit, not a sticky setting that can surprise someone next time.
+  const [nameDisplayMode, setNameDisplayMode] = useState('teams');
   const [selectedWeek, setSelectedWeek] = useState(() => weekFromHash() || 1);
   // A shared "Copy Link" URL (see WeeklyScoresBarChart) carries the week in the hash too --
   // back/forward navigation should honor it the same way it already does for the tab.
@@ -717,6 +779,19 @@ export default function App() {
   const [nflState, setNflState] = useState({ week: 1, seasonType: null });
   const latestCompletedWeek = Math.max(0, Math.min(SEASON_WEEKS, (nflState.week || 1) - 1));
 
+  // "This Week" is an action, not just a tab label: whenever it is clicked, jump back to the
+  // current week reported by Sleeper instead of preserving an older week the viewer browsed.
+  const navigateToTab = (id) => {
+    if (id === 'currentWeek') {
+      const currentWeek = Math.min(SEASON_WEEKS, Math.max(1, nflState.week || 1));
+      setSelectedWeek(currentWeek);
+      setActiveTabState(id);
+      window.history.pushState(null, '', `#${id}?week=${currentWeek}`);
+      return;
+    }
+    setActiveTab(id);
+  };
+
   // The Matchups "Weekly" view's week dropdown defaults to whatever real current NFL week Sleeper
   // reports, once that loads -- not always week 1. Only does this ONCE (the ref guard), so it
   // doesn't yank the viewer back to the current week if they've already navigated to a different
@@ -789,11 +864,41 @@ export default function App() {
     });
   }, [afcLeagueId, nfcLeagueId]);
 
-  // Real per-week fantasy projections (RotoWire, via Sleeper) for the WHOLE season, fetched once --
-  // powers the current-week matchup/roster views and the player modal's full-season weekly table.
+  // Real per-week fantasy projections (RotoWire, via Sleeper) for the WHOLE season -- powers the
+  // matchup/roster views and the player modal's full-season weekly table.
   useEffect(() => {
     fetchAllWeekProjections(SEASON_YEAR, SEASON_WEEKS).then(setWeekProjectionsByWeek);
   }, []);
+  // Sleeper can revise projections and live scores throughout the week. Refresh the selected
+  // week's projection feed AND both leagues' matchup payloads together so every player/team Proj
+  // surface is rebuilt from the same current Sleeper snapshot.
+  useEffect(() => {
+    let cancelled = false;
+    const refreshSelectedWeek = async () => {
+      const hasAfcMap = Object.keys(afcData.rosterIdMap).length > 0;
+      const hasNfcMap = Object.keys(nfcData.rosterIdMap).length > 0;
+      const [latestProjections, afcPairs, nfcPairs] = await Promise.all([
+        fetchWeekProjections(SEASON_YEAR, selectedWeek),
+        hasAfcMap ? fetchWeekMatchups(afcLeagueId, selectedWeek, afcData.rosterIdMap) : Promise.resolve(null),
+        hasNfcMap ? fetchWeekMatchups(nfcLeagueId, selectedWeek, nfcData.rosterIdMap) : Promise.resolve(null)
+      ]);
+      if (cancelled) return;
+      if (Object.keys(latestProjections).length > 0) {
+        setWeekProjectionsByWeek(previous => ({ ...previous, [selectedWeek]: latestProjections }));
+      }
+      if (afcPairs?.length) setAfcSeason(previous => mergeMatchupWeek(previous, selectedWeek, afcPairs));
+      if (nfcPairs?.length) setNfcSeason(previous => mergeMatchupWeek(previous, selectedWeek, nfcPairs));
+    };
+    refreshSelectedWeek();
+    const intervalId = window.setInterval(refreshSelectedWeek, 60 * 1000);
+    const refreshOnFocus = () => refreshSelectedWeek();
+    window.addEventListener('focus', refreshOnFocus);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refreshOnFocus);
+    };
+  }, [selectedWeek, afcLeagueId, nfcLeagueId, afcData.rosterIdMap, nfcData.rosterIdMap]);
   const weekProjections = weekProjectionsByWeek[selectedWeek] || {};
 
   // Real NFL schedule (which teams play, the date, and real game status) -- powers the "game day"
@@ -1079,7 +1184,12 @@ export default function App() {
     return s;
   }, [afcByDraft.join('|'), nfcByDraft.join('|')]);
 
-  const hasLiveData = afcData.rosters.length > 0 || nfcData.rosters.length > 0;
+  // Do not publish a temporary odds table while the league shells have loaded but their full
+  // season schedules have not. That transient state otherwise seeds simulations with no games
+  // and can briefly show arbitrary manager-order-based odds before the real standings arrive.
+  const hasStandingsData = afcData.rosters.length > 0 && nfcData.rosters.length > 0
+    && Object.keys(afcSeason.scheduleByWeek).length > 0
+    && Object.keys(nfcSeason.scheduleByWeek).length > 0;
 
   const { afcStandings, nfcStandings, allStats } = useMemo(() => {
     const crossRecords = computeCrossRecords(schedule, afcSeason, nfcSeason, latestCompletedWeek);
@@ -1099,7 +1209,7 @@ export default function App() {
     const afcStats = computeStats(buildHistory(afcSeason.scoreByWeek, latestCompletedWeek), afcManagers);
     const nfcStats = computeStats(buildHistory(nfcSeason.scoreByWeek, latestCompletedWeek), nfcManagers);
 
-    const { afcOdds, nfcOdds } = hasLiveData
+    const { afcOdds, nfcOdds } = hasStandingsData
       ? simulateCombinedPlayoffOdds(
           afcManagers, nfcManagers, afcBaseList, nfcBaseList, afcStats, nfcStats,
           afcSeason.scheduleByWeek, nfcSeason.scheduleByWeek, schedule, latestCompletedWeek, SEASON_WEEKS
@@ -1115,7 +1225,7 @@ export default function App() {
       nfcStandings: withMoves(rankConference(nfcBaseList, "NFC", nfcOdds), nfcMoveCounts),
       allStats: { ...afcStats, ...nfcStats }
     };
-  }, [afcData, nfcData, afcSeason, nfcSeason, schedule, latestCompletedWeek, afcTransactions, nfcTransactions]);
+  }, [afcData, nfcData, afcSeason, nfcSeason, schedule, latestCompletedWeek, afcTransactions, nfcTransactions, hasStandingsData, afcManagers, nfcManagers]);
 
   const showAfc = confFilter !== "NFC";
   const showNfc = confFilter !== "AFC";
@@ -1293,7 +1403,7 @@ export default function App() {
     { id: "currentWeek", label: `This Week (${selectedWeek})`, shortLabel: `This Week (${selectedWeek})`, icon: Calendar },
     { id: "standings", label: "Standings", shortLabel: "Standings", icon: Trophy },
     { id: "matchups", label: "Matchups", shortLabel: "Matchups", icon: Swords },
-    { id: "grid", label: "Grid", shortLabel: "Grid", icon: LayoutGrid },
+    { id: "grid", label: "Schedule Grid", shortLabel: "Schedule Grid", icon: LayoutGrid },
     { id: "players", label: "Players", shortLabel: "Players", icon: Search },
     { id: "news", label: "News", shortLabel: "News", icon: Newspaper },
     ...(isAdmin ? [{ id: "teams", label: "MS Teams Broadcast", shortLabel: "Broadcast", icon: Megaphone }] : [])
@@ -1302,6 +1412,7 @@ export default function App() {
   return (
     <ImageLightboxProvider>
     <MyTeamProvider manager={myTeamManager}>
+    <NameDisplayProvider mode={nameDisplayMode} onModeChange={setNameDisplayMode} afcData={afcData} nfcData={nfcData}>
     <TeamColorProvider colorMap={teamColorMap}>
     <TeamLogoProvider logoMap={teamLogoMap}>
     <PlayerPhotoProvider>
@@ -1314,7 +1425,7 @@ export default function App() {
         <AdminLoginModal onClose={() => setShowLoginModal(false)} onSuccess={handleLoginSuccess} />
       )}
       <CommandPalette
-        tabs={tabs} onSelect={setActiveTab} open={commandPaletteOpen} setOpen={setCommandPaletteOpen}
+        tabs={tabs} onSelect={navigateToTab} open={commandPaletteOpen} setOpen={setCommandPaletteOpen}
         playersDB={playersDB} afcManagers={afcManagers} nfcManagers={nfcManagers}
       />
       <RosterModal
@@ -1398,6 +1509,7 @@ export default function App() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3 ml-auto">
+              <NameDisplayToggle />
               <TeamPicker afcManagers={afcManagers} nfcManagers={nfcManagers} value={myTeamManager} onChange={chooseMyTeam} />
               {/* Mode toggle (inside ThemeToggle, its last button) sits immediately left of mute,
                   which is now the far-right-most control -- same pairing/order as the Home page's
@@ -1437,7 +1549,7 @@ export default function App() {
             {tabs.map(tab => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => navigateToTab(tab.id)}
                 className={`flex items-center gap-2 px-5 py-3 font-semibold text-sm border-b-2 transition-all duration-200 ${
                   activeTab === tab.id ? "border-[var(--accent)] text-[var(--accent)] bg-[var(--surface)]/40" : "border-transparent text-[var(--text2)] hover:text-[var(--text)]"
                 }`}
@@ -1470,7 +1582,7 @@ export default function App() {
         {/* TAB: HOME */}
         {activeTab === "home" && (
           <HomeView
-            setActiveTab={setActiveTab} selectedWeek={selectedWeek}
+            setActiveTab={navigateToTab} selectedWeek={selectedWeek} currentWeek={nflState.week}
             afcManagers={afcManagers} nfcManagers={nfcManagers} myTeamManager={myTeamManager} onChooseMyTeam={chooseMyTeam}
             teamBurst={teamBurst} soundMuted={soundMuted} onToggleSoundMuted={toggleSoundMuted}
           />
@@ -1557,16 +1669,16 @@ export default function App() {
               <>
                 <StandingsBarChart
                   afcStandings={afcStandings} nfcStandings={nfcStandings} confFilter={confFilter}
-                  logoMap={teamLogoMap} afcData={afcData} nfcData={nfcData} mode="segregated"
+                  logoMap={teamLogoMap} mode="segregated"
                 />
                 {confFilter === "ALL" && (
                   <StandingsBarChart
                     afcStandings={afcStandings} nfcStandings={nfcStandings} confFilter={confFilter}
-                    logoMap={teamLogoMap} afcData={afcData} nfcData={nfcData} mode="combined"
+                    logoMap={teamLogoMap} mode="combined"
                   />
                 )}
-                {showAfc && <StandingsTable conf="AFC" rows={afcStandings} afcData={afcData} nfcData={nfcData} />}
-                {showNfc && <StandingsTable conf="NFC" rows={nfcStandings} afcData={afcData} nfcData={nfcData} />}
+                {showAfc && <StandingsTable conf="AFC" rows={afcStandings} afcData={afcData} nfcData={nfcData} latestCompletedWeek={latestCompletedWeek} />}
+                {showNfc && <StandingsTable conf="NFC" rows={nfcStandings} afcData={afcData} nfcData={nfcData} latestCompletedWeek={latestCompletedWeek} />}
               </>
             )}
 
@@ -1705,7 +1817,7 @@ export default function App() {
               Everyone Else's Matchups
             </p>
 
-            <WeeklyScoresBarChart afcManagers={afcManagers} nfcManagers={nfcManagers} afcSeason={afcSeason} nfcSeason={nfcSeason} schedule={schedule} week={selectedWeek} logoMap={teamLogoMap} afcData={afcData} nfcData={nfcData} projectedScores={projectedScoreByManager} isWeekFinal={isSelectedWeekFinal} />
+            <WeeklyScoresBarChart afcManagers={afcManagers} nfcManagers={nfcManagers} afcSeason={afcSeason} nfcSeason={nfcSeason} schedule={schedule} week={selectedWeek} logoMap={teamLogoMap} projectedScores={projectedScoreByManager} isWeekFinal={isSelectedWeekFinal} />
 
             {(() => {
               const afcBlock = showAfc && (
@@ -1784,6 +1896,7 @@ export default function App() {
               afcManagers={afcManagers} nfcManagers={nfcManagers}
               seasonWeeks={SEASON_WEEKS} currentWeek={nflState.week}
               latestCompletedWeek={latestCompletedWeek}
+              logoMap={teamLogoMap}
             />
           </div>
         )}
@@ -1883,7 +1996,7 @@ export default function App() {
             {/* Visual reference for whoever's writing the recap -- same "All Teams" chart as the
                 Matchups tab, not part of the copyable markdown text below (Teams chat can't render
                 a live SVG from pasted markdown). */}
-            <WeeklyScoresBarChart afcManagers={afcManagers} nfcManagers={nfcManagers} afcSeason={afcSeason} nfcSeason={nfcSeason} schedule={schedule} week={selectedWeek} logoMap={teamLogoMap} afcData={afcData} nfcData={nfcData} projectedScores={projectedScoreByManager} isWeekFinal={isSelectedWeekFinal} />
+            <WeeklyScoresBarChart afcManagers={afcManagers} nfcManagers={nfcManagers} afcSeason={afcSeason} nfcSeason={nfcSeason} schedule={schedule} week={selectedWeek} logoMap={teamLogoMap} projectedScores={projectedScoreByManager} isWeekFinal={isSelectedWeekFinal} />
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
@@ -1965,7 +2078,7 @@ Full Standings & Scoreboard: https://lenzone.vercel.app`}
         {tabs.map(tab => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => navigateToTab(tab.id)}
             className={`text-[11px] font-semibold transition-all duration-200 shrink-0 px-2 py-1 ${
               activeTab === tab.id ? "text-[var(--accent)]" : "text-[var(--text2)]"
             }`}
@@ -1983,6 +2096,7 @@ Full Standings & Scoreboard: https://lenzone.vercel.app`}
     </PlayerPhotoProvider>
     </TeamLogoProvider>
     </TeamColorProvider>
+    </NameDisplayProvider>
     </MyTeamProvider>
     </ImageLightboxProvider>
   );

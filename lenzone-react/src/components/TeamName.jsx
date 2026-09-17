@@ -3,13 +3,16 @@ import { useRosterModal } from '../context/RosterModalContext';
 import { useTeamColor } from '../context/TeamColorContext';
 import { useTeamLogo } from '../context/TeamLogoContext';
 import { useIsMyTeam } from '../context/MyTeamContext';
+import { useNameDisplay } from '../context/NameDisplayContext';
 
-export default function TeamName({ manager, conf, className = "", showLogo = true }) {
+export default function TeamName({ manager, conf, className = "", showLogo = true, label }) {
   const { openRoster } = useRosterModal();
   const color = useTeamColor(manager);
   const logoUrl = useTeamLogo(manager);
   const isMe = useIsMyTeam(manager);
+  const { displayName } = useNameDisplay();
   const [logoFailed, setLogoFailed] = useState(false);
+  const visibleLabel = label ?? displayName(manager, conf);
 
   return (
     <button
@@ -28,7 +31,7 @@ export default function TeamName({ manager, conf, className = "", showLogo = tru
           onError={() => setLogoFailed(true)}
         />
       )}
-      <span className="truncate min-w-0">{manager}</span>
+      <span className="truncate min-w-0">{visibleLabel}</span>
     </button>
   );
 }

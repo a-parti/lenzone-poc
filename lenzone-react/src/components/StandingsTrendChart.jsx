@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useNameDisplay } from '../context/NameDisplayContext';
 
 const WIDTH = 900;
 const HEIGHT = 320;
@@ -63,6 +64,12 @@ function declutter(items, minGap, min, max) {
 // of these charts at once).
 function LineChart({ title, series, weeks, yMin, yMax, invertY, formatY, logoMap, chartId }) {
   const [hovered, setHovered] = useState(null);
+  const { mode: nameMode, displayName, managerName } = useNameDisplay();
+  const graphName = (manager, conf) => {
+    const primary = displayName(manager, conf);
+    const secondary = nameMode === 'teams' ? managerName(manager, conf) : null;
+    return secondary ? `${primary} (${secondary})` : primary;
+  };
   const xMin = weeks[0];
   const xSpan = (weeks[weeks.length - 1] - xMin) || 1;
   const xFor = (w) => MARGIN.left + (weeks.length > 1 ? ((w - xMin) / xSpan) * PLOT_W : 0);
@@ -83,7 +90,7 @@ function LineChart({ title, series, weeks, yMin, yMax, invertY, formatY, logoMap
   const logoPositions = useMemo(() => {
     const natural = series
       .filter(s => s.points.length > 0)
-      .map(s => ({ manager: s.manager, color: s.color, isReference: !!s.isReference, y: yFor(s.points[s.points.length - 1].value) }))
+      .map(s => ({ manager: s.manager, conf: s.conf, color: s.color, isReference: !!s.isReference, y: yFor(s.points[s.points.length - 1].value) }))
       .sort((a, b) => a.y - b.y);
     return declutter(natural, logoSize + 2, MARGIN.top, MARGIN.top + PLOT_H);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -124,7 +131,7 @@ function LineChart({ title, series, weeks, yMin, yMax, invertY, formatY, logoMap
                   onMouseEnter={() => setHovered(s.manager)} onMouseLeave={() => setHovered(null)}
                   style={{ cursor: 'pointer' }}
                 >
-                  <title>{`${s.manager} — Wk ${p.week}: ${formatY ? formatY(p.value) : p.value}`}</title>
+                  <title>{`${s.isReference ? s.manager : graphName(s.manager, s.conf)} — Wk ${p.week}: ${formatY ? formatY(p.value) : p.value}`}</title>
                 </circle>
               ))}
             </g>
@@ -175,7 +182,7 @@ function LineChart({ title, series, weeks, yMin, yMax, invertY, formatY, logoMap
                 <circle cx={endX + logoSize / 2} cy={p.y} r={logoSize / 2} fill={p.color} />
               )}
               <circle cx={endX + logoSize / 2} cy={p.y} r={logoSize / 2} fill="none" stroke={p.color} strokeWidth={isHovered ? 2 : 1} />
-              <title>{p.manager}</title>
+              <title>{graphName(p.manager, p.conf)}</title>
             </g>
           );
         })}
@@ -196,7 +203,7 @@ function LineChart({ title, series, weeks, yMin, yMax, invertY, formatY, logoMap
             ) : (
               <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
             )}
-            <span className="truncate max-w-[10rem]" style={{ color: s.color }}>{s.manager}</span>
+            <span className="truncate max-w-[12rem]" style={{ color: s.color }}>{s.isReference ? s.manager : graphName(s.manager, s.conf)}</span>
           </button>
         ))}
       </div>
@@ -224,13 +231,13 @@ export default function StandingsTrendChart({
   const buildSeries = (metric) => managers.map(m => {
     const isAfc = afcManagers.includes(m);
     const rows = (isAfc ? history.afc[m] : history.nfc[m]) || [];
-    return { manager: m, color: hexColorMap[m] || "#94a3b8", points: rows.map(r => ({ week: r.week, value: r[metric] })) };
+    return { manager: m, conf: isAfc ? 'AFC' : 'NFC', color: hexColorMap[m] || "#94a3b8", points: rows.map(r => ({ week: r.week, value: r[metric] })) };
   });
   const buildWeeklySeries = (metric) => managers.map(m => {
     const isAfc = afcManagers.includes(m);
     const rows = (isAfc ? weeklyHistory.afc[m] : weeklyHistory.nfc[m]) || [];
     return {
-      manager: m, color: hexColorMap[m] || "#94a3b8",
+      manager: m, conf: isAfc ? 'AFC' : 'NFC', color: hexColorMap[m] || "#94a3b8",
       points: rows.filter(r => r[metric] != null).map(r => ({ week: r.week, value: r[metric] }))
     };
   });

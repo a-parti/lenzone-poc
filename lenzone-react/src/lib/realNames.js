@@ -36,14 +36,15 @@ export const REAL_NAMES = {
 };
 
 // Resolves a manager's real name the same way managerSchemeKey resolves their scheme key --
-// via the stable "<CONF>:<owner_id>", checking whichever league's ownerIdMap has that display
-// name. Returns null (not "") for "not listed yet" so callers can render an explicit placeholder.
-export function getRealName(afcData, nfcData, managerName) {
+// via the stable "<CONF>:<owner_id>". Callers that know the conference can pass it to avoid an
+// ambiguous display name being resolved through the other league first. Returns null (not "") for
+// "not listed yet" so callers can render an explicit placeholder.
+export function getRealName(afcData, nfcData, managerName, conf = null) {
   if (!managerName) return null;
-  if (afcData?.ownerIdMap?.[managerName] != null) {
+  if (conf !== "NFC" && afcData?.ownerIdMap?.[managerName] != null) {
     return REAL_NAMES[`AFC:${afcData.ownerIdMap[managerName]}`] ?? null;
   }
-  if (nfcData?.ownerIdMap?.[managerName] != null) {
+  if (conf !== "AFC" && nfcData?.ownerIdMap?.[managerName] != null) {
     return REAL_NAMES[`NFC:${nfcData.ownerIdMap[managerName]}`] ?? null;
   }
   return null;

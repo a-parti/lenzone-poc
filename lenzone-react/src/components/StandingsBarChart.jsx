@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Download, Copy, Check, X as XIcon, Link as LinkIcon, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { useRosterModal } from '../context/RosterModalContext';
-import { getRealName } from '../lib/realNames';
+import { useNameDisplay } from '../context/NameDisplayContext';
 import lenzoneLogoRing from '../assets/lenzone-logo-ring.png';
 import lenzoneLogoBall from '../assets/lenzone-logo-ball.png';
 
@@ -63,8 +63,14 @@ function niceTicks(max, targetCount = 5) {
 //   the segregated chart can't answer since its "#1" is only ever relative to a 12-team half.
 //   Only meaningfully different from segregated when both conferences are showing; the parent
 //   only renders this mode for the ALL filter for exactly that reason.
-export default function StandingsBarChart({ afcStandings, nfcStandings, confFilter, logoMap, afcData, nfcData, mode = "segregated" }) {
+export default function StandingsBarChart({ afcStandings, nfcStandings, confFilter, logoMap, mode = "segregated" }) {
   const [hovered, setHovered] = useState(null);
+  const { mode: nameMode, displayName, managerName } = useNameDisplay();
+  const graphName = (manager, conf) => {
+    const primary = displayName(manager, conf);
+    const secondary = nameMode === 'teams' ? managerName(manager, conf) : null;
+    return secondary ? `${primary} (${secondary})` : primary;
+  };
   const { openRoster } = useRosterModal();
   const [zoom, setZoom] = useState(1);
   const ZOOM_MIN = 0.5, ZOOM_MAX = 2, ZOOM_STEP = 0.25;
@@ -276,12 +282,13 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
       }
       parts.push(`<text x="${cx}" y="${barY - 6}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="13" font-weight="800" fill="${EXPORT.text}">${(b.pfAvg || 0).toFixed(1)}</text>`);
       const labelY = labelStartY;
-      const realName = getRealName(afcData, nfcData, b.manager);
+      const visibleName = displayName(b.manager, b.conf);
+      const secondaryName = nameMode === 'teams' ? managerName(b.manager, b.conf) : null;
       const ptsSuffix = tiers[b.tierIdx].count === 1 ? ` (${b.totalPts.toFixed(1)})` : '';
       parts.push(`<text font-family="${EXPORT_SERIF}" font-weight="700" fill="${color}" text-anchor="end" transform="rotate(-40 ${cx} ${labelY})">` +
         `<tspan x="${cx}" y="${labelY}" font-size="16">#${b.rank}${ptsSuffix}</tspan>` +
-        `<tspan x="${cx}" y="${labelY + 16}" font-size="14" font-weight="600" fill="${EXPORT.muted}">${esc(b.manager)}</tspan>` +
-        (realName ? `<tspan x="${cx}" y="${labelY + 30}" font-size="11" font-weight="600" fill="${EXPORT.muted}">(${esc(realName)})</tspan>` : '') +
+        `<tspan x="${cx}" y="${labelY + 16}" font-size="14" font-weight="600" fill="${EXPORT.muted}">${esc(visibleName)}</tspan>` +
+        (secondaryName ? `<tspan x="${cx}" y="${labelY + 30}" font-size="11" font-weight="600" fill="${EXPORT.muted}">(${esc(secondaryName)})</tspan>` : '') +
         `</text>`);
     });
     parts.push(`</g>`);
@@ -521,7 +528,8 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
             // just per-<svg>: a collision makes url(#id) resolve to whichever chart defined it
             // first, silently clipping the OTHER chart's logo into the wrong shape/position.
             const clipId = `sbc-logo-${mode}-${b.conf}-${b.manager.replace(/[^a-zA-Z0-9]/g, '')}`;
-            const realName = getRealName(afcData, nfcData, b.manager);
+            const visibleName = displayName(b.manager, b.conf);
+            const secondaryName = nameMode === 'teams' ? managerName(b.manager, b.conf) : null;
             return (
               <g
                 key={`${b.conf}-${b.manager}`}
@@ -566,10 +574,10 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
                   <tspan x={b.x + MIN_BAR_W / 2} fontSize={16} fontFamily={DATA_FONT} fontWeight={800}>
                     #{b.rank}{tiers[b.tierIdx].count === 1 ? ` (${b.totalPts.toFixed(1)})` : ''}
                   </tspan>
-                  <tspan x={b.x + MIN_BAR_W / 2} dy="16" fontSize={14} fontWeight={600} fill="var(--text2)">{b.manager}</tspan>
-                  {realName && <tspan x={b.x + MIN_BAR_W / 2} dy="14" fontSize={11} fontWeight={600} fill="var(--muted)">({realName})</tspan>}
+                  <tspan x={b.x + MIN_BAR_W / 2} dy="16" fontSize={14} fontWeight={600} fill="var(--text2)">{visibleName}</tspan>
+                  {secondaryName && <tspan x={b.x + MIN_BAR_W / 2} dy="14" fontSize={11} fontWeight={600} fill="var(--muted)">({secondaryName})</tspan>}
                 </text>
-                <title>#{b.rank} {b.manager}{b.conf ? ` (${b.conf})` : ''} -- {b.totalPts.toFixed(2)} standings pts, {(b.pfAvg || 0).toFixed(2)} PF/game</title>
+                <title>#{b.rank} {graphName(b.manager, b.conf)}{b.conf ? ` (${b.conf})` : ''} -- {b.totalPts.toFixed(2)} standings pts, {(b.pfAvg || 0).toFixed(2)} PF/game</title>
               </g>
             );
           })}

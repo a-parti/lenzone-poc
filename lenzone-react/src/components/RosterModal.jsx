@@ -10,9 +10,11 @@ import { useEscapeKey } from './shared';
 import { nextModalZ } from '../lib/modalStack';
 import { getRealName } from '../lib/realNames';
 import { pickSpeechBubbleLine, findRankAndConf } from '../lib/speechBubble';
+import { useNameDisplay } from '../context/NameDisplayContext';
 
 export default function RosterModal({ afcData, nfcData, afcSeason, nfcSeason, playersDB, weekProjections, selectedWeek, byTeamWeek, trophyLinesByManager, afcStandings, nfcStandings, weekResultByManager, managerStreaks, revengeGameByManager }) {
   const { target, closeRoster } = useRosterModal();
+  const { mode: nameDisplayMode, displayName } = useNameDisplay();
   useEscapeKey(closeRoster);
   // Claims a fresh top-of-stack z-index each time this opens, so it renders above whatever else
   // was already open (e.g. opened from inside a depth chart or player card) instead of the two
@@ -28,7 +30,7 @@ export default function RosterModal({ afcData, nfcData, afcSeason, nfcSeason, pl
   // above) -- getRealName/pickSpeechBubbleLine are cheap pure functions, safe to call with a null
   // target. Memoized so the random pick doesn't flicker between lines on unrelated re-renders
   // while the same roster stays open.
-  const realName = target ? getRealName(afcData, nfcData, target.manager) : null;
+  const realName = target ? getRealName(afcData, nfcData, target.manager, target.conf) : null;
   const bubbleText = useMemo(() => {
     if (!target || !realName) return null;
     const { rank, conf } = findRankAndConf(target.manager, afcStandings, nfcStandings);
@@ -45,6 +47,8 @@ export default function RosterModal({ afcData, nfcData, afcSeason, nfcSeason, pl
   const roster = confData.rosters.find(r => r.manager === target.manager);
   const fallbackField = scoringFieldFor(confData.receptionPoints || 0);
   const playersPoints = season?.rosterSnapshotByWeek?.[selectedWeek]?.[target.manager]?.playersPoints;
+  const primaryName = displayName(target.manager, target.conf);
+  const secondaryName = nameDisplayMode === 'managers' ? target.manager : realName;
 
   return (
     <div className="fixed inset-0 bg-[var(--bg)]/80 backdrop-blur-sm flex items-center justify-center p-4" style={{ zIndex: z }} onClick={closeRoster}>
@@ -53,7 +57,7 @@ export default function RosterModal({ afcData, nfcData, afcSeason, nfcSeason, pl
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label={`${target.manager} roster`}
+        aria-label={`${primaryName} roster`}
       >
         <button onClick={closeRoster} aria-label="Close" className="absolute top-3 right-3 text-[var(--muted)] hover:text-[var(--text)]">
           <X className="w-4 h-4" />
@@ -76,7 +80,8 @@ export default function RosterModal({ afcData, nfcData, afcSeason, nfcSeason, pl
           </div>
           <div className="min-w-0">
             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${CONF_STYLES[target.conf].badge}`}>{target.conf}</span>
-            <h2 className="font-display text-xl font-bold text-[var(--text)] truncate">{target.manager}</h2>
+            <h2 className="font-display text-xl font-bold text-[var(--text)] truncate">{primaryName}</h2>
+            {secondaryName && <p className="text-xs text-[var(--muted)] truncate">{secondaryName}</p>}
           </div>
           <span className="text-[10px] text-[var(--muted)] ml-auto shrink-0">Week {selectedWeek}</span>
         </div>

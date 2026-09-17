@@ -5,6 +5,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useTeamLogo } from '../context/TeamLogoContext';
 import { Zoomable } from '../context/ImageLightboxContext';
 import AnimatedLogo from './AnimatedLogo';
+import NameDisplayToggle from './NameDisplayToggle';
 
 // Easter egg: a short burst in the just-picked team's color, fired for EVERY manager selection
 // (whichever color they landed on -- an admin-configured default, or this pick's fresh random
@@ -166,7 +167,7 @@ function navSections(selectedWeek) {
     { id: "currentWeek", title: `This Week (${selectedWeek})` },
     { id: "standings", title: "Standings" },
     { id: "matchups", title: "Matchups" },
-    { id: "grid", title: "Grid" },
+    { id: "grid", title: "Schedule Grid" },
     { id: "players", title: "Players" },
     { id: "news", title: "News" }
   ];
@@ -198,17 +199,16 @@ function NavListNumbered({ sections, onSelect }) {
 // Deliberately minimal: pick your team, then navigate everywhere else via the menu that appears
 // underneath. No stats, no cards, no banners -- that content now lives on the "Week N" tab.
 export default function HomeView({
-  setActiveTab, selectedWeek, afcManagers, nfcManagers, myTeamManager, onChooseMyTeam, teamBurst, soundMuted, onToggleSoundMuted
+  setActiveTab, selectedWeek, currentWeek, afcManagers, nfcManagers, myTeamManager, onChooseMyTeam, teamBurst, soundMuted, onToggleSoundMuted
 }) {
-  const sections = navSections(selectedWeek);
+  const sections = navSections(currentWeek || selectedWeek);
   const { mode, setMode } = useTheme();
 
   return (
     <div className="relative min-h-[80vh] flex flex-col items-center gap-8 text-center">
-      {/* The header (with its own mute + mode buttons) is hidden on Home, so this is the ONLY way to
-          mute or switch light/dark before ever picking a team for the first time. Same left-to-right
-          order as the header: mode toggle, then mute as the far-right-most control. */}
+      {/* The regular header is hidden on Home, so repeat its compact display controls here. */}
       <div className="absolute top-4 right-4 sm:top-6 sm:right-6 flex items-center gap-2">
+        <NameDisplayToggle />
         <button
           type="button"
           onClick={() => setMode(m => m === 'dark' ? 'light' : 'dark')}

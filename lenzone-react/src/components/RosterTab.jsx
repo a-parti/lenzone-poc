@@ -4,6 +4,7 @@ import { ConfFilterToggle, SkeletonRows } from './shared';
 import RosterList from './RosterList';
 import TeamName from './TeamName';
 import { scoringFieldFor, computeTeamWeeklyTotals } from '../lib/players';
+import { useNameDisplay } from '../context/NameDisplayContext';
 
 const SORT_OPTIONS = {
   DEFAULT: { label: "Default", accessor: null },
@@ -12,6 +13,7 @@ const SORT_OPTIONS = {
 };
 
 export default function RosterTab({ afcData, nfcData, afcSeason, nfcSeason, playersDB, playersLoading, weekProjections, selectedWeek, setSelectedWeek, seasonWeeks, byTeamWeek, focusManager, focusConf }) {
+  const { displayName } = useNameDisplay();
   const [conf, setConf] = useState(focusConf || 'ALL');
   const [team, setTeam] = useState(focusManager || 'ALL');
   const [sortKey, setSortKey] = useState('DEFAULT');
@@ -69,7 +71,7 @@ export default function RosterTab({ afcData, nfcData, afcSeason, nfcSeason, play
             className="bg-[var(--bg)] border border-[var(--border)]/80 text-sm rounded-lg px-3 py-1.5 text-[var(--text)]"
           >
             <option value="ALL">All Teams</option>
-            {pool.map(r => <option key={r.manager} value={r.manager}>{r.manager}</option>)}
+            {pool.map(r => <option key={`${r.conf}-${r.manager}`} value={r.manager}>{displayName(r.manager, r.conf)}</option>)}
           </select>
         </div>
         <div>

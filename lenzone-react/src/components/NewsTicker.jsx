@@ -28,11 +28,11 @@ function CrawlLine({ items }) {
     <span className="pr-16">
       {items.map((item, i) => (
         <React.Fragment key={i}>
-          {i > 0 && <span className="mx-4 text-[var(--muted)]">&bull;</span>}
+          {i > 0 && <span className="news-ticker-separator mx-4">&bull;</span>}
           {item.link ? (
             <a
               href={item.link} target="_blank" rel="noopener noreferrer"
-              className="hover:text-[var(--accent)] hover:underline"
+              className="news-ticker-link hover:underline"
             >
               {item.text}
             </a>
@@ -59,15 +59,15 @@ export default function NewsTicker({ myPlayerNotes, myPlayerHeadlines, nflHeadli
   const duration = Math.max(50, Math.round(totalChars / 6));
 
   return (
-    <div className="fixed left-0 right-0 bottom-[52px] md:bottom-0 z-40 bg-[var(--surface)]/90 backdrop-blur-md border-t border-[var(--border)]/80 overflow-hidden group">
+    <div className="news-ticker-banner material-banner fixed left-0 right-0 bottom-[52px] md:bottom-0 z-40 backdrop-blur-md border-t overflow-hidden group">
       <div className="flex items-center">
-        <div className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-[var(--accent)] text-[var(--accent-text)] text-[10px] font-bold uppercase tracking-wider z-10">
+        <div className="news-ticker-label shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider z-10">
           <Radio className="w-3 h-3" />
           <span className="hidden sm:inline">Your News</span>
         </div>
         <div className="flex-1 overflow-hidden py-1.5">
           <div
-            className="news-ticker-track group-hover:[animation-play-state:paused] whitespace-nowrap text-xs text-[var(--text2)] font-semibold"
+            className="news-ticker-track group-hover:[animation-play-state:paused] whitespace-nowrap text-xs font-semibold"
             style={{ animationDuration: `${duration}s` }}
           >
             <CrawlLine items={items} />

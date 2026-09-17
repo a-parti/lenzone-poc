@@ -90,6 +90,25 @@ export function buildHistory(scoreByWeek, maxWeek) {
 // extremes a single week of data can't actually support this early.
 const SHRINKAGE_PHANTOM_GAMES = 12;
 
+// A 6-of-12 conference starts at a neutral 50% chance for everyone. Raw Monte Carlo output is
+// useful immediately, but it is far too confident after only one or two completed weeks, when a
+// single boom/bust score can dominate both the standings and the estimated team strength. Blend
+// the raw result toward that neutral baseline early, then let the simulation speak for itself
+// from Week 8 onward. In Week 1 the 10% weight guarantees a tight 45-55% range even if the raw
+// simulation says 0 or 100; each subsequent completed week deliberately opens the range smoothly.
+// Linear blending also preserves the conference total (six playoff spots = 600 percentage points).
+const EARLY_SEASON_ODDS_WEIGHT = [0, 0.10, 0.20, 0.35, 0.50, 0.65, 0.80, 0.90];
+
+export function calibratePlayoffOdds(rawOdds, latestCompletedWeek, playoffSpots = 6, teamCount = 12) {
+  const baseline = teamCount > 0 ? (playoffSpots / teamCount) * 100 : 0;
+  const week = Math.max(0, Math.floor(latestCompletedWeek || 0));
+  const weight = EARLY_SEASON_ODDS_WEIGHT[week] ?? 1;
+  return Object.fromEntries(Object.entries(rawOdds).map(([manager, raw]) => [
+    manager,
+    baseline + (raw - baseline) * weight
+  ]));
+}
+
 export function computeStats(history, managers) {
   const allScores = Object.values(history).flat();
   const leagueMean = allScores.length ? avg(allScores) : 100;
@@ -126,7 +145,7 @@ function tallyPlayoffTeams(managers, state, counts) {
 // so a team's simulated interconference wins (+1.0 pt) are counted, not just intra wins (+2.0 pt).
 export function simulateCombinedPlayoffOdds(
   afcManagers, nfcManagers, afcBaseList, nfcBaseList, afcStats, nfcStats,
-  afcScheduleByWeek, nfcScheduleByWeek, crossSchedule, latestCompletedWeek, seasonWeeks, simulations = 1500
+  afcScheduleByWeek, nfcScheduleByWeek, crossSchedule, latestCompletedWeek, seasonWeeks, simulations = 2500
 ) {
   // Seeded on latestCompletedWeek alone -- identical for every viewer, and only moves when a week finishes.
   const rng = mulberry32(latestCompletedWeek + 1);
@@ -182,9 +201,12 @@ export function simulateCombinedPlayoffOdds(
     tallyPlayoffTeams(nfcManagers, state, nfcCounts);
   }
 
-  const afcOdds = {}; afcManagers.forEach(m => afcOdds[m] = (afcCounts[m] / simulations) * 100);
-  const nfcOdds = {}; nfcManagers.forEach(m => nfcOdds[m] = (nfcCounts[m] / simulations) * 100);
-  return { afcOdds, nfcOdds };
+  const rawAfcOdds = {}; afcManagers.forEach(m => rawAfcOdds[m] = (afcCounts[m] / simulations) * 100);
+  const rawNfcOdds = {}; nfcManagers.forEach(m => rawNfcOdds[m] = (nfcCounts[m] / simulations) * 100);
+  return {
+    afcOdds: calibratePlayoffOdds(rawAfcOdds, latestCompletedWeek, 6, afcManagers.length),
+    nfcOdds: calibratePlayoffOdds(rawNfcOdds, latestCompletedWeek, 6, nfcManagers.length)
+  };
 }
 
 // Real cross-conference results: compares each pairing's actual weekly Sleeper scores.

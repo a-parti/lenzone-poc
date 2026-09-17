@@ -1,12 +1,22 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { Check, Clipboard, Crown, RotateCcw, Sparkles, Trophy } from 'lucide-react';
+import { Check, Clipboard, Crown, Minus, Plus, Presentation, RotateCcw, Shirt, Trophy, Utensils, Wine } from 'lucide-react';
 import { useNameDisplay } from '../context/NameDisplayContext';
 import { useTeamLogo } from '../context/TeamLogoContext';
 import { buildPostseasonSeeds } from '../lib/statsMath';
 import ExportControls from './ExportControls';
 import useElementPngExport from '../hooks/useElementPngExport';
+import { HIGH_SCORE_PRIZES } from '../lib/highScorePrizes';
 
 const PLAYOFF_WEEKS = [15, 16, 17];
+const WEEKLY_PRIZE = 15;
+const WEEKLY_PRIZE_WEEKS = 14;
+const BASE_OVERALL_PRIZE = 150;
+
+const TOILET_CONSEQUENCES = [
+  { title: 'Costume Day', icon: Shirt },
+  { title: 'Lunch Service', icon: Utensils },
+  { title: 'The Presentation', icon: Presentation }
+];
 
 function seededTeams(standings) {
   return new Map(buildPostseasonSeeds(standings, standings[0]?.conf).map(team => [team.seed, team]));
@@ -99,6 +109,8 @@ function TeamRow({ team, score, placeholder, conf, activeManager, onHover, onSel
   const teamKey = `${conf}:${team.manager}`;
   const isActive = activeManager === teamKey;
   const isDimmed = activeManager && !isActive;
+  const isPfWildcard = team.seed === 6;
+  const displayRank = team.rank ?? team.seed;
 
   return (
     <button
@@ -111,7 +123,9 @@ function TeamRow({ team, score, placeholder, conf, activeManager, onHover, onSel
       onClick={() => onSelect(teamKey)}
       title={`Highlight ${primary}'s bracket path`}
     >
-      <span className="playoff-seed">{team.seed}</span>
+      <span className={`playoff-seed ${isPfWildcard ? 'is-pf-wildcard' : ''}`} title={isPfWildcard ? `Conference rank #${displayRank}; enters as the highest-PF wildcard` : `Conference rank #${displayRank}`}>
+        #{displayRank}
+      </span>
       <BracketLogo key={team.manager} manager={team.manager} />
       <span className="min-w-0 flex-1 text-left">
         <span className="playoff-team-name">{primary}</span>
@@ -123,7 +137,7 @@ function TeamRow({ team, score, placeholder, conf, activeManager, onHover, onSel
   );
 }
 
-function MatchupCard({ game, conf, accent, activeManager, onHover, onSelect, placeholders = [] }) {
+function MatchupCard({ game, conf, accent, activeManager, onHover, onSelect, placeholders = [], payouts = false }) {
   const statusLabel = game.status === 'final'
     ? 'Final'
     : game.status === 'live'
@@ -155,6 +169,12 @@ function MatchupCard({ game, conf, accent, activeManager, onHover, onSelect, pla
         winner={game.advancing?.manager === game.teamB?.manager}
       />
       <span className={`playoff-matchup-status status-${game.status}`}>{statusLabel}</span>
+      {payouts && (
+        <div className="playoff-matchup-prizes">
+          <span><strong>$300</strong> Champion</span>
+          <span><strong>$100</strong> Runner-up</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -197,7 +217,6 @@ function ConferenceTree({ conf, bracket, mirrored, toilet, activeManager, onHove
       <div className="playoff-conf-heading">
         <span className="playoff-conf-dot" />
         <span>{conf}</span>
-        <span className="text-[var(--muted)] font-medium">{toilet ? 'Toilet Bowl Bracket' : 'Playoff Bracket'}</span>
       </div>
       <div className="playoff-stage-headings">
         {(mirrored ? [...stages].reverse() : stages).map(([key, title, week]) => (
@@ -233,7 +252,7 @@ function ConferenceTree({ conf, bracket, mirrored, toilet, activeManager, onHove
         </div>
         <div className="playoff-stage" style={{ left: positions.final }}>
           <div className="absolute inset-x-0 top-[210px]">
-            <MatchupCard game={bracket.final} conf={conf} accent={accent} activeManager={activeManager} onHover={onHover} onSelect={onSelect} placeholders={[`${advanceWord} semifinal`, `${advanceWord} semifinal`]} />
+            <MatchupCard game={bracket.final} conf={conf} accent={accent} activeManager={activeManager} onHover={onHover} onSelect={onSelect} placeholders={[`${advanceWord} semifinal`, `${advanceWord} semifinal`]} payouts={!toilet} />
           </div>
         </div>
       </div>
@@ -241,7 +260,7 @@ function ConferenceTree({ conf, bracket, mirrored, toilet, activeManager, onHove
   );
 }
 
-function OverallChampion({ nfc, afc, toilet, currentWeek, activeManager, onHover, onSelect }) {
+function OverallChampion({ nfc, afc, toilet, currentWeek, activeManager, onHover, onSelect, overallPrize }) {
   const nfcTeam = nfc.champion;
   const afcTeam = afc.champion;
   const nfcScore = nfc.final.scores?.[nfcTeam?.manager];
@@ -260,8 +279,50 @@ function OverallChampion({ nfc, afc, toilet, currentWeek, activeManager, onHover
         <TeamRow team={nfcTeam} score={nfcScore} placeholder="NFC Champion" conf="NFC" activeManager={activeManager} onHover={onHover} onSelect={onSelect} winner={champion?.manager === nfcTeam?.manager} />
         <TeamRow team={afcTeam} score={afcScore} placeholder="AFC Champion" conf="AFC" activeManager={activeManager} onHover={onHover} onSelect={onSelect} winner={champion?.manager === afcTeam?.manager} />
       </div>
+      {toilet ? (
+        <div className="toilet-consequences">
+          <span>Champion picks two</span>
+          {TOILET_CONSEQUENCES.map(({ title, icon: Icon }) => (
+            <small key={title}><Icon className="w-3 h-3" /> {title}</small>
+          ))}
+        </div>
+      ) : (
+        <div className="playoff-overall-prize">
+          <strong>${overallPrize}</strong>
+          <span>Champion prize</span>
+          <small><Trophy className="w-3 h-3" /> $40 trophy budget</small>
+        </div>
+      )}
       <p>{toilet ? 'Lower Week 17 score takes the throne.' : 'Higher Week 17 score wins it all.'}</p>
     </div>
+  );
+}
+
+function WineCalculator({ wineWeeks, knownWineChoices, onChange, overallPrize, weeklyCash }) {
+  return (
+    <section className="wine-calculator" aria-label="Weekly prize calculator">
+      <div className="wine-calculator-copy">
+        <div className="prizes-section-heading compact">
+          <div>
+            <span>Weekly high score</span>
+            <h2>$15 or wine · 14 weeks</h2>
+          </div>
+          <Wine className="w-6 h-6" />
+        </div>
+      </div>
+      <div className="wine-stepper" aria-label="Wine choices calculator">
+        <button type="button" onClick={() => onChange(Math.max(knownWineChoices, wineWeeks - 1))} disabled={wineWeeks === knownWineChoices} aria-label="Remove one preview wine choice"><Minus className="w-4 h-4" /></button>
+        <div>
+          <strong>{wineWeeks}</strong>
+          <span>wine choice{wineWeeks === 1 ? '' : 's'}</span>
+        </div>
+        <button type="button" onClick={() => onChange(Math.min(WEEKLY_PRIZE_WEEKS, wineWeeks + 1))} disabled={wineWeeks === WEEKLY_PRIZE_WEEKS} aria-label="Add one wine choice"><Plus className="w-4 h-4" /></button>
+      </div>
+      <div className="wine-results">
+        <div><span>Weekly cash paid</span><strong>${weeklyCash}</strong></div>
+        <div><span>Overall champion</span><strong>${overallPrize}</strong></div>
+      </div>
+    </section>
   );
 }
 
@@ -273,50 +334,45 @@ function setupText(conf, bracket, toilet) {
   return `${conf} PLAYOFFS\nByes: ${label(bracket.byes[0])}, ${label(bracket.byes[1])}\n${label(bracket.first[0].teamA)} vs ${label(bracket.first[0].teamB)}\n${label(bracket.first[1].teamA)} vs ${label(bracket.first[1].teamB)}`;
 }
 
-function BracketSection({ toilet, afc, nfc, currentWeek, activeManager, onHover, onSelect, copied, onCopy }) {
+function BracketSection({ toilet, afc, nfc, currentWeek, activeManager, onHover, onSelect, copied, onCopy, overallPrize }) {
   const exportRef = useRef(null);
   const imageExport = useElementPngExport(exportRef, toilet ? 'lenzone-toilet-bowl' : 'lenzone-playoff-bracket', { minWidth: 1550 });
 
   return (
-    <section ref={exportRef} className="space-y-5">
-      <div className="playoff-hero">
-        <div>
-          <div className="flex items-center gap-2 text-[var(--accent)] text-xs font-black uppercase tracking-[0.2em] mb-2">
-            <Sparkles className="w-4 h-4" /> {toilet ? 'Consolation bracket' : 'LENZONE postseason'}
-          </div>
-          <h1>{toilet ? 'Toilet Bowl' : 'Playoff Bracket'}</h1>
-          <p>{toilet ? 'Seeds 7–12 · same format as the winners bracket, but the lower score advances.' : 'Six teams per conference · seeds 1–2 earn a first-round bye.'}</p>
-        </div>
-        <div className="playoff-actions" data-export-ignore="true">
-          <ExportControls
-            theme={imageExport.exportTheme}
-            onThemeChange={imageExport.setExportTheme}
-            onCopy={imageExport.copyPng}
-            onDownload={imageExport.downloadPng}
-            exporting={imageExport.exporting}
-            copyState={imageExport.copyState}
-            downloadState={imageExport.downloadState}
-          />
-          <button type="button" className="playoff-copy-button" onClick={onCopy}>
-            {copied ? <Check className="w-4 h-4" /> : <Clipboard className="w-4 h-4" />}
-            {copied ? 'Copied' : 'Copy Sleeper setup'}
-          </button>
-        </div>
-      </div>
-
+    <section ref={exportRef} data-mode={imageExport.exportTheme} data-scheme={imageExport.scheme}>
       <div className="playoff-board-shell">
+        <div className="playoff-hero">
+          <div>
+            <h1>{toilet ? 'Toilet Bowl' : 'Playoff Bracket'}</h1>
+            <p>{toilet ? 'Conference ranks shown · same format as the winners bracket, but the lower score advances.' : 'Conference ranks shown · the final playoff spot goes to the highest-PF team among the remaining seven.'}</p>
+          </div>
+          <div className="playoff-actions" data-export-ignore="true">
+            <ExportControls
+              theme={imageExport.exportTheme}
+              onThemeChange={imageExport.setExportTheme}
+              onCopy={imageExport.copyPng}
+              onDownload={imageExport.downloadPng}
+              exporting={imageExport.exporting}
+              copyState={imageExport.copyState}
+              downloadState={imageExport.downloadState}
+            />
+            <button type="button" className="playoff-copy-button" onClick={onCopy}>
+              {copied ? <Check className="w-4 h-4" /> : <Clipboard className="w-4 h-4" />}
+              {copied ? 'Copied' : 'Copy Sleeper setup'}
+            </button>
+          </div>
+        </div>
         <div className="playoff-board-scroll">
           <div className="playoff-board">
             <ConferenceTree conf="NFC" bracket={nfc} toilet={toilet} activeManager={activeManager} onHover={onHover} onSelect={onSelect} />
-            <OverallChampion nfc={nfc} afc={afc} toilet={toilet} currentWeek={currentWeek} activeManager={activeManager} onHover={onHover} onSelect={onSelect} />
+            <OverallChampion nfc={nfc} afc={afc} toilet={toilet} currentWeek={currentWeek} activeManager={activeManager} onHover={onHover} onSelect={onSelect} overallPrize={overallPrize} />
             <ConferenceTree conf="AFC" bracket={afc} mirrored toilet={toilet} activeManager={activeManager} onHover={onHover} onSelect={onSelect} />
           </div>
         </div>
-      </div>
-
-      <div className="playoff-footnote">
-        <Crown className="w-4 h-4" />
-        <span>{toilet ? 'The lowest scorer advances each round. The lower-scoring conference survivor in Week 17 becomes the overall Toilet Bowl champion.' : 'Conference champions are decided in Week 17. Their same Week 17 totals decide the overall LENZONE champion—no extra matchup.'}</span>
+        <div className="playoff-footnote">
+          <Crown className="w-4 h-4" />
+          <span>{toilet ? 'The lowest scorer advances each round. The Toilet Bowl champion picks two consequences.' : 'Conference champions are decided in Week 17. Their same Week 17 totals decide the overall LENZONE champion—no extra matchup.'}</span>
+        </div>
       </div>
     </section>
   );
@@ -326,6 +382,10 @@ export default function PlayoffsTab({ afcStandings, nfcStandings, afcPostseason,
   const [hoveredManager, setHoveredManager] = useState(null);
   const [selectedManager, setSelectedManager] = useState(null);
   const [copiedSection, setCopiedSection] = useState(null);
+  const knownWineChoices = Object.values(HIGH_SCORE_PRIZES).filter(prize => prize.choice === 'wine').length;
+  const [wineWeeks, setWineWeeks] = useState(knownWineChoices);
+  const overallPrize = BASE_OVERALL_PRIZE + wineWeeks * WEEKLY_PRIZE;
+  const weeklyCash = (WEEKLY_PRIZE_WEEKS - wineWeeks) * WEEKLY_PRIZE;
   const activeManager = hoveredManager || selectedManager;
   const winnersAfc = useMemo(() => buildConferenceBracket(afcStandings, afcPostseason, currentWeek, false), [afcStandings, afcPostseason, currentWeek]);
   const winnersNfc = useMemo(() => buildConferenceBracket(nfcStandings, nfcPostseason, currentWeek, false), [nfcStandings, nfcPostseason, currentWeek]);
@@ -357,6 +417,12 @@ export default function PlayoffsTab({ afcStandings, nfcStandings, afcPostseason,
         afc={winnersAfc} nfc={winnersNfc} currentWeek={currentWeek}
         activeManager={activeManager} onHover={setHoveredManager} onSelect={selectManager}
         copied={copiedSection === 'winners'} onCopy={() => copySetup(false, winnersAfc, winnersNfc)}
+        overallPrize={overallPrize}
+      />
+
+      <WineCalculator
+        wineWeeks={wineWeeks} knownWineChoices={knownWineChoices} onChange={setWineWeeks}
+        overallPrize={overallPrize} weeklyCash={weeklyCash}
       />
 
       <div className={`playoff-status-banner ${seedsLocked ? 'is-locked' : ''}`}>

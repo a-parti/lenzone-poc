@@ -7,6 +7,7 @@ import TeamName from './TeamName';
 import lenzoneLogoRing from '../assets/lenzone-logo-ring.png';
 import lenzoneLogoBall from '../assets/lenzone-logo-ball.png';
 import ExportControls from './ExportControls';
+import useModuleExportTheme from '../hooks/useModuleExportTheme';
 
 const TEAM_COL_WIDTH = 232; // px -- fixed so the sticky team column has a stable width
 const EXPORT_SERIF = "'Lora', Georgia, serif";
@@ -101,7 +102,7 @@ export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afc
   const [exporting, setExporting] = useState(false);
   const [copyState, setCopyState] = useState('idle');
   const [downloadState, setDownloadState] = useState('idle');
-  const [exportTheme, setExportTheme] = useState('dark');
+  const { theme: exportTheme, setTheme: setExportTheme, scheme: exportScheme } = useModuleExportTheme();
   const toggleHighlight = (w) => setHighlightWeek(prev => (prev === w ? null : w));
   const weeks = Array.from({ length: seasonWeeks }, (_, i) => i + 1);
   const rows = [
@@ -347,7 +348,7 @@ export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afc
   };
 
   return (
-    <div className="space-y-3">
+    <div data-mode={exportTheme} data-scheme={exportScheme} className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-[var(--muted)]">Click a week's header to highlight it{highlightWeek != null ? ` -- Week ${highlightWeek} highlighted` : ""}.</p>
         <ExportControls

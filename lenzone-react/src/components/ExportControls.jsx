@@ -19,7 +19,7 @@ export default function ExportControls({
         onClick={() => onThemeChange('light')}
         disabled={exporting}
         aria-pressed={theme === 'light'}
-        title="Use light mode for this export"
+        title="Preview and export this module in light mode"
         className={theme === 'light' ? 'is-active' : ''}
       >
         <Sun className="w-3.5 h-3.5" aria-hidden="true" />
@@ -30,7 +30,7 @@ export default function ExportControls({
         onClick={() => onThemeChange('dark')}
         disabled={exporting}
         aria-pressed={theme === 'dark'}
-        title="Use dark mode for this export"
+        title="Preview and export this module in dark mode"
         className={theme === 'dark' ? 'is-active' : ''}
       >
         <Moon className="w-3.5 h-3.5" aria-hidden="true" />

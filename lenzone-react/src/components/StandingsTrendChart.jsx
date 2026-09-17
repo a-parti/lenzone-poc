@@ -101,7 +101,7 @@ function LineChart({ title, series, weeks, yMin, yMax, invertY, formatY, logoMap
   }, [series, yMin, yMax, invertY, logoSize]);
 
   return (
-    <div ref={exportRef} className="bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-4">
+    <div ref={exportRef} data-mode={imageExport.exportTheme} data-scheme={imageExport.scheme} className="bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-4">
       <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
         <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">{title}</p>
         <div data-export-ignore="true">

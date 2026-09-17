@@ -57,7 +57,7 @@ export default function PrizesTab() {
   };
 
   return (
-    <div ref={exportRef} className="space-y-7 animate-fade-in">
+    <div ref={exportRef} data-mode={imageExport.exportTheme} data-scheme={imageExport.scheme} className="space-y-7 animate-fade-in">
       <header className="prizes-hero">
         <div>
           <div className="prizes-kicker"><Gift className="w-4 h-4" /> LENZONE prize cabinet</div>

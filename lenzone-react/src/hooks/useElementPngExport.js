@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { copyCanvas, downloadCanvas, elementToPngCanvas } from '../lib/elementPng';
+import useModuleExportTheme from './useModuleExportTheme';
 
 export default function useElementPngExport(ref, filename, options = {}) {
-  const [exportTheme, setExportTheme] = useState('dark');
+  const { theme: exportTheme, setTheme: setExportTheme, scheme } = useModuleExportTheme();
   const [exporting, setExporting] = useState(false);
   const [copyState, setCopyState] = useState('idle');
   const [downloadState, setDownloadState] = useState('idle');
@@ -38,5 +39,5 @@ export default function useElementPngExport(ref, filename, options = {}) {
     }
   };
 
-  return { exportTheme, setExportTheme, exporting, copyState, downloadState, copyPng, downloadPng };
+  return { exportTheme, setExportTheme, scheme, exporting, copyState, downloadState, copyPng, downloadPng };
 }

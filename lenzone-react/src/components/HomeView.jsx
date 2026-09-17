@@ -162,18 +162,6 @@ function BigAppLogo() {
   );
 }
 
-function navSections(selectedWeek) {
-  return [
-    { id: "currentWeek", title: `This Week (${selectedWeek})` },
-    { id: "matchups", title: "Matchups" },
-    { id: "standings", title: "Standings" },
-    { id: "grid", title: "Schedule Grid" },
-    { id: "playoffs", title: "Playoffs & Prizes" },
-    { id: "players", title: "Players" },
-    { id: "news", title: "News" }
-  ];
-}
-
 // Editorial table-of-contents style list -- serif titles, no index number, underline-style hover.
 function NavListNumbered({ sections, onSelect }) {
   return (
@@ -200,9 +188,8 @@ function NavListNumbered({ sections, onSelect }) {
 // Deliberately minimal: pick your team, then navigate everywhere else via the menu that appears
 // underneath. No stats, no cards, no banners -- that content now lives on the "Week N" tab.
 export default function HomeView({
-  setActiveTab, selectedWeek, currentWeek, afcManagers, nfcManagers, myTeamManager, onChooseMyTeam, teamBurst, soundMuted, onToggleSoundMuted
+  setActiveTab, sections, afcManagers, nfcManagers, myTeamManager, onChooseMyTeam, teamBurst, soundMuted, onToggleSoundMuted
 }) {
-  const sections = navSections(currentWeek || selectedWeek);
   const { mode, setMode } = useTheme();
 
   return (

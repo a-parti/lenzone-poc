@@ -5,6 +5,7 @@ import { useNameDisplay } from '../context/NameDisplayContext';
 import lenzoneLogoRing from '../assets/lenzone-logo-ring.png';
 import lenzoneLogoBall from '../assets/lenzone-logo-ball.png';
 import ExportControls from './ExportControls';
+import useModuleExportTheme from '../hooks/useModuleExportTheme';
 
 // HEIGHT bumped along with MARGIN.bottom (not just the margin alone) -- the tied-points bracket
 // row plus the 3-line rotated name block genuinely need more real vertical room than before, not
@@ -78,7 +79,7 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
   const [exporting, setExporting] = useState(false);
   const [copyState, setCopyState] = useState("idle");
   const [downloadState, setDownloadState] = useState("idle");
-  const [exportTheme, setExportTheme] = useState('dark');
+  const { theme: exportTheme, setTheme: setExportTheme, scheme: exportScheme } = useModuleExportTheme();
   const [linkCopyState, setLinkCopyState] = useState("idle");
 
   const groups = [];
@@ -405,7 +406,7 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
   };
 
   return (
-    <div className="material-surface bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-5">
+    <div data-mode={exportTheme} data-scheme={exportScheme} className="material-surface bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-5">
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <p className="tracking-wide text-base text-[var(--text)]" style={{ fontFamily: SERIF_FONT, fontWeight: 700 }}>
           {chartTitle}

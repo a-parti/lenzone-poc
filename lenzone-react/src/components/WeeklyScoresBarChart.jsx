@@ -6,6 +6,7 @@ import { useNameDisplay } from '../context/NameDisplayContext';
 import lenzoneLogoRing from '../assets/lenzone-logo-ring.png';
 import lenzoneLogoBall from '../assets/lenzone-logo-ball.png';
 import ExportControls from './ExportControls';
+import useModuleExportTheme from '../hooks/useModuleExportTheme';
 
 const HEIGHT = 440;
 // bottom has to fit a -40deg-rotated team name below every bar -- long manager names need real
@@ -138,7 +139,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
   // with scores must execute the same hooks in the same order when the selector changes.
   const [copyState, setCopyState] = useState("idle"); // idle | copying | copied | error
   const [downloadState, setDownloadState] = useState("idle"); // idle | error
-  const [exportTheme, setExportTheme] = useState('dark');
+  const { theme: exportTheme, setTheme: setExportTheme, scheme: exportScheme } = useModuleExportTheme();
   const [linkCopyState, setLinkCopyState] = useState("idle");
   // Zoom scales the SVG's rendered CSS size while its viewBox stays fixed -- the browser scales
   // every coordinate, line and font in the drawing proportionally (real vector zoom, not a blurry
@@ -679,7 +680,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
   };
 
   return (
-    <div className="material-surface bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-5">
+    <div data-mode={exportTheme} data-scheme={exportScheme} className="material-surface bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-5">
       <div className="flex items-center justify-between mb-3">
         <p
           className="tracking-wide text-base text-[var(--text)]"

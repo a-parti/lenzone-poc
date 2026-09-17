@@ -4,7 +4,7 @@ import AnimatedLogo from './components/AnimatedLogo';
 import { CONF_STYLES } from './lib/theme';
 import { ConfFilterToggle } from './components/shared';
 import {
-  fetchSleeperLeague, fetchFullSeasonData, fetchWeekMatchups, fetchPlayersDB, fetchSeasonTransactions, fetchDraftPicks, fetchAllWeekProjections, fetchWeekProjections, fetchNflState, fetchNflSchedule
+  fetchSleeperLeague, fetchFullSeasonData, fetchWeekMatchups, fetchPlayersDB, fetchSeasonTransactions, fetchWeekTransactions, fetchDraftPicks, fetchAllWeekProjections, fetchWeekProjections, fetchNflState, fetchNflSchedule
 } from './lib/sleeperApi';
 import { fetchWeekKickoffInfo, fetchWeekBigPlays, fetchSeasonResultsByTeam, fetchNflHeadlines, fetchNflPlayerNotes, filterPlayerNotesForPlayers, filterHeadlinesForPlayers } from './lib/espnApi';
 import {
@@ -25,7 +25,6 @@ import TeamName from './components/TeamName';
 import ScheduleTab from './components/ScheduleTab';
 import SeasonGridTab from './components/SeasonGridTab';
 import PlayoffsTab, { PLAYOFF_WEEKS } from './components/PlayoffsTab';
-import PrizesTab from './components/PrizesTab';
 import HomeView from './components/HomeView';
 import NewsView from './components/NewsView';
 import NewsTicker from './components/NewsTicker';
@@ -255,8 +254,11 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek }) {
               <tr key={idx} className={`hover:bg-[var(--surface2)]/30 transition-all duration-200 ${postseason?.seed <= 6 ? 'standings-playoff-team' : ''}`}>
                 <td className="py-3 px-4 font-bold text-[var(--text2)]">{item.rank}</td>
                 <td className="py-3 px-4">
-                  <span className={`postseason-badge postseason-${postseason?.status?.toLowerCase()}`}>
-                    #{postseason?.seed} {postseason?.status === 'BYE' ? 'Bye' : postseason?.status === 'PLAYOFF' ? 'Playoff' : postseason?.status === 'WILDCARD' ? 'PF Wildcard' : 'Toilet Bowl'}
+                  <span
+                    className={`postseason-badge postseason-${postseason?.status?.toLowerCase()}`}
+                    title={postseason?.status === 'WILDCARD' ? `Conference rank #${postseason?.rank ?? postseason?.seed}; qualifies as the highest-PF wildcard` : undefined}
+                  >
+                    #{postseason?.rank ?? postseason?.seed}{postseason?.status === 'WILDCARD' ? '' : ` ${postseason?.status === 'BYE' ? 'Bye' : postseason?.status === 'PLAYOFF' ? 'Playoff' : 'Toilet Bowl'}`}
                   </span>
                 </td>
                 <td className="py-3 px-4 font-bold text-[var(--text)]">
@@ -296,8 +298,11 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek }) {
                 <span className="text-[var(--muted)] font-bold text-sm">#{item.rank}</span>
                 <TeamName manager={item.manager} conf={conf} className="font-bold" />
               </div>
-              <span className={`postseason-badge postseason-${postseason?.status?.toLowerCase()}`}>
-                #{postseason?.seed} {postseason?.status === 'BYE' ? 'Bye' : postseason?.status === 'PLAYOFF' ? 'Playoff' : postseason?.status === 'WILDCARD' ? 'PF Wildcard' : 'Toilet Bowl'}
+              <span
+                className={`postseason-badge postseason-${postseason?.status?.toLowerCase()}`}
+                title={postseason?.status === 'WILDCARD' ? `Conference rank #${postseason?.rank ?? postseason?.seed}; qualifies as the highest-PF wildcard` : undefined}
+              >
+                #{postseason?.rank ?? postseason?.seed}{postseason?.status === 'WILDCARD' ? '' : ` ${postseason?.status === 'BYE' ? 'Bye' : postseason?.status === 'PLAYOFF' ? 'Playoff' : 'Toilet Bowl'}`}
               </span>
             </div>
             <div className="grid grid-cols-2 gap-2">
@@ -901,6 +906,35 @@ export default function App() {
     });
   }, [afcLeagueId, nfcLeagueId]);
 
+  // Keep the activity crawl current without repeatedly downloading every week of transaction
+  // history. The full season loads once above; only Sleeper's current week is refreshed here.
+  useEffect(() => {
+    const currentWeek = Math.min(18, Math.max(1, nflState.week || 1));
+    let cancelled = false;
+    const mergeTransactions = (previous, latest) => {
+      const merged = new Map((previous || []).map(transaction => [transaction.transaction_id, transaction]));
+      (latest || []).forEach(transaction => merged.set(transaction.transaction_id, transaction));
+      return [...merged.values()];
+    };
+    const refreshCurrentActivity = async () => {
+      const [afcLatest, nfcLatest] = await Promise.all([
+        fetchWeekTransactions(afcLeagueId, currentWeek),
+        fetchWeekTransactions(nfcLeagueId, currentWeek)
+      ]);
+      if (cancelled) return;
+      setAfcTransactions(previous => mergeTransactions(previous, afcLatest));
+      setNfcTransactions(previous => mergeTransactions(previous, nfcLatest));
+    };
+    refreshCurrentActivity();
+    const intervalId = window.setInterval(refreshCurrentActivity, 2 * 60 * 1000);
+    window.addEventListener('focus', refreshCurrentActivity);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refreshCurrentActivity);
+    };
+  }, [afcLeagueId, nfcLeagueId, nflState.week]);
+
   useEffect(() => {
     setDraftLoading(true);
     Promise.all([
@@ -1453,8 +1487,9 @@ export default function App() {
     { id: "matchups", label: "Matchups", shortLabel: "Matchups", icon: Swords },
     { id: "standings", label: "Standings", shortLabel: "Standings", icon: Trophy },
     { id: "grid", label: "Schedule Grid", shortLabel: "Schedule Grid", icon: LayoutGrid },
-    { id: "playoffs", label: "Playoffs & Prizes", shortLabel: "Playoffs", icon: GitBranch },
+    { id: "playoffs", label: "Playoffs", shortLabel: "Playoffs", icon: GitBranch },
     { id: "players", label: "Players", shortLabel: "Players", icon: Search },
+    { id: "activity", label: "Activity", shortLabel: "Activity", icon: Activity },
     { id: "news", label: "News", shortLabel: "News", icon: Newspaper },
     ...(isAdmin ? [{ id: "teams", label: "MS Teams Broadcast", shortLabel: "Broadcast", icon: Megaphone }] : [])
   ];
@@ -1589,7 +1624,13 @@ export default function App() {
           already show this same real data in full; everywhere else it's the one ambient reminder
           that news exists without needing its own click. */}
       {activeTab !== "home" && activeTab !== "news" && (
-        <NewsTicker myPlayerNotes={myPlayerNotes} myPlayerHeadlines={myPlayerHeadlines} nflHeadlines={nflHeadlines} />
+        <NewsTicker
+          myPlayerNotes={myPlayerNotes} myPlayerHeadlines={myPlayerHeadlines} nflHeadlines={nflHeadlines}
+          afcTransactions={afcTransactions} nfcTransactions={nfcTransactions}
+          afcRosterIdMap={afcData.rosterIdMap} nfcRosterIdMap={nfcData.rosterIdMap}
+          playersDB={playersDB}
+          onOpenActivity={() => navigateToTab("activity")}
+        />
       )}
 
       <main className="max-w-7xl mx-auto">
@@ -1632,7 +1673,8 @@ export default function App() {
         {/* TAB: HOME */}
         {activeTab === "home" && (
           <HomeView
-            setActiveTab={navigateToTab} selectedWeek={selectedWeek} currentWeek={nflState.week}
+            setActiveTab={navigateToTab}
+            sections={tabs.map(tab => ({ id: tab.id, title: tab.label }))}
             afcManagers={afcManagers} nfcManagers={nfcManagers} myTeamManager={myTeamManager} onChooseMyTeam={chooseMyTeam}
             teamBurst={teamBurst} soundMuted={soundMuted} onToggleSoundMuted={toggleSoundMuted}
           />
@@ -1960,9 +2002,9 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB: PLAYOFFS & PRIZES (custom seeds, live results, payouts and consequences) */}
+        {/* TAB: PLAYOFFS (custom seeds, live results, payouts and consequences) */}
         {activeTab === "playoffs" && (
-          <div className="relative left-1/2 w-[calc(100vw-2rem)] max-w-[1800px] -translate-x-1/2">
+          <div className="max-w-7xl mx-auto w-full">
             {!hasStandingsData ? (
               <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
                 <RefreshCw className="w-7 h-7 animate-spin text-[var(--accent)]" />
@@ -1975,18 +2017,14 @@ export default function App() {
                 currentWeek={nflState.week || 1} latestCompletedWeek={latestCompletedWeek}
               />
             )}
-            <div className="max-w-7xl mx-auto w-full mt-16">
-              <PrizesTab />
-            </div>
           </div>
         )}
 
-        {/* TAB: PLAYERS (merged Player Search + Rosters + Activity + Draft Board -- all views onto
-             the same player pool, just sliced differently) */}
+        {/* TAB: PLAYERS (Player Search + Rosters + Draft Board) */}
         {activeTab === "players" && (
           <div className="space-y-6">
             <div className="inline-flex bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-1 gap-1 flex-wrap">
-              {[["search", "Player Search", Search], ["rosters", "Rosters", Users], ["activity", "Activity", Activity], ["draft", "Draft Board", ListOrdered]].map(([key, label, Icon]) => (
+              {[["search", "Player Search", Search], ["rosters", "Rosters", Users], ["draft", "Draft Board", ListOrdered]].map(([key, label, Icon]) => (
                 <button
                   key={key}
                   onClick={() => setPlayersSubTab(key)}
@@ -2029,17 +2067,6 @@ export default function App() {
                 focusManager={myTeamManager} focusConf={myTeamConf}
               />
             )}
-            {playersSubTab === "activity" && (
-              <ActivityTab
-                afcTransactions={afcTransactions}
-                nfcTransactions={nfcTransactions}
-                afcRosterIdMap={afcData.rosterIdMap}
-                nfcRosterIdMap={nfcData.rosterIdMap}
-                playersDB={playersDB}
-                loading={transactionsLoading}
-                focusConf={myTeamConf}
-              />
-            )}
             {playersSubTab === "draft" && (
               <DraftBoardTab
                 afcDraft={afcDraft}
@@ -2050,6 +2077,21 @@ export default function App() {
                 playersDB={playersDB}
               />
             )}
+          </div>
+        )}
+
+        {/* TAB: ACTIVITY -- live Sleeper trades, waivers and free-agent moves. */}
+        {activeTab === "activity" && (
+          <div className="space-y-6">
+            <ActivityTab
+              afcTransactions={afcTransactions}
+              nfcTransactions={nfcTransactions}
+              afcRosterIdMap={afcData.rosterIdMap}
+              nfcRosterIdMap={nfcData.rosterIdMap}
+              playersDB={playersDB}
+              loading={transactionsLoading}
+              focusConf={myTeamConf}
+            />
           </div>
         )}
 

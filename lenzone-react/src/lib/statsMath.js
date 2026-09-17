@@ -498,6 +498,25 @@ export function seedConference(list, confLabel, oddsByManager) {
   ];
 }
 
+// The single bracket-order source of truth used by both the Playoffs tab and the Standings page.
+// Seeds 1-5 follow Standings Pts (PF tiebreak), seed 6 is the highest-PF team left, and the other
+// six retain their standings order as Toilet Bowl seeds 7-12.
+export function buildPostseasonSeeds(list, confLabel = null) {
+  const sorted = [...list].sort((a, b) => b.totalPts - a.totalPts || b.pf - a.pf);
+  const topFive = sorted.slice(0, 5);
+  const remaining = sorted.slice(5);
+  const wildcard = [...remaining].sort((a, b) => b.pf - a.pf || b.totalPts - a.totalPts)[0];
+  const toiletTeams = remaining
+    .filter(team => team.manager !== wildcard?.manager)
+    .sort((a, b) => b.totalPts - a.totalPts || b.pf - a.pf);
+  const withSeed = (team, seed, status) => ({ ...team, conf: confLabel || team.conf, seed, status });
+  return [
+    ...topFive.map((team, index) => withSeed(team, index + 1, index < 2 ? 'BYE' : 'PLAYOFF')),
+    ...(wildcard ? [withSeed(wildcard, 6, 'WILDCARD')] : []),
+    ...toiletTeams.map((team, index) => withSeed(team, index + 7, 'TOILET_BOWL'))
+  ];
+}
+
 // Per-week history of Standings Pts / PF / conference rank for every manager, "as of" each
 // completed week -- reuses the exact same per-week-bounded functions the live Standings table
 // already calls (computeInConfRecord/computeCrossRecords/buildConferenceList/rankConference),

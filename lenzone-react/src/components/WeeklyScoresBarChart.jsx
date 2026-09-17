@@ -1,10 +1,11 @@
 import React, { useRef, useState } from 'react';
-import { Download, Copy, Check, X as XIcon, Link as LinkIcon, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { Check, X as XIcon, Link as LinkIcon, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { useMatchupPreview } from '../context/MatchupPreviewContext';
 import { HIGH_SCORE_PRIZES } from '../lib/highScorePrizes';
 import { useNameDisplay } from '../context/NameDisplayContext';
 import lenzoneLogoRing from '../assets/lenzone-logo-ring.png';
 import lenzoneLogoBall from '../assets/lenzone-logo-ball.png';
+import ExportControls from './ExportControls';
 
 const HEIGHT = 440;
 // bottom has to fit a -40deg-rotated team name below every bar -- long manager names need real
@@ -137,6 +138,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
   // with scores must execute the same hooks in the same order when the selector changes.
   const [copyState, setCopyState] = useState("idle"); // idle | copying | copied | error
   const [downloadState, setDownloadState] = useState("idle"); // idle | error
+  const [exportTheme, setExportTheme] = useState('dark');
   const [linkCopyState, setLinkCopyState] = useState("idle");
   // Zoom scales the SVG's rendered CSS size while its viewBox stays fixed -- the browser scales
   // every coordinate, line and font in the drawing proportionally (real vector zoom, not a blurry
@@ -384,7 +386,9 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
   // team logo as a base64 data URI first), or any hover/CSS-transform state (none of that is
   // meaningful in a static export anyway). It also includes the legend and title, which the old
   // "just serialize the live <svg>" approach silently left out.
-  const EXPORT = { bg: "#0f172a", text: "#f8fafc", muted: "#94a3b8", border: "#475569" };
+  const EXPORT = exportTheme === 'dark'
+    ? { bg: "#0f172a", bgFrom: "#1b2338", bgTo: "#080a12", text: "#f8fafc", muted: "#aeb9c8", border: "#526178" }
+    : { bg: "#f5f1e8", bgFrom: "#fffaf1", bgTo: "#e8edf0", text: "#172033", muted: "#526073", border: "#9ba8b8" };
   const EXPORT_SANS = "Arial, Helvetica, sans-serif";
   const EXPORT_SERIF = "Georgia, 'Times New Roman', serif";
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -394,7 +398,9 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
   // win/loss meaning the user specifically asked to keep intact. Pinned to this app's own actual
   // dark-mode values (index.css), so the export doesn't depend on the exporting viewer's own
   // light/dark mode or color scheme either.
-  const EXPORT_VAR_RESOLVE = { "var(--pos)": "#34d399", "var(--neg)": "#fb7185", "var(--muted)": EXPORT.muted, "var(--accent)": "#e76f51" };
+  const EXPORT_VAR_RESOLVE = exportTheme === 'dark'
+    ? { "var(--pos)": "#34d399", "var(--neg)": "#fb7185", "var(--muted)": EXPORT.muted, "var(--accent)": "#f08a6d" }
+    : { "var(--pos)": "#047857", "var(--neg)": "#be123c", "var(--muted)": EXPORT.muted, "var(--accent)": "#c45138" };
   const resolveExportColor = (c) => EXPORT_VAR_RESOLVE[c] || c;
 
   // Best-effort: fetch a logo and convert it to a base64 data URI so it can be embedded directly
@@ -493,8 +499,9 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
 
     const parts = [];
     parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${exportW}" height="${exportH}" viewBox="0 0 ${exportW} ${exportH}">`);
-    parts.push(`<defs><linearGradient id="export-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#161c2e"/><stop offset="55%" stop-color="${EXPORT.bg}"/><stop offset="100%" stop-color="#080a12"/></linearGradient></defs>`);
+    parts.push(`<defs><linearGradient id="export-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${EXPORT.bgFrom}"/><stop offset="55%" stop-color="${EXPORT.bg}"/><stop offset="100%" stop-color="${EXPORT.bgTo}"/></linearGradient><pattern id="export-texture" width="14" height="14" patternUnits="userSpaceOnUse"><path d="M-4 14L14 -4M3 17L17 3" stroke="${EXPORT.text}" stroke-opacity="${exportTheme === 'dark' ? 0.03 : 0.02}" stroke-width="0.7"/></pattern></defs>`);
     parts.push(`<rect x="0" y="0" width="${exportW}" height="${exportH}" fill="url(#export-bg)"/>`);
+    parts.push(`<rect x="0" y="0" width="${exportW}" height="${exportH}" fill="url(#export-texture)"/>`);
     parts.push(`<text x="${exportW / 2}" y="40" text-anchor="middle" font-family="${EXPORT_SERIF}" font-size="30" font-weight="700" fill="${EXPORT.text}">${esc(`Week ${week} Scores - ${scoreTypeLabel} ${focusManager ? '- You & Your Opponents' : '- All Teams'}`)}</text>`);
     // Brand watermark, top-left corner -- doesn't compete with the centered title for space and
     // stays in the same spot regardless of how long the title text is.
@@ -625,7 +632,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
     try {
       const canvas = await renderExportCanvas();
       const link = document.createElement('a');
-      link.download = `week-${week}-scores${focusManager ? `-${focusManager}` : ''}.png`;
+      link.download = `week-${week}-scores${focusManager ? `-${focusManager}` : ''}-${exportTheme}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
     } catch (err) {
@@ -733,22 +740,15 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
               </button>
             </>
           )}
-          <button
-            type="button" onClick={copyPng} disabled={exporting}
-            title="Copy image -- paste (Ctrl/Cmd+V) straight into an MS Teams or Discord message"
-            aria-label="Copy chart image to clipboard"
-            className="flex items-center gap-1 text-[10px] font-semibold text-[var(--muted)] hover:text-[var(--text)] px-2 py-1 rounded-md hover:bg-[var(--surface2)] transition-colors duration-150 disabled:opacity-50"
-          >
-            {copyState === "copied" ? <Check className="w-3.5 h-3.5 text-[var(--pos)]" /> : copyState === "error" ? <XIcon className="w-3.5 h-3.5 text-[var(--neg)]" /> : <Copy className="w-3.5 h-3.5" />}
-            {copyState === "copied" ? "Copied!" : copyState === "error" ? "Couldn't copy" : "Copy Image"}
-          </button>
-          <button
-            type="button" onClick={downloadPng} disabled={exporting} title="Download chart as PNG" aria-label="Download chart as PNG"
-            className="flex items-center gap-1 text-[10px] font-semibold text-[var(--muted)] hover:text-[var(--text)] px-2 py-1 rounded-md hover:bg-[var(--surface2)] transition-colors duration-150 disabled:opacity-50"
-          >
-            {downloadState === "error" ? <XIcon className="w-3.5 h-3.5 text-[var(--neg)]" /> : <Download className="w-3.5 h-3.5" />}
-            {downloadState === "error" ? "Export failed" : "PNG"}
-          </button>
+          <ExportControls
+            theme={exportTheme}
+            onThemeChange={setExportTheme}
+            onCopy={copyPng}
+            onDownload={downloadPng}
+            exporting={exporting}
+            copyState={copyState}
+            downloadState={downloadState}
+          />
           <button
             type="button" onClick={copyLink} title="Copy a link straight to this week's chart" aria-label="Copy link to this chart"
             className="flex items-center gap-1 text-[10px] font-semibold text-[var(--muted)] hover:text-[var(--text)] px-2 py-1 rounded-md hover:bg-[var(--surface2)] transition-colors duration-150"

@@ -155,12 +155,16 @@
   --neg: #fb7185;
   --proj: #60a5fa;
   --live: #fbbf24;
+  --playoff-nfc: #22d3ee;
+  --playoff-afc: #fb923c;
 }
 [data-mode="light"] {
   --pos: #047857;
   --neg: #be123c;
   --proj: #1d4ed8;
   --live: #b45309;
+  --playoff-nfc: #087ca7;
+  --playoff-afc: #c65312;
 }
 
 html {
@@ -619,4 +623,363 @@ body {
 }
 .scroll-thin::-webkit-scrollbar-thumb:hover {
   background-color: var(--muted);
+}
+
+/* Shared image-export control. Theme selection lives inside the same visual control as Copy PNG
+   and download so every chart/module exposes one consistent export affordance. */
+.export-control {
+  display: inline-flex;
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid var(--border2);
+  border-radius: .7rem;
+  background: color-mix(in srgb, var(--surface2) 88%, var(--bg));
+  box-shadow: 0 1px 0 rgba(255,255,255,.08) inset, 0 7px 18px -16px rgba(0,0,0,.8);
+}
+.export-control-label {
+  display: inline-flex;
+  align-items: center;
+  padding: .38rem .55rem;
+  color: var(--muted);
+  border-right: 1px solid var(--border);
+  font-size: .56rem;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.export-control button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .28rem;
+  padding: .38rem .52rem;
+  color: var(--muted);
+  border-right: 1px solid var(--border);
+  font-size: .58rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.export-control button:last-child { border-right: 0; }
+.export-control button:hover:not(:disabled) { color: var(--text); background: var(--surface2); }
+.export-control button.is-active { color: var(--accent-text); background: var(--accent); }
+.export-control button:disabled { cursor: wait; opacity: .5; }
+
+@media (max-width: 640px) {
+  .export-control-label { display: none; }
+  .export-control button { padding-inline: .42rem; }
+  .export-control button span { display: none; }
+}
+
+/* Postseason bracket: a wide, horizontally scrollable bracket on phones and a full mirrored
+   conference view on desktop. The neutral material surface follows the selected site scheme;
+   conference color is reserved for structure, focus, and live state so the names stay readable. */
+.playoff-hero {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.25rem;
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  background:
+    radial-gradient(80% 140% at 0% 0%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 62%),
+    linear-gradient(145deg, var(--surface2), var(--surface));
+  box-shadow: 0 1px 0 rgba(255,255,255,.1) inset, 0 22px 45px -34px rgba(0,0,0,.7);
+}
+.playoff-hero::after {
+  content: '';
+  position: absolute;
+  left: 1.5rem;
+  bottom: 0;
+  width: min(14rem, 35vw);
+  height: 3px;
+  border-radius: 999px 999px 0 0;
+  background: linear-gradient(90deg, var(--playoff-nfc), var(--accent), var(--playoff-afc));
+  box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 42%, transparent);
+}
+.playoff-hero h1 {
+  font-family: Impact, 'Arial Narrow', 'Arial Black', sans-serif;
+  font-size: clamp(2rem, 4vw, 3.75rem);
+  line-height: .92;
+  font-weight: 800;
+  letter-spacing: .005em;
+}
+.playoff-hero p { margin-top: .65rem; color: var(--text2); font-size: 1rem; }
+.playoff-actions { display: flex; align-items: center; gap: .65rem; flex-wrap: wrap; justify-content: flex-end; }
+.playoff-copy-button {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  padding: .7rem .85rem;
+  border: 1px solid var(--border2);
+  border-radius: .8rem;
+  background: var(--surface2);
+  color: var(--text);
+  font-size: .78rem;
+  font-weight: 800;
+}
+.playoff-copy-button:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }
+.playoff-status-banner {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  flex-wrap: wrap;
+  padding: .75rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--live) 42%, var(--border));
+  border-radius: .85rem;
+  background: color-mix(in srgb, var(--live) 9%, var(--surface));
+  color: var(--text2);
+  font-size: .78rem;
+}
+.playoff-status-banner.is-locked { border-color: color-mix(in srgb, var(--pos) 42%, var(--border)); background: color-mix(in srgb, var(--pos) 9%, var(--surface)); }
+.playoff-status-banner strong { color: var(--text); }
+.playoff-status-dot { width: .55rem; height: .55rem; border-radius: 999px; background: var(--live); box-shadow: 0 0 0 4px color-mix(in srgb, var(--live) 15%, transparent); }
+.playoff-status-banner.is-locked .playoff-status-dot { background: var(--pos); box-shadow: 0 0 0 4px color-mix(in srgb, var(--pos) 15%, transparent); }
+.playoff-status-banner button { margin-left: auto; display: inline-flex; align-items: center; gap: .3rem; color: var(--accent); font-weight: 800; }
+.playoff-board-shell {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  background:
+    repeating-linear-gradient(135deg, color-mix(in srgb, var(--text) 1.8%, transparent) 0 1px, transparent 1px 11px),
+    radial-gradient(65% 95% at 50% -25%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 70%),
+    linear-gradient(155deg, var(--surface2), color-mix(in srgb, var(--surface) 82%, var(--bg)));
+  box-shadow: 0 1px 0 rgba(255,255,255,.1) inset, 0 28px 60px -44px rgba(0,0,0,.85);
+}
+.playoff-board-scroll { overflow-x: auto; padding: 1.25rem; scrollbar-width: thin; scrollbar-color: var(--border2) transparent; }
+.playoff-board { width: 1450px; margin: 0 auto; display: grid; grid-template-columns: 600px 210px 600px; gap: 20px; align-items: center; }
+.playoff-conference-tree { width: 600px; }
+.playoff-conf-heading {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: 0 .25rem .65rem;
+  color: var(--conf);
+  font-size: .8rem;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.playoff-conf-dot { width: .65rem; height: .65rem; border-radius: 999px; background: var(--conf); box-shadow: 0 0 18px var(--conf); }
+.playoff-stage-headings { display: grid; grid-template-columns: repeat(3, 180px); gap: 30px; }
+.playoff-stage-headings > div { border-bottom: 2px solid color-mix(in srgb, var(--conf) 65%, var(--border)); padding: .35rem .2rem .55rem; }
+.playoff-stage-headings strong { display: block; color: var(--conf); font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; }
+.playoff-stage-headings span { display: block; color: var(--muted); font-size: .66rem; margin-top: .1rem; }
+.playoff-tree-canvas { position: relative; width: 600px; height: 520px; }
+.playoff-tree-canvas::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  inset: 12px -8px 10px;
+  border: 2px solid color-mix(in srgb, var(--conf) 72%, var(--border));
+  border-radius: 1rem;
+  background:
+    radial-gradient(85% 90% at 50% 0%, color-mix(in srgb, var(--conf) 6%, transparent), transparent 75%),
+    color-mix(in srgb, var(--surface) 28%, transparent);
+  box-shadow: 0 0 28px -23px var(--conf), 0 1px 0 rgba(255,255,255,.05) inset;
+}
+.playoff-stage { position: absolute; top: 0; width: 180px; height: 520px; z-index: 2; }
+.playoff-connectors { position: absolute; inset: 0; z-index: 1; width: 600px; height: 520px; transform-origin: center; overflow: visible; }
+.playoff-connectors path { fill: none; stroke: color-mix(in srgb, var(--conf) 68%, var(--border)); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.playoff-connectors.is-highlighted path {
+  stroke: var(--conf);
+  stroke-width: 4;
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--conf) 72%, transparent));
+}
+.playoff-matchup-card,
+.playoff-bye-card {
+  position: relative;
+  width: 180px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--conf) 58%, var(--border));
+  border-radius: .7rem;
+  background: color-mix(in srgb, var(--surface) 90%, var(--bg));
+  box-shadow: 0 1px 0 rgba(255,255,255,.09) inset, 0 8px 22px -17px rgba(0,0,0,.85);
+}
+.playoff-matchup-card::before,
+.playoff-bye-card::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--conf); opacity: .85; }
+.playoff-matchup-card.is-live { box-shadow: 0 0 0 2px color-mix(in srgb, var(--live) 45%, transparent), 0 0 24px -10px var(--live); }
+.playoff-team-row {
+  width: 100%;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: .38rem;
+  padding: .38rem .45rem;
+  color: var(--text);
+  border-radius: .5rem;
+}
+button.playoff-team-row:hover { background: color-mix(in srgb, var(--conf) 13%, transparent); }
+.playoff-team-row.is-highlighted { background: color-mix(in srgb, var(--conf) 22%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--conf) 55%, transparent); }
+.playoff-team-row.is-dimmed { opacity: .3; filter: saturate(.45); }
+.playoff-team-placeholder { color: var(--muted); font-size: .68rem; font-style: italic; }
+.playoff-seed { width: 1rem; flex: 0 0 1rem; color: var(--conf); font-size: .66rem; font-weight: 900; text-align: center; }
+.playoff-team-logo { width: 1.45rem; height: 1.45rem; flex: 0 0 1.45rem; border-radius: 999px; object-fit: cover; border: 1px solid color-mix(in srgb, var(--conf) 45%, var(--border)); }
+.playoff-team-logo-fallback { width: 1.45rem; height: 1.45rem; flex: 0 0 1.45rem; border-radius: 999px; background: color-mix(in srgb, var(--conf) 22%, var(--surface2)); }
+.playoff-team-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .68rem; font-weight: 850; line-height: 1.15; }
+.playoff-team-secondary { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: .12rem; color: var(--muted); font-size: .55rem; line-height: 1.1; }
+.playoff-score { flex: 0 0 auto; font-variant-numeric: tabular-nums; font-size: .62rem; font-weight: 900; }
+.playoff-matchup-divider { height: 1px; margin: 0 .45rem; background: var(--border); }
+.playoff-matchup-status { display: block; padding: .18rem .5rem .23rem; border-top: 1px solid var(--border); color: var(--muted); font-size: .5rem; font-weight: 800; text-align: right; text-transform: uppercase; letter-spacing: .06em; }
+.playoff-matchup-status.status-live { color: var(--live); }
+.playoff-matchup-status.status-final { color: var(--pos); }
+.playoff-matchup-status.status-missing { color: var(--neg); }
+.playoff-bye-card { padding-bottom: .2rem; }
+.playoff-bye-label { display: block; padding: 0 .5rem .25rem; color: var(--conf); font-size: .49rem; font-weight: 850; text-align: right; text-transform: uppercase; letter-spacing: .06em; }
+.playoff-overall-card {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 245px;
+  padding: 1rem .75rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 52%, var(--border));
+  border-radius: 1rem;
+  background:
+    radial-gradient(90% 80% at 50% 0%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 72%),
+    color-mix(in srgb, var(--surface2) 90%, var(--bg));
+  box-shadow: 0 1px 0 rgba(255,255,255,.12) inset, 0 20px 36px -25px rgba(0,0,0,.9), 0 0 35px -27px var(--accent);
+  text-align: center;
+}
+.playoff-overall-icon { width: 2.8rem; height: 2.8rem; display: grid; place-items: center; margin-bottom: .5rem; border-radius: 999px; background: color-mix(in srgb, var(--accent) 18%, var(--surface2)); color: var(--accent); font-size: 1.4rem; }
+.playoff-overall-kicker { color: var(--accent); font-size: .58rem; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; }
+.playoff-overall-card h3 { margin-top: .2rem; font-family: 'Playfair Display', Georgia, serif; font-size: 1rem; font-weight: 900; line-height: 1.1; }
+.playoff-overall-card p { margin-top: .7rem; color: var(--muted); font-size: .56rem; line-height: 1.35; }
+.playoff-overall-card .playoff-team-row { background: var(--surface); border: 1px solid var(--border); }
+.playoff-footnote { display: flex; align-items: flex-start; gap: .55rem; color: var(--muted); font-size: .75rem; font-style: italic; }
+.playoff-footnote svg { flex: 0 0 auto; margin-top: .12rem; color: var(--accent); }
+
+/* Standings-to-bracket bridge. Playoff teams get a quiet material tint, while the badges make
+   the custom top-five + PF-wildcard rule readable without forcing everyone to open the bracket. */
+.standings-playoff-team {
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+.postseason-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 5.5rem;
+  padding: .24rem .48rem;
+  border: 1px solid var(--border2);
+  border-radius: 999px;
+  background: var(--surface2);
+  color: var(--text2);
+  font-size: .56rem;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: .035em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.postseason-bye { border-color: color-mix(in srgb, #fbbf24 55%, var(--border)); background: color-mix(in srgb, #fbbf24 12%, var(--surface)); color: var(--live); }
+.postseason-playoff { border-color: color-mix(in srgb, var(--playoff-nfc) 45%, var(--border)); background: color-mix(in srgb, var(--playoff-nfc) 9%, var(--surface)); color: var(--playoff-nfc); }
+.postseason-wildcard { border-color: color-mix(in srgb, #a78bfa 55%, var(--border)); background: color-mix(in srgb, #a78bfa 12%, var(--surface)); color: color-mix(in srgb, #a78bfa 82%, var(--text)); }
+.postseason-toilet_bowl { opacity: .72; }
+
+/* Prize cabinet: theme-native material cards with the conference colors carried over from the
+   bracket. Interactive pieces are explicitly previews; the page remains the rules source, not a
+   shared payment or punishment tracker. */
+.prizes-hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1.6rem;
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  background:
+    radial-gradient(80% 130% at 0% 0%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 65%),
+    linear-gradient(145deg, var(--surface2), var(--surface));
+  box-shadow: 0 1px 0 rgba(255,255,255,.1) inset, 0 22px 48px -36px rgba(0,0,0,.75);
+}
+.prizes-kicker { display: flex; align-items: center; gap: .45rem; margin-bottom: .55rem; color: color-mix(in srgb, var(--accent) 62%, var(--text)); font-size: .68rem; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; }
+.prizes-hero h1 { font-family: Impact, 'Arial Narrow', 'Arial Black', sans-serif; font-size: clamp(2rem, 4vw, 3.6rem); line-height: .95; letter-spacing: .005em; }
+.prizes-hero p { margin-top: .65rem; color: var(--text2); }
+.prizes-hero-actions { display: flex; flex-direction: column; align-items: flex-end; gap: .65rem; }
+.prizes-total { min-width: 13rem; padding: .8rem 1rem; border: 1px solid color-mix(in srgb, var(--accent) 48%, var(--border)); border-radius: .9rem; background: color-mix(in srgb, var(--accent) 8%, var(--surface)); text-align: right; }
+.prizes-total span, .prizes-total small { display: block; color: var(--muted); font-size: .6rem; font-weight: 750; text-transform: uppercase; letter-spacing: .08em; }
+.prizes-total strong { display: block; margin: .15rem 0; color: color-mix(in srgb, var(--accent) 62%, var(--text)); font-size: 1.7rem; font-weight: 950; font-variant-numeric: tabular-nums; }
+.prizes-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .8rem; }
+.prizes-section-heading span { color: color-mix(in srgb, var(--accent) 62%, var(--text)); font-size: .62rem; font-weight: 900; letter-spacing: .13em; text-transform: uppercase; }
+.prizes-section-heading h2 { margin-top: .12rem; font-family: 'Playfair Display', Georgia, serif; font-size: 1.35rem; font-weight: 900; }
+.prizes-section-heading.compact { margin-bottom: .5rem; }
+.prize-card-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .8rem; }
+.prize-card {
+  position: relative;
+  overflow: hidden;
+  min-height: 12rem;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--prize-accent) 45%, var(--border));
+  border-radius: 1rem;
+  background:
+    radial-gradient(100% 75% at 0% 0%, color-mix(in srgb, var(--prize-accent) 13%, transparent), transparent 70%),
+    linear-gradient(155deg, var(--surface2), var(--surface));
+  box-shadow: 0 1px 0 rgba(255,255,255,.09) inset, 0 15px 30px -25px rgba(0,0,0,.85);
+}
+.prize-card:hover { transform: translateY(-3px); box-shadow: 0 1px 0 rgba(255,255,255,.12) inset, 0 20px 36px -25px color-mix(in srgb, var(--prize-accent) 50%, rgba(0,0,0,.8)); }
+.prize-icon { width: 2.3rem; height: 2.3rem; display: grid; place-items: center; margin-bottom: .8rem; border-radius: .7rem; background: color-mix(in srgb, var(--prize-accent) 16%, var(--surface2)); color: var(--prize-accent); }
+.prize-eyebrow { color: var(--prize-accent); font-size: .58rem; font-weight: 900; letter-spacing: .13em; text-transform: uppercase; }
+.prize-card-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: .5rem; margin-top: .25rem; }
+.prize-card-heading h2 { font-size: .86rem; font-weight: 900; line-height: 1.15; }
+.prize-card-heading strong { color: var(--prize-accent); font-size: 1.25rem; font-weight: 950; font-variant-numeric: tabular-nums; }
+.prize-card p { margin-top: .7rem; color: var(--muted); font-size: .66rem; line-height: 1.45; }
+.wine-calculator {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) auto minmax(15rem, .8fr);
+  align-items: center;
+  gap: 1.2rem;
+  padding: 1.2rem;
+  border: 1px solid color-mix(in srgb, #a855f7 38%, var(--border));
+  border-radius: 1rem;
+  background:
+    radial-gradient(65% 120% at 0% 0%, color-mix(in srgb, #a855f7 13%, transparent), transparent 68%),
+    var(--surface);
+}
+.wine-calculator-copy > p { max-width: 42rem; color: var(--text2); font-size: .72rem; line-height: 1.5; }
+.wine-calculator-copy > small { display: block; margin-top: .45rem; color: var(--muted); font-size: .56rem; }
+.wine-stepper { display: flex; align-items: center; gap: .7rem; }
+.wine-stepper button { width: 2.2rem; height: 2.2rem; display: grid; place-items: center; border: 1px solid var(--border2); border-radius: 999px; background: var(--surface2); color: var(--text); }
+.wine-stepper button:hover:not(:disabled) { border-color: #a855f7; color: #c084fc; transform: scale(1.05); }
+.wine-stepper button:disabled { opacity: .3; cursor: not-allowed; }
+.wine-stepper > div { min-width: 4.5rem; text-align: center; }
+.wine-stepper strong { display: block; font-size: 1.7rem; line-height: 1; font-variant-numeric: tabular-nums; }
+.wine-stepper span { display: block; margin-top: .2rem; color: var(--muted); font-size: .55rem; }
+.wine-results { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem; }
+.wine-results > div { padding: .7rem; border: 1px solid var(--border); border-radius: .75rem; background: var(--surface2); }
+.wine-results span { display: block; color: var(--muted); font-size: .52rem; font-weight: 800; text-transform: uppercase; }
+.wine-results strong { display: block; margin-top: .15rem; color: var(--text); font-size: 1rem; font-weight: 950; font-variant-numeric: tabular-nums; }
+.toilet-prizes { padding: 1.2rem; border: 1px solid color-mix(in srgb, var(--playoff-afc) 35%, var(--border)); border-radius: 1rem; background: linear-gradient(155deg, var(--surface2), var(--surface)); }
+.toilet-emoji { font-size: 1.7rem !important; letter-spacing: 0 !important; }
+.toilet-intro { margin: -.15rem 0 .9rem; color: var(--muted); font-size: .68rem; }
+.toilet-choice-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .7rem; }
+.toilet-choice { display: flex; align-items: flex-start; gap: .7rem; padding: .9rem; border: 1px solid var(--border); border-radius: .85rem; background: color-mix(in srgb, var(--surface) 90%, var(--bg)); color: var(--text); text-align: left; }
+.toilet-choice:hover { border-color: var(--playoff-afc); transform: translateY(-2px); }
+.toilet-choice.is-selected { border-color: var(--playoff-afc); background: color-mix(in srgb, var(--playoff-afc) 11%, var(--surface)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--playoff-afc) 32%, transparent); }
+.toilet-choice-icon { width: 2rem; height: 2rem; flex: 0 0 2rem; display: grid; place-items: center; border-radius: .65rem; background: var(--surface2); color: var(--playoff-afc); }
+.toilet-choice strong { display: block; font-size: .76rem; font-weight: 900; }
+.toilet-choice small { display: block; margin-top: .25rem; color: var(--muted); font-size: .6rem; line-height: 1.4; }
+.toilet-pick-status { margin-top: .8rem; color: var(--playoff-afc); font-size: .6rem; font-weight: 900; text-align: right; text-transform: uppercase; letter-spacing: .08em; }
+
+@media (max-width: 800px) {
+  .playoff-hero { align-items: flex-start; flex-direction: column; padding: 1.1rem; }
+  .playoff-actions { width: 100%; justify-content: flex-start; }
+  .playoff-board-scroll { padding: .75rem; }
+  .playoff-status-banner button { margin-left: 0; }
+  .prizes-hero { align-items: flex-start; flex-direction: column; padding: 1.1rem; }
+  .prizes-hero-actions { width: 100%; align-items: flex-start; }
+  .prizes-total { width: 100%; text-align: left; }
+  .prize-card-grid { grid-template-columns: 1fr; }
+  .wine-calculator { grid-template-columns: 1fr; }
+  .wine-stepper { justify-content: center; }
+  .toilet-choice-grid { grid-template-columns: 1fr; }
+}
+
+@media (min-width: 801px) and (max-width: 1150px) {
+  .prize-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .wine-calculator { grid-template-columns: 1fr auto; }
+  .wine-results { grid-column: 1 / -1; }
 }

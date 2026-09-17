@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Download, Copy, Check, X as XIcon, Link as LinkIcon, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { Check, X as XIcon, Link as LinkIcon, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { useRosterModal } from '../context/RosterModalContext';
 import { useNameDisplay } from '../context/NameDisplayContext';
 import lenzoneLogoRing from '../assets/lenzone-logo-ring.png';
 import lenzoneLogoBall from '../assets/lenzone-logo-ball.png';
+import ExportControls from './ExportControls';
 
 // HEIGHT bumped along with MARGIN.bottom (not just the margin alone) -- the tied-points bracket
 // row plus the 3-line rotated name block genuinely need more real vertical room than before, not
@@ -77,6 +78,7 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
   const [exporting, setExporting] = useState(false);
   const [copyState, setCopyState] = useState("idle");
   const [downloadState, setDownloadState] = useState("idle");
+  const [exportTheme, setExportTheme] = useState('dark');
   const [linkCopyState, setLinkCopyState] = useState("idle");
 
   const groups = [];
@@ -169,14 +171,16 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
   // WeeklyScoresBarChart: a deliberately separate, self-built SVG (not a clone of the live one) so
   // the export never depends on the viewer's own theme, webfonts, or hover state; team logos are
   // pre-fetched as base64 data URIs since an isolated SVG rasterization can't load external images.
-  const EXPORT = { bg: "#0f172a", text: "#f8fafc", muted: "#94a3b8", border: "#475569" };
+  const EXPORT = exportTheme === 'dark'
+    ? { bg: "#0f172a", bgFrom: "#1b2338", bgTo: "#080a12", text: "#f8fafc", muted: "#aeb9c8", border: "#526178" }
+    : { bg: "#f5f1e8", bgFrom: "#fffaf1", bgTo: "#e8edf0", text: "#172033", muted: "#526073", border: "#9ba8b8" };
   const EXPORT_SANS = "Arial, Helvetica, sans-serif";
   const EXPORT_SERIF = "Georgia, 'Times New Roman', serif";
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   // The combined chart's overall median line uses the app's live "var(--accent)" token, which an
   // isolated rasterized SVG can't resolve (no access to the page's CSS) -- pinned to this app's own
   // actual accent hex (index.css), same fallback WeeklyScoresBarChart's own export uses.
-  const resolveExportColor = (c) => (c === "var(--accent)" ? "#e76f51" : c);
+  const resolveExportColor = (c) => (c === "var(--accent)" ? (exportTheme === 'dark' ? "#f08a6d" : "#c45138") : c);
 
   const fetchViaFetchApi = async (url) => {
     const res = await fetch(url);
@@ -234,8 +238,9 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
 
     const parts = [];
     parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${exportW}" height="${exportH}" viewBox="0 0 ${exportW} ${exportH}">`);
-    parts.push(`<defs><linearGradient id="export-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#161c2e"/><stop offset="55%" stop-color="${EXPORT.bg}"/><stop offset="100%" stop-color="#080a12"/></linearGradient></defs>`);
+    parts.push(`<defs><linearGradient id="export-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${EXPORT.bgFrom}"/><stop offset="55%" stop-color="${EXPORT.bg}"/><stop offset="100%" stop-color="${EXPORT.bgTo}"/></linearGradient><pattern id="export-texture" width="14" height="14" patternUnits="userSpaceOnUse"><path d="M-4 14L14 -4M3 17L17 3" stroke="${EXPORT.text}" stroke-opacity="${exportTheme === 'dark' ? 0.03 : 0.02}" stroke-width="0.7"/></pattern></defs>`);
     parts.push(`<rect x="0" y="0" width="${exportW}" height="${exportH}" fill="url(#export-bg)"/>`);
+    parts.push(`<rect x="0" y="0" width="${exportW}" height="${exportH}" fill="url(#export-texture)"/>`);
     parts.push(`<text x="${exportW / 2}" y="36" text-anchor="middle" font-family="${EXPORT_SERIF}" font-size="24" font-weight="700" fill="${EXPORT.text}">${esc(chartTitle)}</text>`);
     if (brandRing && brandBall) {
       const logoSize = 32, logoX = 16, logoY = 12;
@@ -361,7 +366,7 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
     try {
       const canvas = await renderExportCanvas();
       const link = document.createElement('a');
-      link.download = `standings${mode === 'combined' ? '-overall' : confFilter ? `-${confFilter.toLowerCase()}` : ''}.png`;
+      link.download = `standings${mode === 'combined' ? '-overall' : confFilter ? `-${confFilter.toLowerCase()}` : ''}-${exportTheme}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
     } catch (err) {
@@ -429,22 +434,15 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
               <ZoomIn className="w-3.5 h-3.5" />
             </button>
           </div>
-          <button
-            type="button" onClick={copyPng} disabled={exporting}
-            title="Copy image -- paste (Ctrl/Cmd+V) straight into an MS Teams or Discord message"
-            aria-label="Copy chart image to clipboard"
-            className="flex items-center gap-1 text-[10px] font-semibold text-[var(--muted)] hover:text-[var(--text)] px-2 py-1 rounded-md hover:bg-[var(--surface2)] transition-colors duration-150 disabled:opacity-50"
-          >
-            {copyState === "copied" ? <Check className="w-3.5 h-3.5 text-[var(--pos)]" /> : copyState === "error" ? <XIcon className="w-3.5 h-3.5 text-[var(--neg)]" /> : <Copy className="w-3.5 h-3.5" />}
-            {copyState === "copied" ? "Copied!" : copyState === "error" ? "Couldn't copy" : "Copy Image"}
-          </button>
-          <button
-            type="button" onClick={downloadPng} disabled={exporting} title="Download chart as PNG" aria-label="Download chart as PNG"
-            className="flex items-center gap-1 text-[10px] font-semibold text-[var(--muted)] hover:text-[var(--text)] px-2 py-1 rounded-md hover:bg-[var(--surface2)] transition-colors duration-150 disabled:opacity-50"
-          >
-            {downloadState === "error" ? <XIcon className="w-3.5 h-3.5 text-[var(--neg)]" /> : <Download className="w-3.5 h-3.5" />}
-            {downloadState === "error" ? "Export failed" : "PNG"}
-          </button>
+          <ExportControls
+            theme={exportTheme}
+            onThemeChange={setExportTheme}
+            onCopy={copyPng}
+            onDownload={downloadPng}
+            exporting={exporting}
+            copyState={copyState}
+            downloadState={downloadState}
+          />
           <button
             type="button" onClick={copyLink} title="Copy a link straight to the Standings tab" aria-label="Copy link to Standings"
             className="flex items-center gap-1 text-[10px] font-semibold text-[var(--muted)] hover:text-[var(--text)] px-2 py-1 rounded-md hover:bg-[var(--surface2)] transition-colors duration-150"

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Trophy, Swords, Megaphone, Scroll, ExternalLink, RefreshCw, Award, Lock, Unlock, X, Activity, ListOrdered, Users, Calendar, Search, Volume2, VolumeX, LayoutGrid, Newspaper, MessageCircle, MessageCircleOff } from 'lucide-react';
+import { Trophy, Swords, Megaphone, Scroll, ExternalLink, RefreshCw, Award, Lock, Unlock, X, Activity, ListOrdered, Users, Calendar, Search, Volume2, VolumeX, LayoutGrid, Newspaper, MessageCircle, MessageCircleOff, GitBranch } from 'lucide-react';
 import AnimatedLogo from './components/AnimatedLogo';
 import { CONF_STYLES } from './lib/theme';
 import { ConfFilterToggle } from './components/shared';
@@ -12,7 +12,7 @@ import {
   computeWeeklyAwards, computeProjectedTrophies, buildConferenceList, rankConference, winProbability, roughWinProbability, computePointsAgainst, computeInConfRecord,
   computeCrossPointsAgainst, computeIntraGamesPlayed, computeInterGamesPlayed, buildStandingsHistory,
   buildWeeklyPfPaHistory, computeWeeklyConferenceMedian, computeWeekResultByManager, computeManagerStreaks, computeRevengeGames,
-  computeBenchPointsAward
+  computeBenchPointsAward, buildPostseasonSeeds
 } from './lib/statsMath';
 import RosterTab from './components/RosterTab';
 import ActivityTab from './components/ActivityTab';
@@ -24,6 +24,8 @@ import { TeamDepthChartProvider } from './context/TeamDepthChartContext';
 import TeamName from './components/TeamName';
 import ScheduleTab from './components/ScheduleTab';
 import SeasonGridTab from './components/SeasonGridTab';
+import PlayoffsTab, { PLAYOFF_WEEKS } from './components/PlayoffsTab';
+import PrizesTab from './components/PrizesTab';
 import HomeView from './components/HomeView';
 import NewsView from './components/NewsView';
 import NewsTicker from './components/NewsTicker';
@@ -189,6 +191,7 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek }) {
   const { mode: nameDisplayMode } = useNameDisplay();
   const [sortKey, setSortKey] = useState('rank');
   const [sortDir, setSortDir] = useState('asc');
+  const postseasonByManager = new Map(buildPostseasonSeeds(rows, conf).map(team => [team.manager, team]));
 
   const handleSort = (key) => {
     if (key === sortKey) {
@@ -213,12 +216,17 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek }) {
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${style.badge}`}>{conf}</span>
           <span className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)]">Conference Standings</span>
         </div>
-        <span
-          className="text-[10px] font-semibold text-[var(--muted)]"
-          title="Monte Carlo estimate using completed standings, the remaining schedule, and scoring history. Live games do not change it."
-        >
-          Playoff Pulse · updates after Week {latestCompletedWeek}
-        </span>
+        <div className="text-right">
+          <span
+            className="block text-[10px] font-semibold text-[var(--muted)]"
+            title="Monte Carlo estimate using completed standings, the remaining schedule, and scoring history. Live games do not change it."
+          >
+            Playoff Pulse · updates after Week {latestCompletedWeek}
+          </span>
+          <span className="block mt-0.5 text-[9px] font-black uppercase tracking-wide text-[var(--accent)]">
+            {latestCompletedWeek >= 14 ? 'Official postseason field' : `Projected postseason field · through Week ${latestCompletedWeek}`}
+          </span>
+        </div>
       </div>
 
       <div className="hidden md:block overflow-x-auto">
@@ -226,6 +234,7 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek }) {
           <thead className="bg-[var(--bg)]/80 tracking-wider text-xs uppercase font-semibold text-[var(--text2)] border-b border-[var(--border)]/80">
             <tr>
               <SortHeader label="Rank" sortKey="rank" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
+              <th className="py-3 px-4">{latestCompletedWeek >= 14 ? 'Postseason' : 'Projected Seed'}</th>
               <SortHeader label={nameDisplayMode === 'teams' ? 'Team Name' : 'Manager'} sortKey="manager" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
               <th className="py-3 px-4">{nameDisplayMode === 'teams' ? 'Manager' : 'Fantasy Team'}</th>
               <SortHeader label="Intra-Conf" sortKey="inConfRecord" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
@@ -241,9 +250,15 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek }) {
           <tbody className="divide-y divide-[var(--border)]/60">
             {sortedRows.map((item, idx) => {
               const pulse = playoffPulse(item.playoffPct);
+              const postseason = postseasonByManager.get(item.manager);
               return (
-              <tr key={idx} className="hover:bg-[var(--surface2)]/30 transition-all duration-200">
+              <tr key={idx} className={`hover:bg-[var(--surface2)]/30 transition-all duration-200 ${postseason?.seed <= 6 ? 'standings-playoff-team' : ''}`}>
                 <td className="py-3 px-4 font-bold text-[var(--text2)]">{item.rank}</td>
+                <td className="py-3 px-4">
+                  <span className={`postseason-badge postseason-${postseason?.status?.toLowerCase()}`}>
+                    #{postseason?.seed} {postseason?.status === 'BYE' ? 'Bye' : postseason?.status === 'PLAYOFF' ? 'Playoff' : postseason?.status === 'WILDCARD' ? 'PF Wildcard' : 'Toilet Bowl'}
+                  </span>
+                </td>
                 <td className="py-3 px-4 font-bold text-[var(--text)]">
                   <div className="flex items-center gap-2">
                     <TeamName manager={item.manager} conf={conf} className="font-bold" />
@@ -273,13 +288,17 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek }) {
       <div className="md:hidden divide-y divide-[var(--border)]/60">
         {sortedRows.map((item, idx) => {
           const pulse = playoffPulse(item.playoffPct);
+          const postseason = postseasonByManager.get(item.manager);
           return (
-          <div key={idx} className={`p-4 border-l-2 ${style.border} hover:bg-[var(--surface2)]/30 transition-all duration-200`}>
+          <div key={idx} className={`p-4 border-l-2 ${style.border} hover:bg-[var(--surface2)]/30 transition-all duration-200 ${postseason?.seed <= 6 ? 'standings-playoff-team' : ''}`}>
             <div className="flex justify-between items-center mb-3">
               <div className="flex items-center gap-2">
                 <span className="text-[var(--muted)] font-bold text-sm">#{item.rank}</span>
                 <TeamName manager={item.manager} conf={conf} className="font-bold" />
               </div>
+              <span className={`postseason-badge postseason-${postseason?.status?.toLowerCase()}`}>
+                #{postseason?.seed} {postseason?.status === 'BYE' ? 'Bye' : postseason?.status === 'PLAYOFF' ? 'Playoff' : postseason?.status === 'WILDCARD' ? 'PF Wildcard' : 'Toilet Bowl'}
+              </span>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
@@ -546,7 +565,7 @@ function mergeMatchupWeek(previous, week, pairs) {
   };
 }
 
-const VALID_TABS = new Set(["home", "currentWeek", "standings", "matchups", "grid", "players", "news", "teams", "charter"]);
+const VALID_TABS = new Set(["home", "currentWeek", "standings", "playoffs", "matchups", "grid", "players", "news", "teams", "charter"]);
 
 // The hash can carry a "?week=N" suffix (e.g. "#matchups?week=3") so a shared link -- see
 // WeeklyScoresBarChart's "Copy Link" -- lands directly on the right week, not just the right tab.
@@ -760,6 +779,8 @@ export default function App() {
 
   const [afcSeason, setAfcSeason] = useState({ scoreByWeek: {}, scheduleByWeek: {}, rosterSnapshotByWeek: {}, latestCompletedWeek: 0 });
   const [nfcSeason, setNfcSeason] = useState({ scoreByWeek: {}, scheduleByWeek: {}, rosterSnapshotByWeek: {}, latestCompletedWeek: 0 });
+  const [afcPostseason, setAfcPostseason] = useState({});
+  const [nfcPostseason, setNfcPostseason] = useState({});
 
   const [playersDB, setPlayersDB] = useState({});
   const [playersLoading, setPlayersLoading] = useState(true);
@@ -835,6 +856,34 @@ export default function App() {
     if (Object.keys(nfcData.rosterIdMap).length === 0) return;
     fetchFullSeasonData(nfcLeagueId, nfcData.rosterIdMap, SEASON_WEEKS).then(setNfcSeason);
   }, [nfcLeagueId, nfcData.rosterIdMap]);
+
+  // LENZONE's custom standings decide the playoff field, then the commissioners manually enter
+  // those pairings in Sleeper. While this tab is open, pull Weeks 15-17 so the bracket becomes a
+  // live scoreboard after that handoff without mixing postseason scores into regular-season PF.
+  useEffect(() => {
+    if (activeTab !== 'playoffs') return;
+    const hasAfcMap = Object.keys(afcData.rosterIdMap).length > 0;
+    const hasNfcMap = Object.keys(nfcData.rosterIdMap).length > 0;
+    if (!hasAfcMap || !hasNfcMap) return;
+    let cancelled = false;
+    const refreshPostseason = async () => {
+      const [afcWeeks, nfcWeeks] = await Promise.all([
+        Promise.all(PLAYOFF_WEEKS.map(async week => [week, await fetchWeekMatchups(afcLeagueId, week, afcData.rosterIdMap)])),
+        Promise.all(PLAYOFF_WEEKS.map(async week => [week, await fetchWeekMatchups(nfcLeagueId, week, nfcData.rosterIdMap)]))
+      ]);
+      if (cancelled) return;
+      setAfcPostseason(Object.fromEntries(afcWeeks));
+      setNfcPostseason(Object.fromEntries(nfcWeeks));
+    };
+    refreshPostseason();
+    const intervalId = window.setInterval(refreshPostseason, 60 * 1000);
+    window.addEventListener('focus', refreshPostseason);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refreshPostseason);
+    };
+  }, [activeTab, afcLeagueId, nfcLeagueId, afcData.rosterIdMap, nfcData.rosterIdMap]);
 
   useEffect(() => {
     fetchPlayersDB().then(db => { setPlayersDB(db); setPlayersLoading(false); });
@@ -1401,9 +1450,10 @@ export default function App() {
   // click to hold a spot in the bar too.
   const tabs = [
     { id: "currentWeek", label: `This Week (${selectedWeek})`, shortLabel: `This Week (${selectedWeek})`, icon: Calendar },
-    { id: "standings", label: "Standings", shortLabel: "Standings", icon: Trophy },
     { id: "matchups", label: "Matchups", shortLabel: "Matchups", icon: Swords },
+    { id: "standings", label: "Standings", shortLabel: "Standings", icon: Trophy },
     { id: "grid", label: "Schedule Grid", shortLabel: "Schedule Grid", icon: LayoutGrid },
+    { id: "playoffs", label: "Playoffs & Prizes", shortLabel: "Playoffs", icon: GitBranch },
     { id: "players", label: "Players", shortLabel: "Players", icon: Search },
     { id: "news", label: "News", shortLabel: "News", icon: Newspaper },
     ...(isAdmin ? [{ id: "teams", label: "MS Teams Broadcast", shortLabel: "Broadcast", icon: Megaphone }] : [])
@@ -1650,19 +1700,28 @@ export default function App() {
               )}
             </div>
 
-            <div className="inline-flex rounded-full bg-[var(--surface2)] border border-[var(--border)] p-1 gap-1">
-              {[["overview", "Overview"], ["trends", "Trends"]].map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setStandingsView(id)}
-                  className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all duration-200 ${
-                    standingsView === id ? "bg-[var(--accent)] text-[var(--accent-text)]" : "text-[var(--text2)] hover:text-[var(--text)]"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="inline-flex rounded-full bg-[var(--surface2)] border border-[var(--border)] p-1 gap-1">
+                {[["overview", "Overview"], ["trends", "Trends"]].map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setStandingsView(id)}
+                    className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all duration-200 ${
+                      standingsView === id ? "bg-[var(--accent)] text-[var(--accent-text)]" : "text-[var(--text2)] hover:text-[var(--text)]"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => navigateToTab("playoffs")}
+                className="inline-flex items-center gap-2 rounded-full border border-[var(--border2)] bg-[var(--surface)] px-4 py-2 text-sm font-extrabold text-[var(--text)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all"
+              >
+                <GitBranch className="w-4 h-4" /> View Playoff Bracket
+              </button>
             </div>
 
             {standingsView === "overview" && (
@@ -1898,6 +1957,27 @@ export default function App() {
               latestCompletedWeek={latestCompletedWeek}
               logoMap={teamLogoMap}
             />
+          </div>
+        )}
+
+        {/* TAB: PLAYOFFS & PRIZES (custom seeds, live results, payouts and consequences) */}
+        {activeTab === "playoffs" && (
+          <div className="relative left-1/2 w-[calc(100vw-2rem)] max-w-[1800px] -translate-x-1/2">
+            {!hasStandingsData ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
+                <RefreshCw className="w-7 h-7 animate-spin text-[var(--accent)]" />
+                <p className="text-sm text-[var(--muted)]">Building the bracket from LENZONE standings&hellip;</p>
+              </div>
+            ) : (
+              <PlayoffsTab
+                afcStandings={afcStandings} nfcStandings={nfcStandings}
+                afcPostseason={afcPostseason} nfcPostseason={nfcPostseason}
+                currentWeek={nflState.week || 1} latestCompletedWeek={latestCompletedWeek}
+              />
+            )}
+            <div className="max-w-7xl mx-auto w-full mt-16">
+              <PrizesTab />
+            </div>
           </div>
         )}
 

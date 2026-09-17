@@ -165,9 +165,10 @@ function BigAppLogo() {
 function navSections(selectedWeek) {
   return [
     { id: "currentWeek", title: `This Week (${selectedWeek})` },
-    { id: "standings", title: "Standings" },
     { id: "matchups", title: "Matchups" },
+    { id: "standings", title: "Standings" },
     { id: "grid", title: "Schedule Grid" },
+    { id: "playoffs", title: "Playoffs & Prizes" },
     { id: "players", title: "Players" },
     { id: "news", title: "News" }
   ];

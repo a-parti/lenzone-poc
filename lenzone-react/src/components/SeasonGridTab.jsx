@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Check, Copy, Download, Moon, Sun, X as XIcon } from 'lucide-react';
 import { CONF_STYLES } from '../lib/theme';
 import { useIsMyTeam } from '../context/MyTeamContext';
 import { useMatchupPreview } from '../context/MatchupPreviewContext';
@@ -7,6 +6,7 @@ import { useNameDisplay } from '../context/NameDisplayContext';
 import TeamName from './TeamName';
 import lenzoneLogoRing from '../assets/lenzone-logo-ring.png';
 import lenzoneLogoBall from '../assets/lenzone-logo-ball.png';
+import ExportControls from './ExportControls';
 
 const TEAM_COL_WIDTH = 232; // px -- fixed so the sticky team column has a stable width
 const EXPORT_SERIF = "'Lora', Georgia, serif";
@@ -350,52 +350,15 @@ export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afc
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-[var(--muted)]">Click a week's header to highlight it{highlightWeek != null ? ` -- Week ${highlightWeek} highlighted` : ""}.</p>
-        <div className="flex flex-wrap items-center justify-end gap-1">
-          <div
-            className="inline-flex items-center rounded-lg border border-[var(--border)] bg-[var(--bg)] p-0.5 mr-1"
-            role="group"
-            aria-label="Export color mode"
-          >
-            {[
-              ['light', 'Light', Sun],
-              ['dark', 'Dark', Moon]
-            ].map(([theme, label, Icon]) => (
-              <button
-                key={theme}
-                type="button"
-                onClick={() => setExportTheme(theme)}
-                disabled={exporting}
-                aria-pressed={exportTheme === theme}
-                title={`Export in ${label.toLowerCase()} mode`}
-                className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold transition-colors disabled:opacity-50 ${
-                  exportTheme === theme
-                    ? 'bg-[var(--accent)] text-[var(--accent-text)] shadow-sm'
-                    : 'text-[var(--muted)] hover:text-[var(--text)]'
-                }`}
-              >
-                <Icon className="w-3 h-3" aria-hidden="true" />
-                {label}
-              </button>
-            ))}
-          </div>
-          <button
-            type="button" onClick={copyPng} disabled={exporting}
-            title="Copy grid image -- paste it straight into an MS Teams or Discord message"
-            aria-label="Copy grid image to clipboard"
-            className="flex items-center gap-1 text-[10px] font-semibold text-[var(--muted)] hover:text-[var(--text)] px-2 py-1 rounded-md hover:bg-[var(--surface2)] transition-colors duration-150 disabled:opacity-50"
-          >
-            {copyState === 'copied' ? <Check className="w-3.5 h-3.5 text-[var(--pos)]" /> : copyState === 'error' ? <XIcon className="w-3.5 h-3.5 text-[var(--neg)]" /> : <Copy className="w-3.5 h-3.5" />}
-            {copyState === 'copied' ? 'Copied!' : copyState === 'error' ? "Couldn't copy" : 'Copy Image'}
-          </button>
-          <button
-            type="button" onClick={downloadPng} disabled={exporting}
-            title="Download grid as PNG" aria-label="Download grid as PNG"
-            className="flex items-center gap-1 text-[10px] font-semibold text-[var(--muted)] hover:text-[var(--text)] px-2 py-1 rounded-md hover:bg-[var(--surface2)] transition-colors duration-150 disabled:opacity-50"
-          >
-            {downloadState === 'error' ? <XIcon className="w-3.5 h-3.5 text-[var(--neg)]" /> : <Download className="w-3.5 h-3.5" />}
-            {downloadState === 'error' ? 'Export failed' : 'PNG'}
-          </button>
-        </div>
+        <ExportControls
+          theme={exportTheme}
+          onThemeChange={setExportTheme}
+          onCopy={copyPng}
+          onDownload={downloadPng}
+          exporting={exporting}
+          copyState={copyState}
+          downloadState={downloadState}
+        />
       </div>
 
       <div className="schedule-grid-shell material-surface bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl overflow-auto scroll-thin max-h-[75vh] flex items-start">

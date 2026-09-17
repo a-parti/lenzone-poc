@@ -1,5 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useNameDisplay } from '../context/NameDisplayContext';
+import ExportControls from './ExportControls';
+import useElementPngExport from '../hooks/useElementPngExport';
 
 const WIDTH = 900;
 const HEIGHT = 320;
@@ -64,6 +66,8 @@ function declutter(items, minGap, min, max) {
 // of these charts at once).
 function LineChart({ title, series, weeks, yMin, yMax, invertY, formatY, logoMap, chartId }) {
   const [hovered, setHovered] = useState(null);
+  const exportRef = useRef(null);
+  const imageExport = useElementPngExport(exportRef, `lenzone-${chartId}-trend`, { minWidth: 960 });
   const { mode: nameMode, displayName, managerName } = useNameDisplay();
   const graphName = (manager, conf) => {
     const primary = displayName(manager, conf);
@@ -97,8 +101,21 @@ function LineChart({ title, series, weeks, yMin, yMax, invertY, formatY, logoMap
   }, [series, yMin, yMax, invertY, logoSize]);
 
   return (
-    <div className="bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-4">
-      <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)] mb-2">{title}</p>
+    <div ref={exportRef} className="bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-4">
+      <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+        <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">{title}</p>
+        <div data-export-ignore="true">
+          <ExportControls
+            theme={imageExport.exportTheme}
+            onThemeChange={imageExport.setExportTheme}
+            onCopy={imageExport.copyPng}
+            onDownload={imageExport.downloadPng}
+            exporting={imageExport.exporting}
+            copyState={imageExport.copyState}
+            downloadState={imageExport.downloadState}
+          />
+        </div>
+      </div>
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="w-full h-auto" role="img" aria-label={title}>
         {/* Gridlines + y-axis labels */}
         {ticks.map((t, i) => (

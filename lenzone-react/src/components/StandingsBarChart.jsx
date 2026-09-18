@@ -147,6 +147,17 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
   const width = MARGIN.left + MARGIN.right + plotW;
   const plotH = HEIGHT - MARGIN.top - MARGIN.bottom;
 
+  // The top five in each conference are guaranteed playoff spots. This divider only belongs on
+  // the AFC/NFC chart: an overall merged ranking has no conference-specific qualification line.
+  const playoffCutoffs = mode === "segregated"
+    ? groups.map(group => {
+        const fifth = bars.find(b => b.conf === group.conf && b.rank === 5);
+        const sixth = bars.find(b => b.conf === group.conf && b.rank === 6);
+        return fifth && sixth ? { conf: group.conf, x: (fifth.x + fifth.barWidth + sixth.x) / 2 } : null;
+      }).filter(Boolean)
+    : [];
+  const playoffCutoffLabelY = groupSpans.length > 1 ? MARGIN.top - 30 : MARGIN.top - 16;
+
   // Height uses the standings-points scale. PF has no competing y-axis: it determines each
   // bar's real width and therefore its own x-axis footprint.
   const maxStandingsPts = Math.max(1, ...bars.map(b => b.totalPts || 0));
@@ -260,6 +271,10 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
       const dividerX = groupSpans[0].endX + GROUP_GAP / 2;
       parts.push(`<line x1="${dividerX}" x2="${dividerX}" y1="${MARGIN.top - 8}" y2="${MARGIN.top + plotH}" stroke="${EXPORT.border}" stroke-width="1.5" stroke-dasharray="3 4"/>`);
     }
+    playoffCutoffs.forEach(cutoff => {
+      parts.push(`<line x1="${cutoff.x}" x2="${cutoff.x}" y1="${MARGIN.top - 5}" y2="${MARGIN.top + plotH}" stroke="${EXPORT.muted}" stroke-width="2" stroke-dasharray="6 5" opacity="0.9"/>`);
+      parts.push(`<text x="${cutoff.x}" y="${playoffCutoffLabelY}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="10" font-weight="800" letter-spacing="0.6" fill="${EXPORT.muted}">TOP 5</text>`);
+    });
 
     bars.forEach(b => {
       const standingsY = yForStandings(b.totalPts || 0);
@@ -322,6 +337,10 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
       parts.push(`<text x="${lx + 20}" y="${ly}" font-family="${EXPORT_SANS}" font-size="14" font-weight="600" fill="${EXPORT.text}">${item.label}</text>`);
       lx += 80;
     });
+    if (playoffCutoffs.length) {
+      parts.push(`<line x1="${lx}" x2="${lx + 18}" y1="${ly - 5}" y2="${ly - 5}" stroke="${EXPORT.muted}" stroke-width="2" stroke-dasharray="5 4"/>`);
+      parts.push(`<text x="${lx + 24}" y="${ly}" font-family="${EXPORT_SANS}" font-size="14" font-weight="600" fill="${EXPORT.text}">Top 5 guaranteed</text>`);
+    }
 
     parts.push(`</svg>`);
     return { svgText: parts.join(''), exportW, exportH };
@@ -491,6 +510,17 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
               y1={MARGIN.top - 8} y2={MARGIN.top + plotH} stroke="var(--border)" strokeWidth={1.5} strokeDasharray="3 4"
             />
           )}
+          {playoffCutoffs.map(cutoff => (
+            <g key={`playoff-cutoff-${cutoff.conf}`}>
+              <line
+                x1={cutoff.x} x2={cutoff.x} y1={MARGIN.top - 5} y2={MARGIN.top + plotH}
+                stroke="var(--muted)" strokeWidth={2} strokeDasharray="6 5" opacity={0.9}
+              />
+              <text x={cutoff.x} y={playoffCutoffLabelY} textAnchor="middle" fontSize={10} fontWeight={800} letterSpacing="0.06em" fill="var(--muted)">
+                TOP 5
+              </text>
+            </g>
+          ))}
 
           <defs>
             <linearGradient id="sbc-bar-sheen" x1="0" y1="0" x2="0" y2="1">
@@ -604,6 +634,7 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
         <span className="flex items-center gap-1.5"><span className="w-5 h-2 rounded-sm bg-[var(--text)]" /> Width + in-bar label: PF Avg</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: AFC_COLOR }} /> AFC</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: NFC_COLOR }} /> NFC</span>
+        {playoffCutoffs.length > 0 && <span className="flex items-center gap-1.5"><span className="w-4 border-t-2 border-dashed border-[var(--muted)]" /> Top 5 guaranteed playoff spots</span>}
       </div>
     </div>
   );

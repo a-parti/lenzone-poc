@@ -434,7 +434,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
       values.push({ kind: 'actual', label: 'Actual', value: b.actualScore, opacity: hovered ? 0.5 : 0.34, dash: '4 3' });
     }
     if (b.projectedScore != null) {
-      values.push({ kind: 'live', label: values.length ? 'Live' : 'Proj', value: b.projectedScore, opacity: hovered ? 0.96 : 0.76, dash: null });
+      values.push({ kind: 'live', label: 'Proj', value: b.projectedScore, opacity: hovered ? 0.96 : 0.76, dash: null });
     }
     if (b.pregameScore != null) {
       values.push({ kind: 'pregame', label: 'Pre', value: b.pregameScore, opacity: hovered ? 0.32 : 0.19, dash: '2 2' });

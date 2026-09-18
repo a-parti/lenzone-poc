@@ -21,27 +21,20 @@ const HEIGHT = 420;
 // margin -- 56px was only ever enough for the y-axis ticks/label, nowhere near enough room for the
 // league's longest team name (e.g. "Justhereforthegroupchat") to swing left without clipping.
 const MARGIN = { top: 40, right: 58, bottom: 190, left: 185 };
-// Each ranked slot contains a small, left-to-right cluster: Standings Pts first, then PF (avg).
-// The extra width keeps the two series visually distinct even when all 24 teams are on screen.
-const MIN_BAR_W = 86;
-const BAR_GAP = 10;
-const METRIC_BAR_GAP = 5;
-const METRIC_BAR_W = (MIN_BAR_W - METRIC_BAR_GAP) / 2;
+// PF owns the horizontal footprint: higher PF average literally gets a wider bar and a larger
+// x-axis slot. Each bar still has enough minimum width for a clear team badge.
+const BAR_GAP = 12;
+const PF_BAR_MIN_W = 58;
+const PF_BAR_MAX_W = 108;
 const GROUP_GAP = 30;
-const LOGO_SIZE = 32;
+const LOGO_MIN_SIZE = 18;
+const LOGO_MAX_SIZE = 68;
 const AFC_COLOR = "#f87171"; // matches WeeklyScoresBarChart's AFC_COLOR / CONF_STYLES.AFC.text
 const NFC_COLOR = "#60a5fa"; // matches WeeklyScoresBarChart's NFC_COLOR / CONF_STYLES.NFC.text
 // Same serif/sans split as WeeklyScoresBarChart -- a name is a label (serif), a number is data
 // (bold geometric sans) -- so the two chart types read as one consistent visual system.
 const DATA_FONT = "'DM Sans', ui-sans-serif, sans-serif";
 const SERIF_FONT = "'Lora', Georgia, serif";
-
-function median(arr) {
-  if (!arr.length) return null;
-  const sorted = [...arr].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-}
 
 function niceStep(max, targetCount = 5) {
   const rawStep = max / targetCount || 1;
@@ -58,9 +51,9 @@ function niceTicks(max, targetCount = 5) {
   return { ticks, domainMax };
 }
 
-// A two-bar cluster per team, ranked left to right: Standings Pts first and PF (avg) second --
-// the same figures the Standings table above computes (rankConference/buildConferenceList in
-// statsMath.js). Two modes:
+// One variable-width bar per team, ranked left to right. Height is standings points, width is
+// PF average (also printed inside the bar) -- the same figures the Standings table above computes
+// (rankConference/buildConferenceList in statsMath.js). Two modes:
 // - "segregated" (default): each conference is ranked against just its own 12. Two separated,
 //   labeled groups appear when both conferences are showing.
 // - "combined": one merged 1-24 ranking across both conferences at once (tie-broken by the
@@ -85,7 +78,7 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
   const { theme: exportTheme, setTheme: setExportTheme, scheme: exportScheme } = useModuleExportTheme();
   const [linkCopyState, setLinkCopyState] = useState("idle");
 
-  // Keep the visual ordering honest: the first bar decides the rank, and the second resolves a tie.
+  // Keep the visual ordering honest: standings points decide rank, and PF resolves a tie.
   const compareStandings = (a, b) => b.totalPts - a.totalPts || b.pfAvg - a.pfAvg;
   const groups = [];
   if (mode === "combined") {
@@ -100,6 +93,15 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
 
   if (groups.length === 0 || groups.every(g => g.rows.length === 0)) return null;
 
+  const pfValues = groups.flatMap(group => group.rows.map(row => row.pfAvg || 0));
+  const minPf = Math.min(...pfValues);
+  const maxPf = Math.max(...pfValues);
+  const pfBarWidthFor = (pf) => {
+    if (maxPf === minPf) return (PF_BAR_MIN_W + PF_BAR_MAX_W) / 2;
+    const ratio = ((pf || 0) - minPf) / (maxPf - minPf);
+    return PF_BAR_MIN_W + ratio * (PF_BAR_MAX_W - PF_BAR_MIN_W);
+  };
+
   let x = MARGIN.left;
   const bars = [];
   // Tracks each group's own x-span so a conference label/divider can be drawn once per group,
@@ -113,8 +115,9 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
       // group.conf is null in combined mode (one merged group, not per-conference) -- fall back
       // to the row's OWN real conf (already set by rankConference) so each bar still colors by
       // its actual conference instead of every bar losing its color to that null marker.
-      bars.push({ ...row, conf: group.conf ?? row.conf, x });
-      x += MIN_BAR_W + BAR_GAP;
+      const barWidth = pfBarWidthFor(row.pfAvg || 0);
+      bars.push({ ...row, conf: group.conf ?? row.conf, x, barWidth });
+      x += barWidth + BAR_GAP;
     });
     groupSpans.push({ conf: group.conf, startX, endX: x - BAR_GAP });
   });
@@ -132,10 +135,10 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
     // grouping boundary -- a tie that happens to straddle an AFC- and NFC-origin team adjacent in
     // the merged rank is still one real tie and belongs in one shared bracket, not two size-1 ones.
     if (i === 0 || (mode !== "combined" && b.conf !== prev.conf) || b.totalPts !== prev.totalPts) {
-      tiers.push({ pts: b.totalPts, startX: b.x, endX: b.x + MIN_BAR_W, count: 1 });
+      tiers.push({ pts: b.totalPts, startX: b.x, endX: b.x + b.barWidth, count: 1 });
     } else {
       const t = tiers[tiers.length - 1];
-      t.endX = b.x + MIN_BAR_W;
+      t.endX = b.x + b.barWidth;
       t.count++;
     }
     b.tierIdx = tiers.length - 1;
@@ -144,39 +147,26 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
   const width = MARGIN.left + MARGIN.right + plotW;
   const plotH = HEIGHT - MARGIN.top - MARGIN.bottom;
 
-  // Points and PF/live score are different scales, so the clustered bars use separate axes.
-  // That makes the first bar useful rather than a tiny sliver beside a ~100 PF bar.
+  // Height uses the standings-points scale. PF has no competing y-axis: it determines each
+  // bar's real width and therefore its own x-axis footprint.
   const maxStandingsPts = Math.max(1, ...bars.map(b => b.totalPts || 0));
   const { ticks: standingsTicks, domainMax: standingsDomainMax } = niceTicks(maxStandingsPts, 4);
-  const maxPf = Math.max(1, ...bars.map(b => b.pfAvg || 0));
-  const { ticks: pfTicks, domainMax: pfDomainMax } = niceTicks(maxPf);
   const yForStandings = (v) => MARGIN.top + plotH - (v / standingsDomainMax) * plotH;
-  const yForPf = (v) => MARGIN.top + plotH - (v / pfDomainMax) * plotH;
-
-  // Median-PF/game reference lines -- combined mode gets ONE overall median across everyone
-  // (there's only one merged ranking to compare against); segregated mode gets each showing
-  // conference's own median instead, since AFC and NFC are two separate pools there.
-  const medianLines = [];
-  if (mode === "combined") {
-    const m = median(bars.map(b => b.pfAvg || 0));
-    if (m != null) medianLines.push({ label: "Overall Median", color: "var(--accent)", value: m });
-  } else {
-    if (confFilter !== "NFC" && afcStandings?.length) {
-      const m = median(afcStandings.map(r => r.pfAvg || 0));
-      if (m != null) medianLines.push({ label: "AFC Median", color: AFC_COLOR, value: m });
-    }
-    if (confFilter !== "AFC" && nfcStandings?.length) {
-      const m = median(nfcStandings.map(r => r.pfAvg || 0));
-      if (m != null) medianLines.push({ label: "NFC Median", color: NFC_COLOR, value: m });
-    }
-  }
+  const logoSizeFor = (barWidth, standingsHeight) => {
+    // A short bar gets a deliberately tiny badge even if its PF made it wide. The bar's relative
+    // y-axis height is the stronger multiplier, so leaders visually loom while 1-point teams
+    // retain a clean, recognizable logo instead of an oversized one.
+    const heightRatio = Math.max(0, Math.min(1, standingsHeight / plotH));
+    const widthSize = Math.min(LOGO_MAX_SIZE, barWidth * 0.7);
+    return Math.max(LOGO_MIN_SIZE, widthSize * (0.2 + 0.8 * heightRatio));
+  };
   // The tied-points bracket sits in its own row between the bar bottoms and the rotated name
   // labels (not tacked on below everything, and not fighting the labels for the same row) --
   // labelStartY is pushed down from where it used to start to make room for that row above it.
   const bracketY = MARGIN.top + plotH + 20;
   const labelStartY = MARGIN.top + plotH + 40;
   const titleSuffix = mode === "combined" ? " (Overall)" : confFilter === "AFC" ? " (AFC)" : confFilter === "NFC" ? " (NFC)" : "";
-  const chartTitle = `Standings -- Points + PF (avg)${titleSuffix}`;
+  const chartTitle = `Standings -- Pts Height / PF Width${titleSuffix}`;
 
   // ---- Export (PNG download / copy-to-clipboard / deep link) -- same approach as
   // WeeklyScoresBarChart: a deliberately separate, self-built SVG (not a clone of the live one) so
@@ -188,11 +178,6 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
   const EXPORT_SANS = "Arial, Helvetica, sans-serif";
   const EXPORT_SERIF = "Georgia, 'Times New Roman', serif";
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  // The combined chart's overall median line uses the app's live "var(--accent)" token, which an
-  // isolated rasterized SVG can't resolve (no access to the page's CSS) -- pinned to this app's own
-  // actual accent hex (index.css), same fallback WeeklyScoresBarChart's own export uses.
-  const resolveExportColor = (c) => (c === "var(--accent)" ? (exportTheme === 'dark' ? "#f08a6d" : "#c45138") : c);
-
   const fetchViaFetchApi = async (url) => {
     const res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -260,25 +245,13 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
     }
 
     parts.push(`<g transform="translate(0 ${titleH})">`);
-    pfTicks.forEach(t => {
-      const ty = yForPf(t);
-      parts.push(`<line x1="${MARGIN.left}" x2="${width - MARGIN.right}" y1="${ty}" y2="${ty}" stroke="${EXPORT.border}" stroke-opacity="0.5" stroke-width="1"/>`);
-      parts.push(`<text x="${width - MARGIN.right + 10}" y="${ty}" dominant-baseline="middle" font-family="${EXPORT_SANS}" font-size="13" fill="${EXPORT.muted}">${t.toFixed(0)}</text>`);
-    });
     standingsTicks.forEach(t => {
       const ty = yForStandings(t);
+      parts.push(`<line x1="${MARGIN.left}" x2="${width - MARGIN.right}" y1="${ty}" y2="${ty}" stroke="${EXPORT.border}" stroke-opacity="0.5" stroke-width="1"/>`);
       parts.push(`<line x1="${MARGIN.left - 5}" x2="${MARGIN.left}" y1="${ty}" y2="${ty}" stroke="${EXPORT.border}" stroke-width="1"/>`);
       parts.push(`<text x="${MARGIN.left - 10}" y="${ty}" text-anchor="end" dominant-baseline="middle" font-family="${EXPORT_SANS}" font-size="13" fill="${EXPORT.muted}">${t.toFixed(1)}</text>`);
     });
     parts.push(`<text x="150" y="${MARGIN.top + plotH / 2}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="13" font-weight="700" fill="${EXPORT.muted}" transform="rotate(-90 150 ${MARGIN.top + plotH / 2})">Standings Pts</text>`);
-    parts.push(`<text x="${width - 16}" y="${MARGIN.top + plotH / 2}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="13" font-weight="700" fill="${EXPORT.muted}" transform="rotate(90 ${width - 16} ${MARGIN.top + plotH / 2})">PF (avg)</text>`);
-
-    medianLines.forEach(m => {
-      const my = yForPf(m.value);
-      const mColor = resolveExportColor(m.color);
-      parts.push(`<line x1="${MARGIN.left}" x2="${width - MARGIN.right}" y1="${my}" y2="${my}" stroke="${mColor}" stroke-width="2" stroke-dasharray="7 5" opacity="0.85"/>`);
-      parts.push(`<text x="${width - MARGIN.right + 8}" y="${my}" dominant-baseline="middle" font-family="${EXPORT_SANS}" font-size="11" font-weight="700" fill="${mColor}">${esc(m.label.split(' ')[0])} ${m.value.toFixed(1)}</text>`);
-    });
 
     if (groupSpans.length > 1) {
       groupSpans.forEach(g => {
@@ -291,25 +264,23 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
     bars.forEach(b => {
       const standingsY = yForStandings(b.totalPts || 0);
       const standingsHeight = MARGIN.top + plotH - standingsY;
-      const pfY = yForPf(b.pfAvg || 0);
-      const pfHeight = MARGIN.top + plotH - pfY;
       const color = b.conf === "AFC" ? AFC_COLOR : b.conf === "NFC" ? NFC_COLOR : EXPORT.text;
-      const standingsCx = b.x + METRIC_BAR_W / 2;
-      const pfX = b.x + METRIC_BAR_W + METRIC_BAR_GAP;
-      const pfCx = pfX + METRIC_BAR_W / 2;
-      const cx = b.x + MIN_BAR_W / 2;
-      parts.push(`<rect x="${b.x}" y="${standingsY}" width="${METRIC_BAR_W}" height="${standingsHeight}" rx="5" fill="${color}" fill-opacity="0.8" stroke="${color}" stroke-width="2"/>`);
-      parts.push(`<rect x="${pfX}" y="${pfY}" width="${METRIC_BAR_W}" height="${pfHeight}" rx="5" fill="${color}" fill-opacity="0.24" stroke="${color}" stroke-width="2" stroke-dasharray="4 2"/>`);
+      const barWidth = b.barWidth;
+      const barX = b.x;
+      const cx = barX + barWidth / 2;
+      parts.push(`<rect x="${barX}" y="${standingsY}" width="${barWidth}" height="${standingsHeight}" rx="6" fill="${color}" fill-opacity="0.82" stroke="${color}" stroke-width="2"/>`);
       const logoUrl = logoData[b.manager];
-      if (logoUrl && pfHeight >= LOGO_SIZE + 12) {
-        const logoCy = pfY + LOGO_SIZE / 2 + 6;
+      const logoSize = logoSizeFor(barWidth, standingsHeight);
+      if (logoUrl && standingsHeight >= logoSize + 32) {
+        const logoCy = standingsY + Math.max(logoSize / 2 + 8, (standingsHeight - 26) / 2);
         const clipId = `export-logo-${b.manager.replace(/[^a-zA-Z0-9]/g, '')}`;
-        parts.push(`<defs><clipPath id="${clipId}"><circle cx="${pfCx}" cy="${logoCy}" r="${LOGO_SIZE / 2}"/></clipPath></defs>`);
-        parts.push(`<image href="${logoUrl}" x="${pfCx - LOGO_SIZE / 2}" y="${logoCy - LOGO_SIZE / 2}" width="${LOGO_SIZE}" height="${LOGO_SIZE}" clip-path="url(#${clipId})" preserveAspectRatio="xMidYMid slice"/>`);
-        parts.push(`<circle cx="${pfCx}" cy="${logoCy}" r="${LOGO_SIZE / 2}" fill="none" stroke="${EXPORT.bg}" stroke-width="2"/>`);
+        parts.push(`<defs><clipPath id="${clipId}"><circle cx="${cx}" cy="${logoCy}" r="${logoSize / 2}"/></clipPath></defs>`);
+        parts.push(`<image href="${logoUrl}" x="${cx - logoSize / 2}" y="${logoCy - logoSize / 2}" width="${logoSize}" height="${logoSize}" clip-path="url(#${clipId})" preserveAspectRatio="xMidYMid slice"/>`);
+        parts.push(`<circle cx="${cx}" cy="${logoCy}" r="${logoSize / 2}" fill="none" stroke="${EXPORT.bg}" stroke-width="2"/>`);
       }
-      parts.push(`<text x="${standingsCx}" y="${standingsY - 6}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="12" font-weight="800" fill="${EXPORT.text}">${(b.totalPts || 0).toFixed(1)}</text>`);
-      parts.push(`<text x="${pfCx}" y="${pfY - 6}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="12" font-weight="800" fill="${EXPORT.text}">${(b.pfAvg || 0).toFixed(1)}</text>`);
+      parts.push(`<text x="${cx}" y="${standingsY - 6}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="12" font-weight="800" fill="${EXPORT.text}">${(b.totalPts || 0).toFixed(1)}</text>`);
+      const pfInside = standingsHeight >= 28;
+      parts.push(`<text x="${cx}" y="${pfInside ? MARGIN.top + plotH - 10 : standingsY - 20}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="11" font-weight="800" fill="${pfInside ? EXPORT.bg : EXPORT.text}">PF ${b.pfAvg.toFixed(1)}</text>`);
       const labelY = labelStartY;
       const visibleName = displayName(b.manager, b.conf);
       const secondaryName = nameMode === 'teams' ? managerName(b.manager, b.conf) : null;
@@ -339,13 +310,13 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
 
     let ly = titleH + HEIGHT + 28;
     const legendItems = [{ color: AFC_COLOR, label: 'AFC' }, { color: NFC_COLOR, label: 'NFC' }];
-    let lx = exportW / 2 - 160;
+    let lx = exportW / 2 - 190;
     parts.push(`<rect x="${lx}" y="${ly - 11}" width="14" height="14" rx="3" fill="${EXPORT.text}"/>`);
-    parts.push(`<text x="${lx + 20}" y="${ly}" font-family="${EXPORT_SANS}" font-size="14" font-weight="600" fill="${EXPORT.text}">Standings Pts</text>`);
-    lx += 112;
-    parts.push(`<rect x="${lx}" y="${ly - 11}" width="14" height="14" rx="3" fill="none" stroke="${EXPORT.text}" stroke-width="2" stroke-dasharray="4 2"/>`);
-    parts.push(`<text x="${lx + 20}" y="${ly}" font-family="${EXPORT_SANS}" font-size="14" font-weight="600" fill="${EXPORT.text}">PF (avg)</text>`);
-    lx += 92;
+    parts.push(`<text x="${lx + 20}" y="${ly}" font-family="${EXPORT_SANS}" font-size="14" font-weight="600" fill="${EXPORT.text}">Height: Standings Pts</text>`);
+    lx += 160;
+    parts.push(`<rect x="${lx}" y="${ly - 8}" width="24" height="8" rx="3" fill="${EXPORT.text}"/>`);
+    parts.push(`<text x="${lx + 30}" y="${ly}" font-family="${EXPORT_SANS}" font-size="14" font-weight="600" fill="${EXPORT.text}">Width: PF Avg</text>`);
+    lx += 132;
     legendItems.forEach(item => {
       parts.push(`<rect x="${lx}" y="${ly - 11}" width="14" height="14" rx="3" fill="${item.color}"/>`);
       parts.push(`<text x="${lx + 20}" y="${ly}" font-family="${EXPORT_SANS}" font-size="14" font-weight="600" fill="${EXPORT.text}">${item.label}</text>`);
@@ -484,19 +455,12 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
       </div>
       <div className="overflow-x-auto scroll-thin">
         <svg
-          viewBox={`0 0 ${width} ${HEIGHT}`} role="img" aria-label="Standings ranked by points, with clustered Standings Points and PF average bars"
+          viewBox={`0 0 ${width} ${HEIGHT}`} role="img" aria-label="Standings ranked by points, with bar height showing standings points and bar width showing PF average"
           style={{ width: width * zoom, height: HEIGHT * zoom, fontFamily: DATA_FONT, transition: 'width 0.2s ease, height 0.2s ease' }}
         >
-          {pfTicks.map((t, i) => (
-            <g key={i}>
-              <line x1={MARGIN.left} x2={width - MARGIN.right} y1={yForPf(t)} y2={yForPf(t)} stroke="var(--border)" strokeOpacity={0.35} strokeWidth={1} />
-              <text x={width - MARGIN.right + 9} y={yForPf(t)} dominantBaseline="middle" fontSize={11} fill="var(--muted)">
-                {t.toFixed(0)}
-              </text>
-            </g>
-          ))}
           {standingsTicks.map((t, i) => (
             <g key={`standings-${i}`}>
+              <line x1={MARGIN.left} x2={width - MARGIN.right} y1={yForStandings(t)} y2={yForStandings(t)} stroke="var(--border)" strokeOpacity={0.35} strokeWidth={1} />
               <line x1={MARGIN.left - 5} x2={MARGIN.left} y1={yForStandings(t)} y2={yForStandings(t)} stroke="var(--border)" strokeOpacity={0.7} strokeWidth={1} />
               <text x={MARGIN.left - 10} y={yForStandings(t)} textAnchor="end" dominantBaseline="middle" fontSize={11} fill="var(--muted)">
                 {t.toFixed(1)}
@@ -509,26 +473,6 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
           >
             Standings Pts
           </text>
-          <text
-            x={width - 16} y={MARGIN.top + plotH / 2} textAnchor="middle" fontSize={11} fontWeight={700} fill="var(--muted)"
-            transform={`rotate(90 ${width - 16} ${MARGIN.top + plotH / 2})`}
-          >
-            PF (avg)
-          </text>
-
-          {/* Median PF/game reference line(s) -- AFC/NFC medians for the segregated chart, one
-              overall median for the combined chart (see medianLines above). */}
-          {medianLines.map(m => (
-            <g key={m.label}>
-              <line
-                x1={MARGIN.left} x2={width - MARGIN.right} y1={yForPf(m.value)} y2={yForPf(m.value)}
-                stroke={m.color} strokeWidth={2} strokeDasharray="7 5" opacity={0.85}
-              />
-              <text x={width - MARGIN.right + 8} y={yForPf(m.value)} dominantBaseline="middle" fontSize={11} fontWeight={700} fill={m.color}>
-                {m.label.split(' ')[0]} {m.value.toFixed(1)}
-              </text>
-            </g>
-          ))}
 
           {/* Conference labels + a divider, only when both are showing at once (segregated ALL
               filter) -- a single-conference filter, or combined mode, already says so in the
@@ -561,14 +505,13 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
             const color = b.conf === "AFC" ? AFC_COLOR : b.conf === "NFC" ? NFC_COLOR : "var(--accent)";
             const standingsY = yForStandings(b.totalPts || 0);
             const standingsHeight = MARGIN.top + plotH - standingsY;
-            const pfY = yForPf(b.pfAvg || 0);
-            const pfHeight = MARGIN.top + plotH - pfY;
             const logoUrl = logoMap?.[b.manager];
-            const pfX = b.x + METRIC_BAR_W + METRIC_BAR_GAP;
-            const standingsCx = b.x + METRIC_BAR_W / 2;
-            const pfCx = pfX + METRIC_BAR_W / 2;
-            const logoCy = pfY + LOGO_SIZE / 2 + 6;
-            const showLogo = logoUrl && pfHeight >= LOGO_SIZE + 10;
+            const barWidth = b.barWidth;
+            const barX = b.x;
+            const cx = barX + barWidth / 2;
+            const logoSize = logoSizeFor(barWidth, standingsHeight);
+            const logoCy = standingsY + Math.max(logoSize / 2 + 8, (standingsHeight - 26) / 2);
+            const showLogo = logoUrl && standingsHeight >= logoSize + 32;
             // mode included -- when both this chart and the other StandingsBarChart instance
             // (segregated + combined) are mounted at once, the same manager produces the same
             // clip id in both unless distinguished, and SVG ids must be unique document-wide, not
@@ -592,26 +535,25 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
                   transition: 'filter 0.2s ease, transform 0.2s ease, opacity 0.2s ease'
                 }}
               >
-                <rect x={b.x} y={standingsY} width={METRIC_BAR_W} height={standingsHeight} rx={5} fill={color} fillOpacity={isHovered ? 0.95 : 0.78} stroke={color} strokeWidth={2} />
-                <rect x={b.x} y={standingsY} width={METRIC_BAR_W} height={standingsHeight} rx={5} fill="url(#sbc-bar-sheen)" pointerEvents="none" />
-                <rect x={pfX} y={pfY} width={METRIC_BAR_W} height={pfHeight} rx={5} fill={color} fillOpacity={isHovered ? 0.38 : 0.24} stroke={color} strokeWidth={2} strokeDasharray="4 2" />
+                <rect x={barX} y={standingsY} width={barWidth} height={standingsHeight} rx={6} fill={color} fillOpacity={isHovered ? 0.95 : 0.8} stroke={color} strokeWidth={2} />
+                <rect x={barX} y={standingsY} width={barWidth} height={standingsHeight} rx={6} fill="url(#sbc-bar-sheen)" pointerEvents="none" />
                 {showLogo && (
                   <>
                     <defs>
-                      <clipPath id={clipId}><circle cx={pfCx} cy={logoCy} r={LOGO_SIZE / 2} /></clipPath>
+                      <clipPath id={clipId}><circle cx={cx} cy={logoCy} r={logoSize / 2} /></clipPath>
                     </defs>
                     <image
-                      href={logoUrl} x={pfCx - LOGO_SIZE / 2} y={logoCy - LOGO_SIZE / 2}
-                      width={LOGO_SIZE} height={LOGO_SIZE} clipPath={`url(#${clipId})`} preserveAspectRatio="xMidYMid slice"
+                      href={logoUrl} x={cx - logoSize / 2} y={logoCy - logoSize / 2}
+                      width={logoSize} height={logoSize} clipPath={`url(#${clipId})`} preserveAspectRatio="xMidYMid slice"
                     />
-                    <circle cx={pfCx} cy={logoCy} r={LOGO_SIZE / 2} fill="none" stroke="var(--surface)" strokeWidth={2} />
+                    <circle cx={cx} cy={logoCy} r={logoSize / 2} fill="none" stroke="var(--surface)" strokeWidth={2} />
                   </>
                 )}
-                <text x={standingsCx} y={standingsY - 6} textAnchor="middle" fontSize={12} fontWeight={800} fill="var(--text)">
+                <text x={cx} y={standingsY - 6} textAnchor="middle" fontSize={12} fontWeight={800} fill="var(--text)">
                   {(b.totalPts || 0).toFixed(1)}
                 </text>
-                <text x={pfCx} y={pfY - 6} textAnchor="middle" fontSize={12} fontWeight={800} fill="var(--text)">
-                  {(b.pfAvg || 0).toFixed(1)}
+                <text x={cx} y={standingsHeight >= 28 ? MARGIN.top + plotH - 10 : standingsY - 20} textAnchor="middle" fontSize={11} fontWeight={800} fill={standingsHeight >= 28 ? "var(--surface)" : "var(--text)"}>
+                  PF {(b.pfAvg || 0).toFixed(1)}
                 </text>
                 {/* X axis is ranking first -- "#1 (28.4)" (Standings Pts in parens) -- with the
                     team name as a smaller second line so a bar's still identifiable at a glance.
@@ -619,14 +561,14 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
                     shared bracket/label sits between the bars and this row instead -- see below),
                     which is also why this row starts lower (labelStartY) than it otherwise would. */}
                 <text
-                  x={b.x + MIN_BAR_W / 2} y={labelStartY} fontWeight={700} fontFamily={SERIF_FONT}
-                  fill={color === "var(--accent)" ? "var(--text)" : color} textAnchor="end" transform={`rotate(-40 ${b.x + MIN_BAR_W / 2} ${labelStartY})`}
+                  x={cx} y={labelStartY} fontWeight={700} fontFamily={SERIF_FONT}
+                  fill={color === "var(--accent)" ? "var(--text)" : color} textAnchor="end" transform={`rotate(-40 ${cx} ${labelStartY})`}
                 >
-                  <tspan x={b.x + MIN_BAR_W / 2} fontSize={16} fontFamily={DATA_FONT} fontWeight={800}>
+                  <tspan x={cx} fontSize={16} fontFamily={DATA_FONT} fontWeight={800}>
                     #{b.rank}{tiers[b.tierIdx].count === 1 ? ` (${b.totalPts.toFixed(1)})` : ''}
                   </tspan>
-                  <tspan x={b.x + MIN_BAR_W / 2} dy="16" fontSize={14} fontWeight={600} fill="var(--text2)">{visibleName}</tspan>
-                  {secondaryName && <tspan x={b.x + MIN_BAR_W / 2} dy="14" fontSize={11} fontWeight={600} fill="var(--muted)">({secondaryName})</tspan>}
+                  <tspan x={cx} dy="16" fontSize={14} fontWeight={600} fill="var(--text2)">{visibleName}</tspan>
+                  {secondaryName && <tspan x={cx} dy="14" fontSize={11} fontWeight={600} fill="var(--muted)">({secondaryName})</tspan>}
                 </text>
                 <title>#{b.rank} {graphName(b.manager, b.conf)}{b.conf ? ` (${b.conf})` : ''} -- {b.totalPts.toFixed(2)} standings pts, {(b.pfAvg || 0).toFixed(2)} PF/game</title>
               </g>
@@ -658,15 +600,10 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
         </svg>
       </div>
       <div className="flex items-center flex-wrap gap-4 mt-3 text-xs font-semibold">
-        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-[var(--text)]" /> Standings Pts (left bar)</span>
-        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm border-2 border-dashed border-[var(--text)]" /> PF (avg, right bar)</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-4 rounded-sm bg-[var(--text)]" /> Height: Standings Pts</span>
+        <span className="flex items-center gap-1.5"><span className="w-5 h-2 rounded-sm bg-[var(--text)]" /> Width + in-bar label: PF Avg</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: AFC_COLOR }} /> AFC</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: NFC_COLOR }} /> NFC</span>
-        {medianLines.map(m => (
-          <span key={m.label} className="flex items-center gap-1.5" style={{ color: m.color }}>
-            <span className="w-3.5 border-t-2 border-dashed" style={{ borderColor: m.color }} /> {m.label} ({m.value.toFixed(1)})
-          </span>
-        ))}
       </div>
     </div>
   );

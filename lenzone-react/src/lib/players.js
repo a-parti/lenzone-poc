@@ -49,37 +49,90 @@ export function computeCustomProjectedPoints(stats, scoringSettings) {
 export function projectedPoints(weekProjections, id, scoringSettings, fallbackField) {
   const stats = weekProjections?.[id];
   if (!stats) return null;
-  // Prefer Sleeper's own displayed scoring-format projection verbatim. Both LENZONE conferences
-  // use standard half-PPR scoring, and recomputing from the raw stat forecast introduces small
-  // rounding differences (e.g. Sleeper 10.92 vs a 10.942 dot product) that then accumulate in the
-  // team total. The league-rule calculation remains a fallback for any future custom format where
-  // Sleeper does not return the requested aggregate field.
+  // Sleeper's matchup projection is scored from the raw forecast with THIS league's complete
+  // scoring_settings, then rounded at display time. The generic pts_half_ppr/pts_ppr fields are
+  // useful fallbacks, but summing them can disagree with Sleeper even in a mostly standard league
+  // because those fields are rounded per player and do not include every league-specific rule.
+  const custom = computeCustomProjectedPoints(stats, scoringSettings);
+  if (custom !== null) return custom;
   const val = stats[fallbackField] ?? stats.pts_ppr ?? stats.pts_half_ppr ?? stats.pts_std;
   if (typeof val === 'number') return val;
-  return computeCustomProjectedPoints(stats, scoringSettings);
+  return null;
 }
 
 // Sums a roster's real starter-slot projections for a given week -- the pregame team total,
-// computed with this league's own scoring rules, used before any real scoring history exists.
-export function computeRosterProjection(roster, weekProjections, scoringSettings, fallbackField) {
+// computed with this league's own scoring rules. A frozenPlayerProjections map can lock players
+// whose NFL games have begun while still allowing later-game starters to keep their fresh forecast.
+export function computeRosterProjection(roster, weekProjections, scoringSettings, fallbackField, frozenPlayerProjections = null) {
   if (!roster) return null;
   const starters = roster.starters.filter(id => id && id !== '0');
   if (starters.length === 0) return null;
   let total = 0;
   let any = false;
   starters.forEach(id => {
-    const val = projectedPoints(weekProjections, id, scoringSettings, fallbackField);
+    const frozen = frozenPlayerProjections?.[id];
+    const val = Number.isFinite(frozen) ? frozen : projectedPoints(weekProjections, id, scoringSettings, fallbackField);
     if (val !== null) { total += val; any = true; }
   });
   return any ? total : null;
 }
 
-// Live-blended team total for a week in progress: per starter, use the real live stat Sleeper has
-// already posted for them if nonzero, else fall back to their pregame projection -- same per-player
-// fallback already used in the roster-compare expander, just summed to a team total. Also returns
+function playerGameInfo(id, { playersDB, byTeamWeek, week } = {}) {
+  const team = playersDB?.[id]?.team;
+  return team ? byTeamWeek?.[team]?.[week] : null;
+}
+
+function gameSecondsRemaining(game) {
+  if (game?.state !== 'in') return game?.state === 'post' ? 0 : null;
+  const period = Number(game.period);
+  if (!Number.isFinite(period) || period < 1) return null;
+  // Sleeper's NFL live-projection model uses regulation time remaining. Once overtime starts,
+  // regulation has zero seconds left and the actual score should dominate the projection.
+  if (period > 4) return 0;
+  const match = String(game.displayClock || '').match(/^(\d+):(\d{2})$/);
+  if (!match) return null;
+  const clockSeconds = Number(match[1]) * 60 + Number(match[2]);
+  return Math.max(0, (4 - period) * 15 * 60 + clockSeconds);
+}
+
+// Port of Sleeper's public NFL web-client live projection curve. It starts at the league-scored
+// pregame projection, progressively incorporates the player's scoring pace as regulation time
+// elapses, and lands on the real score at 0:00. Keeping this isolated makes the team projection,
+// roster table, matchup cards, schedule, and charts all use the same live-game behavior.
+export function computeSleeperLiveProjection(actual, projected, secondsRemaining) {
+  const real = typeof actual === 'number' ? actual : 0;
+  if (typeof projected !== 'number') return real;
+  if (!Number.isFinite(secondsRemaining)) return Math.max(projected, real);
+  const remaining = Math.max(0, Math.min(60 * 60, secondsRemaining));
+  const remainingFraction = remaining / (60 * 60);
+  const elapsedMinutes = 60 - remaining / 60;
+  const paceProjection = real + (real / (elapsedMinutes || 1)) * (remaining / 60) * remainingFraction;
+  const pacedFloor = Math.max(paceProjection, real);
+  const baseline = remainingFraction >= 1 ? projected : Math.max(projected, real);
+  if (remainingFraction <= 0 && real < 0) return real;
+  return baseline + (1 - remainingFraction) * (pacedFloor - baseline);
+}
+
+function projectedPlayerFinish(id, real, projected, gameContext) {
+  const game = playerGameInfo(id, gameContext);
+  const actual = typeof real === 'number' ? real : 0;
+  if (game?.state === 'in') {
+    return {
+      value: computeSleeperLiveProjection(actual, projected, gameSecondsRemaining(game)),
+      actual,
+      hasStarted: true
+    };
+  }
+  if (game?.state === 'post' || actual !== 0) return { value: actual, actual, hasStarted: true };
+  return { value: projected, actual: null, hasStarted: false };
+}
+
+// Sleeper-style projected finish for a week in progress: per starter, use the live projection
+// curve while their game is active, their real score after it ends (including 0/negative scores),
+// and their league-scored pregame projection before kickoff. Also returns
 // lockedFraction: the share of the blended total that's already "real" (game started/finished for
 // that player), used to shrink win-probability variance as the week plays out.
-export function computeBlendedRosterScore(snapshot, weekProjections, scoringSettings, fallbackField) {
+export function computeBlendedRosterScore(snapshot, weekProjections, scoringSettings, fallbackField, gameContext) {
   if (!snapshot || !snapshot.starters) return null;
   let total = 0;
   let lockedTotal = 0;
@@ -88,12 +141,10 @@ export function computeBlendedRosterScore(snapshot, weekProjections, scoringSett
     if (!id || id === '0') return;
     const real = snapshot.startersPoints?.[i];
     const proj = projectedPoints(weekProjections, id, scoringSettings, fallbackField);
-    if (real > 0) {
-      total += real;
-      lockedTotal += real;
-      any = true;
-    } else if (proj !== null) {
-      total += proj;
+    const finish = projectedPlayerFinish(id, real, proj, gameContext);
+    if (finish.value !== null && finish.value !== undefined) {
+      total += finish.value;
+      if (finish.hasStarted) lockedTotal += finish.actual;
       any = true;
     }
   });
@@ -101,25 +152,29 @@ export function computeBlendedRosterScore(snapshot, weekProjections, scoringSett
   return { total, lockedFraction: total > 0 ? lockedTotal / total : 0 };
 }
 
-// Team-level rollup used by both the Rosters tab card (per-team total) and its sort control:
-// full-squad pregame projected total, plus the real posted total for whichever starters already
-// have one (and that same subset's projection, for a fair posted-vs-projected delta).
-export function computeTeamWeeklyTotals(starters, weekProjections, scoringSettings, fallbackField, playersPoints) {
+// Team-level rollup used by both the Rosters tab card and its sort control: Sleeper-style projected
+// finish, posted actual total, and pregame context for the starters whose games have begun.
+export function computeTeamWeeklyTotals(starters, weekProjections, scoringSettings, fallbackField, playersPoints, gameContext) {
   const validStarters = (starters || []).filter(id => id && id !== '0');
-  let projectedAll = 0, anyProj = false;
+  let projectedPregame = 0, projectedFinal = 0, anyProj = false;
   let actualPosted = 0, projectedPosted = 0, anyPosted = false;
   validStarters.forEach(id => {
     const proj = weekProjections ? projectedPoints(weekProjections, id, scoringSettings, fallbackField) : null;
-    if (proj !== null) { projectedAll += proj; anyProj = true; }
+    if (proj !== null) { projectedPregame += proj; anyProj = true; }
     const real = playersPoints?.[id];
-    if (real > 0) {
-      actualPosted += real;
+    const finish = projectedPlayerFinish(id, real, proj, gameContext);
+    if (finish.hasStarted) {
+      actualPosted += finish.actual;
       if (proj !== null) projectedPosted += proj;
       anyPosted = true;
     }
+    if (finish.value !== null && finish.value !== undefined) projectedFinal += finish.value;
   });
   return {
-    projectedAll: anyProj ? projectedAll : null,
+    // projectedAll is retained as a compatibility alias for the roster sort control.
+    projectedAll: (anyProj || anyPosted) ? projectedFinal : null,
+    projectedFinal: (anyProj || anyPosted) ? projectedFinal : null,
+    projectedPregame: anyProj ? projectedPregame : null,
     actualPosted: anyPosted ? actualPosted : null,
     projectedPosted
   };

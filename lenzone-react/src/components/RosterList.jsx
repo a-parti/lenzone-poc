@@ -29,12 +29,14 @@ function ProjectedPts({ id, weekProjections, scoringSettings, fallbackField, pla
   );
 }
 
-// Team-level rollup of the same actual/projected/delta treatment as each player row: full squad
-// projected total, actual total for whichever starters have posted a real score so far, and the
-// +/- delta against just those same starters' projections (a fair, apples-to-apples comparison).
+// Team-level rollup of the same actual/projected treatment as each player row: posted actual total
+// plus Sleeper's projected finish (actual for started games, projection for games not yet started).
 function TeamTotal({ starters, weekProjections, scoringSettings, fallbackField, playersPoints, playersDB, byTeamWeek, week }) {
-  const { projectedAll, actualPosted, projectedPosted } = computeTeamWeeklyTotals(starters, weekProjections, scoringSettings, fallbackField, playersPoints);
-  const anyProj = projectedAll != null;
+  const { projectedFinal, actualPosted, projectedPosted } = computeTeamWeeklyTotals(
+    starters, weekProjections, scoringSettings, fallbackField, playersPoints,
+    { playersDB, byTeamWeek, week }
+  );
+  const anyProj = projectedFinal != null;
   const anyPosted = actualPosted != null;
   if (!anyProj && !anyPosted) return null;
   // The total is still "live" (moving) as long as any starter who's posted points is mid-game --
@@ -44,16 +46,13 @@ function TeamTotal({ starters, weekProjections, scoringSettings, fallbackField, 
   return (
     <div className="bg-[var(--bg)]/60 border border-[var(--border)]/60 rounded-lg px-3 py-2 mb-3 text-sm space-y-1.5">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-        <span className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">Team Projected Total</span>
-        <span className="font-mono font-bold text-base text-[var(--proj)]">{anyProj ? projectedAll.toFixed(2) : "--"}</span>
+        <span className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">Sleeper Projected Finish</span>
+        <span className="font-mono font-bold text-base text-[var(--proj)]">{anyProj ? projectedFinal.toFixed(2) : "--"}</span>
       </div>
       {anyPosted && (
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
           <span className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)] shrink-0">Posted So Far</span>
-          <span className="font-mono text-right flex flex-col items-end leading-tight">
-            <span className={`font-bold text-base ${postedColor}`}>{actualPosted.toFixed(2)}</span>
-            <span className="text-[10px] text-[var(--proj)]">{projectedPosted.toFixed(2)}</span>
-          </span>
+          <span className={`font-mono font-bold text-base ${postedColor}`}>{actualPosted.toFixed(2)}</span>
         </div>
       )}
     </div>

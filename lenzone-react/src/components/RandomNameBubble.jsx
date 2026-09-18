@@ -11,9 +11,21 @@ import { useMatchupPreview } from '../context/MatchupPreviewContext';
 const MIN_INTERVAL_MS = 12000;
 const MAX_INTERVAL_MS = 22000;
 const BUBBLE_HOLD_MS = 4200;
+// Bottom-fixed UI (the news crawl and mobile navigation) is real page chrome, not content the
+// ambient bubbles should ever float across. Measured from the live DOM rather than hard-coding a
+// height because the ticker can have one or two rows and mobile safe-area padding varies by device.
+const BOTTOM_CHROME_CLEARANCE = 10;
 // Always exactly one bubble on screen at a time -- two-plus-at-once still read as busier than
 // intended, even after already toning it down once.
 const MAX_AT_ONCE = 1;
+
+function bottomChromeTop() {
+  const chrome = Array.from(document.querySelectorAll('[data-bottom-chrome]'));
+  return chrome.reduce((top, el) => {
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 ? Math.min(top, r.top) : top;
+  }, window.innerHeight);
+}
 
 // Pops a speech bubble directly over a real, currently-visible team nameplate/logo on screen --
 // the same introduction the roster modal's own bubble gives when you click a team (see
@@ -75,10 +87,14 @@ export default function RandomNameBubble({ enabled, afcData, nfcData, trophyLine
       // Strictly one bubble on screen at a time -- skip this tick entirely (rather than adding a
       // second) if the previous one hasn't finished its hold yet.
       if (activeBubblesRef.current.size > 0) { scheduleNext(); return; }
+      const protectedBottomTop = bottomChromeTop();
       const candidates = Array.from(document.querySelectorAll('img[data-manager]')).filter(el => {
         if (activeBubblesRef.current.has(el)) return false;
         const r = el.getBoundingClientRect();
         if (r.width === 0 || r.bottom < 0 || r.top > window.innerHeight) return false;
+        // A bubble grows upward from this logo, with its tail ending at r.top - 8. Do not fire
+        // one if that anchor would land in the fixed ticker or mobile navigation.
+        if (r.top - 8 > protectedBottomTop - BOTTOM_CHROME_CLEARANCE) return false;
         return !!getRealName(afcData, nfcData, el.dataset.manager);
       });
       if (candidates.length > 0) {
@@ -140,6 +156,12 @@ export default function RandomNameBubble({ enabled, afcData, nfcData, trophyLine
           return;
         }
         const r = el.getBoundingClientRect();
+        // The user may scroll a visible logo down underneath the ticker while a bubble is open.
+        // Fade it out immediately instead of letting it appear over protected bottom chrome.
+        if (r.top - 8 > bottomChromeTop() - BOTTOM_CHROME_CLEARANCE) {
+          finish();
+          return;
+        }
         bubble.style.left = `${r.left + r.width / 2}px`;
         // Sits right on top of the actual logo -- anchored to its top edge (not overlapping down
         // into it), tail pointing straight down at it.

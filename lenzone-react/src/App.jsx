@@ -68,6 +68,7 @@ const AFC_LEAGUE_ID = "1394069274644979712";
 const NFC_LEAGUE_ID = "1394062614505463808";
 const SEASON_WEEKS = 14;
 const SEASON_YEAR = "2026";
+const EMPTY_OBJECT = Object.freeze({});
 
 // Fallback rosters, only used if the Sleeper API is unreachable
 const AFC_DEFAULT = ["Kenny", "Grant", "Rob", "Tim", "Ted", "Nikko", "Dan", "Maggie", "Arjun", "Mina", "Mike", "Jaime + Kelsee"];
@@ -424,7 +425,8 @@ function ConferenceWarPanel({ weekRecord, seasonRecord, weekPoints, week, isWeek
 // state for a matchup and (when live/projected) blends real per-player stats with projections.
 function buildMatchupInfo({
   manager, opponent, week, latestCompletedWeek,
-  myConfSeason, oppConfSeason, myConfData, oppConfData, myStats, oppStats, weekProjections
+  myConfSeason, oppConfSeason, myConfData, oppConfData, myStats, oppStats, weekProjections,
+  playersDB, byTeamWeek
 }) {
   const realMy = myConfSeason.scoreByWeek[week]?.[manager] || 0;
   const realOpp = oppConfSeason.scoreByWeek[week]?.[opponent] || 0;
@@ -439,8 +441,9 @@ function buildMatchupInfo({
 
   const myRoster = myConfData.rosters.find(r => r.manager === manager);
   const oppRoster = oppConfData.rosters.find(r => r.manager === opponent);
-  const myBlended = computeBlendedRosterScore(mySnapshot, weekProjections, myConfData.scoringSettings, myFallbackField);
-  const oppBlended = computeBlendedRosterScore(oppSnapshot, weekProjections, oppConfData.scoringSettings, oppFallbackField);
+  const gameContext = { playersDB, byTeamWeek, week };
+  const myBlended = computeBlendedRosterScore(mySnapshot, weekProjections, myConfData.scoringSettings, myFallbackField, gameContext);
+  const oppBlended = computeBlendedRosterScore(oppSnapshot, weekProjections, oppConfData.scoringSettings, oppFallbackField, gameContext);
   const myProjected = myBlended?.total ?? computeRosterProjection(myRoster, weekProjections, myConfData.scoringSettings, myFallbackField);
   const oppProjected = oppBlended?.total ?? computeRosterProjection(oppRoster, weekProjections, oppConfData.scoringSettings, oppFallbackField);
   // Bench/IR player ids for the expanded roster comparison view -- sourced from each manager's
@@ -504,18 +507,18 @@ function buildMatchupInfo({
   };
 }
 
-function getIntraInfo(manager, season, stats, week, confData, weekProjections, latestCompletedWeek) {
+function getIntraInfo(manager, season, stats, week, confData, weekProjections, latestCompletedWeek, playersDB, byTeamWeek) {
   const pair = (season.scheduleByWeek[week] || []).find(([a, b]) => a === manager || b === manager);
   if (!pair) return null;
   const opponent = pair[0] === manager ? pair[1] : pair[0];
   return buildMatchupInfo({
     manager, opponent, week, latestCompletedWeek,
     myConfSeason: season, oppConfSeason: season, myConfData: confData, oppConfData: confData,
-    myStats: stats[manager], oppStats: stats[opponent], weekProjections
+    myStats: stats[manager], oppStats: stats[opponent], weekProjections, playersDB, byTeamWeek
   });
 }
 
-function getInterInfo(manager, myConf, weekCrossPairs, afcSeason, nfcSeason, allStats, week, afcData, nfcData, weekProjections, latestCompletedWeek) {
+function getInterInfo(manager, myConf, weekCrossPairs, afcSeason, nfcSeason, allStats, week, afcData, nfcData, weekProjections, latestCompletedWeek, playersDB, byTeamWeek) {
   const pair = weekCrossPairs.find(m => m.afcTeam === manager || m.nfcTeam === manager);
   if (!pair) return null;
   const opponent = pair.afcTeam === manager ? pair.nfcTeam : pair.afcTeam;
@@ -529,23 +532,30 @@ function getInterInfo(manager, myConf, weekCrossPairs, afcSeason, nfcSeason, all
     ...buildMatchupInfo({
       manager, opponent, week, latestCompletedWeek,
       myConfSeason, oppConfSeason, myConfData, oppConfData,
-      myStats: allStats[manager], oppStats: allStats[opponent], weekProjections
+      myStats: allStats[manager], oppStats: allStats[opponent], weekProjections, playersDB, byTeamWeek
     })
   };
 }
 
 // Best known score for a team this week -- uses the SAME per-player blended real+projected total
 // as the matchup pills (computeBlendedRosterScore), so the "Week Total Points" figure here always
-// matches what the individual matchup cards add up to. Real final score once the week is over.
-function estimateTeamScore(manager, confData, season, week, weekProjections, latestCompletedWeek) {
+// matches what the individual matchup cards add up to. The separate pregame value remains the
+// league-scored starter total before real game results factor in, for the weekly chart's baseline.
+function estimateTeamScore(manager, confData, season, week, weekProjections, latestCompletedWeek, playersDB, byTeamWeek, frozenPlayerProjections = null) {
   const isFinal = week <= latestCompletedWeek;
-  if (isFinal) return { value: season.scoreByWeek[week]?.[manager] || 0, isFinal: true };
   const fallbackField = scoringFieldFor(confData.receptionPoints || 0);
   const snapshot = season.rosterSnapshotByWeek[week]?.[manager];
-  const blended = computeBlendedRosterScore(snapshot, weekProjections, confData.scoringSettings, fallbackField);
-  if (blended) return { value: blended.total, isFinal: false };
-  const proj = computeRosterProjection(confData.rosters.find(r => r.manager === manager), weekProjections, confData.scoringSettings, fallbackField);
-  return { value: proj, isFinal: false };
+  const roster = confData.rosters.find(r => r.manager === manager);
+  // Prefer that week's actual starter snapshot whenever it exists. That preserves the lineup
+  // that generated the live/final score instead of substituting today's roster for a past week.
+  const pregame = computeRosterProjection(snapshot || roster, weekProjections, confData.scoringSettings, fallbackField, frozenPlayerProjections);
+  if (isFinal) return { value: season.scoreByWeek[week]?.[manager] || 0, pregame, isFinal: true };
+  const blended = computeBlendedRosterScore(
+    snapshot, weekProjections, confData.scoringSettings, fallbackField,
+    { playersDB, byTeamWeek, week }
+  );
+  if (blended) return { value: blended.total, pregame, isFinal: false };
+  return { value: pregame, pregame, isFinal: false };
 }
 
 // Merge one freshly fetched Sleeper matchup week into the existing season object. This lets the
@@ -570,13 +580,23 @@ function mergeMatchupWeek(previous, week, pairs) {
   };
 }
 
-const VALID_TABS = new Set(["home", "currentWeek", "standings", "playoffs", "matchups", "grid", "players", "news", "teams", "charter"]);
+const VALID_TABS = new Set(["home", "currentWeek", "standings", "matchups", "league", "teams", "charter"]);
+const LEGACY_TAB_PARENTS = {
+  playoffs: "standings",
+  grid: "matchups",
+  players: "league",
+  activity: "league",
+  news: "league"
+};
 
 // The hash can carry a "?week=N" suffix (e.g. "#matchups?week=3") so a shared link -- see
 // WeeklyScoresBarChart's "Copy Link" -- lands directly on the right week, not just the right tab.
 function tabFromHash() {
   const id = window.location.hash.slice(1).split('?')[0];
-  return VALID_TABS.has(id) ? id : null;
+  return VALID_TABS.has(id) ? id : (LEGACY_TAB_PARENTS[id] || null);
+}
+function rawTabFromHash() {
+  return window.location.hash.slice(1).split('?')[0];
 }
 function weekFromHash() {
   const query = window.location.hash.slice(1).split('?')[1];
@@ -596,28 +616,39 @@ export default function App() {
     setActiveTabState(id);
     window.history.pushState(null, '', `#${id}`);
   };
-  // Back/forward browser navigation.
-  useEffect(() => {
-    const handler = () => {
-      const id = tabFromHash();
-      if (id) setActiveTabState(id);
-    };
-    window.addEventListener('popstate', handler);
-    return () => window.removeEventListener('popstate', handler);
-  }, []);
   // Switching tabs always lands at the top of the new page, never wherever the previous tab
   // happened to be scrolled to.
   useEffect(() => { window.scrollTo(0, 0); }, [activeTab]);
   const [confFilter, setConfFilter] = useState("ALL");
-  // Matchups tab has two pivots on the same underlying schedule/score data: "week" (everyone's
-  // matchup for one week -- the old Weekly Matchups tab) and "season" (one team's full schedule --
-  // the old Schedule tab), merged into a single tab with a toggle instead of two separate tabs.
-  const [matchupsView, setMatchupsView] = useState("week");
-  const [standingsView, setStandingsView] = useState("overview");
+  // Preserve old bookmarked hashes while consolidating the top-level navigation. New visits use
+  // parent pages with subtabs; old #grid/#playoffs/#players/#activity/#news links still land on the
+  // same content instead of breaking.
+  const [matchupsView, setMatchupsView] = useState(() => rawTabFromHash() === "grid" ? "grid" : "week");
+  const [standingsView, setStandingsView] = useState(() => rawTabFromHash() === "playoffs" ? "playoffs" : "overview");
+  const [leagueView, setLeagueView] = useState(() => {
+    const hashTab = rawTabFromHash();
+    return ["players", "activity", "news"].includes(hashTab) ? hashTab : "players";
+  });
+  // Back/forward browser navigation updates both the parent page and any legacy subtab hash.
+  useEffect(() => {
+    const handler = () => {
+      const id = tabFromHash();
+      const rawId = rawTabFromHash();
+      if (id) setActiveTabState(id);
+      if (rawId === "grid") setMatchupsView("grid");
+      if (rawId === "playoffs") setStandingsView("playoffs");
+      if (["players", "activity", "news"].includes(rawId)) setLeagueView(rawId);
+    };
+    window.addEventListener('popstate', handler);
+    return () => window.removeEventListener('popstate', handler);
+  }, []);
   // Deliberately resets to fantasy-team names on every fresh page load. The toggle is a viewing
   // preference for the current visit, not a sticky setting that can surprise someone next time.
   const [nameDisplayMode, setNameDisplayMode] = useState('teams');
   const [selectedWeek, setSelectedWeek] = useState(() => weekFromHash() || 1);
+  // Per-week, per-conference player projections. Unstarted players keep refreshing with Sleeper;
+  // their individual number locks once their own NFL game has begun.
+  const [pregamePlayerSnapshots, setPregamePlayerSnapshots] = useState({});
   // A shared "Copy Link" URL (see WeeklyScoresBarChart) carries the week in the hash too --
   // back/forward navigation should honor it the same way it already does for the tab.
   useEffect(() => {
@@ -808,6 +839,21 @@ export default function App() {
   // "This Week" is an action, not just a tab label: whenever it is clicked, jump back to the
   // current week reported by Sleeper instead of preserving an older week the viewer browsed.
   const navigateToTab = (id) => {
+    if (id === 'playoffs') {
+      setStandingsView('playoffs');
+      setActiveTab('standings');
+      return;
+    }
+    if (id === 'grid') {
+      setMatchupsView('grid');
+      setActiveTab('matchups');
+      return;
+    }
+    if (['players', 'activity', 'news'].includes(id)) {
+      setLeagueView(id);
+      setActiveTab('league');
+      return;
+    }
     if (id === 'currentWeek') {
       const currentWeek = Math.min(SEASON_WEEKS, Math.max(1, nflState.week || 1));
       setSelectedWeek(currentWeek);
@@ -863,10 +909,10 @@ export default function App() {
   }, [nfcLeagueId, nfcData.rosterIdMap]);
 
   // LENZONE's custom standings decide the playoff field, then the commissioners manually enter
-  // those pairings in Sleeper. While this tab is open, pull Weeks 15-17 so the bracket becomes a
+  // those pairings in Sleeper. While the bracket view is open inside Standings, pull Weeks 15-17 so it becomes a
   // live scoreboard after that handoff without mixing postseason scores into regular-season PF.
   useEffect(() => {
-    if (activeTab !== 'playoffs') return;
+    if (activeTab !== 'standings' || standingsView !== 'playoffs') return;
     const hasAfcMap = Object.keys(afcData.rosterIdMap).length > 0;
     const hasNfcMap = Object.keys(nfcData.rosterIdMap).length > 0;
     if (!hasAfcMap || !hasNfcMap) return;
@@ -888,7 +934,7 @@ export default function App() {
       window.clearInterval(intervalId);
       window.removeEventListener('focus', refreshPostseason);
     };
-  }, [activeTab, afcLeagueId, nfcLeagueId, afcData.rosterIdMap, nfcData.rosterIdMap]);
+  }, [activeTab, standingsView, afcLeagueId, nfcLeagueId, afcData.rosterIdMap, nfcData.rosterIdMap]);
 
   useEffect(() => {
     fetchPlayersDB().then(db => { setPlayersDB(db); setPlayersLoading(false); });
@@ -982,7 +1028,7 @@ export default function App() {
       window.removeEventListener('focus', refreshOnFocus);
     };
   }, [selectedWeek, afcLeagueId, nfcLeagueId, afcData.rosterIdMap, nfcData.rosterIdMap]);
-  const weekProjections = weekProjectionsByWeek[selectedWeek] || {};
+  const weekProjections = weekProjectionsByWeek[selectedWeek] || EMPTY_OBJECT;
 
   // Real NFL schedule (which teams play, the date, and real game status) -- powers the "game day"
   // indicator on rosters/players and the Home tab's This Week's Games panel.
@@ -991,11 +1037,24 @@ export default function App() {
     fetchNflSchedule(SEASON_YEAR).then(setNflSchedule);
   }, []);
 
-  // Real kickoff time + live status for the currently viewed week, from ESPN's public scoreboard
-  // (Sleeper's own schedule feed has no time-of-day). Refetches whenever the viewed week changes.
+  // Real kickoff time + live status/clock for the currently viewed week, from ESPN's public
+  // scoreboard (Sleeper's own schedule feed has no game clock). During games, refresh it on the
+  // same one-minute cadence as Sleeper stats so the Sleeper-matched live projection curve moves.
   const [weekKickoffInfo, setWeekKickoffInfo] = useState({});
   useEffect(() => {
-    fetchWeekKickoffInfo(selectedWeek, SEASON_YEAR).then(setWeekKickoffInfo);
+    let cancelled = false;
+    const refreshKickoffInfo = async () => {
+      const latest = await fetchWeekKickoffInfo(selectedWeek, SEASON_YEAR);
+      if (!cancelled) setWeekKickoffInfo(latest);
+    };
+    refreshKickoffInfo();
+    const intervalId = window.setInterval(refreshKickoffInfo, 60 * 1000);
+    window.addEventListener('focus', refreshKickoffInfo);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refreshKickoffInfo);
+    };
   }, [selectedWeek]);
 
   // Real league-wide "big plays" (longest pass/run/field goal) for the viewed week, from ESPN's
@@ -1319,26 +1378,80 @@ export default function App() {
   // My team's own matchups this week (same buildMatchupInfo pipeline as the Matchups tab cards),
   // used to power the "Playing ___" section on Home.
   const myTeamIntra = myTeamManager && myTeamConf
-    ? getIntraInfo(myTeamManager, myTeamConf === "AFC" ? afcSeason : nfcSeason, allStats, selectedWeek, myTeamConfData, weekProjections, latestCompletedWeek)
+    ? getIntraInfo(myTeamManager, myTeamConf === "AFC" ? afcSeason : nfcSeason, allStats, selectedWeek, myTeamConfData, weekProjections, latestCompletedWeek, playersDB, enrichedByTeamWeek)
     : null;
   const myTeamInter = myTeamManager && myTeamConf
-    ? getInterInfo(myTeamManager, myTeamConf, weekCrossPairs, afcSeason, nfcSeason, allStats, selectedWeek, afcData, nfcData, weekProjections, latestCompletedWeek)
+    ? getInterInfo(myTeamManager, myTeamConf, weekCrossPairs, afcSeason, nfcSeason, allStats, selectedWeek, afcData, nfcData, weekProjections, latestCompletedWeek, playersDB, enrichedByTeamWeek)
     : null;
 
   // Best projected finish per manager for this week. A live roster snapshot yields the blended
   // real+projected finish; a future week without a snapshot falls back to that manager's current
-  // starters and the selected week's projections. Shared by awards and the weekly score graph.
+  // starters and the selected week's projections. Pregame totals use player-level freezes, so a
+  // Monday starter can still receive an updated forecast after the Sunday games are underway.
+  const frozenPregamePlayers = pregamePlayerSnapshots[selectedWeek] || { AFC: {}, NFC: {} };
   const projectedScoreByManager = {};
-  if (!isSelectedWeekFinal) {
-    afcManagers.forEach(m => {
-      const estimate = estimateTeamScore(m, afcData, afcSeason, selectedWeek, weekProjections, latestCompletedWeek);
-      if (estimate.value != null) projectedScoreByManager[m] = estimate.value;
+  const pregameScoreByManager = {};
+  const collectTeamScores = (managers, confData, season, frozenPlayerProjections) => {
+    managers.forEach(m => {
+      const estimate = estimateTeamScore(m, confData, season, selectedWeek, weekProjections, latestCompletedWeek, playersDB, enrichedByTeamWeek, frozenPlayerProjections);
+      if (!isSelectedWeekFinal && estimate.value != null) projectedScoreByManager[m] = estimate.value;
+      if (estimate.pregame != null) pregameScoreByManager[m] = estimate.pregame;
     });
-    nfcManagers.forEach(m => {
-      const estimate = estimateTeamScore(m, nfcData, nfcSeason, selectedWeek, weekProjections, latestCompletedWeek);
-      if (estimate.value != null) projectedScoreByManager[m] = estimate.value;
-    });
-  }
+  };
+  collectTeamScores(afcManagers, afcData, afcSeason, frozenPregamePlayers.AFC);
+  collectTeamScores(nfcManagers, nfcData, nfcSeason, frozenPregamePlayers.NFC);
+  const selectedWeekHasPostedScore = Object.values(afcSeason.scoreByWeek[selectedWeek] || {}).some(v => v !== 0)
+    || Object.values(nfcSeason.scoreByWeek[selectedWeek] || {}).some(v => v !== 0);
+  const pregameSnapshotKey = `lenzone_pregame_player_projections_${SEASON_YEAR}_${selectedWeek}`;
+  // Track the real current slate at the player level. While a player's NFL game is still pregame,
+  // refresh their number (and honor any lineup change). When their game is in/post, retain the
+  // last value we observed; first visits mid-game fall back to Sleeper's then-current baseline.
+  useEffect(() => {
+    let stored = null;
+    try {
+      const raw = localStorage.getItem(pregameSnapshotKey);
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (parsed && typeof parsed === 'object') stored = parsed;
+    } catch {}
+    const next = { AFC: { ...(stored?.AFC || {}) }, NFC: { ...(stored?.NFC || {}) } };
+    const shouldTrackLivePlayers = !isSelectedWeekFinal && selectedWeek === nflState.week;
+    let changed = false;
+    if (shouldTrackLivePlayers) {
+      const collectPlayers = (conf, managers, confData, season) => {
+        const fallbackField = scoringFieldFor(confData.receptionPoints || 0);
+        managers.forEach(manager => {
+          const snapshot = season.rosterSnapshotByWeek[selectedWeek]?.[manager];
+          const roster = confData.rosters.find(r => r.manager === manager);
+          (snapshot?.starters || roster?.starters || []).forEach(id => {
+            if (!id || id === '0') return;
+            const projection = projectedPoints(weekProjections, id, confData.scoringSettings, fallbackField);
+            if (!Number.isFinite(projection)) return;
+            const nflTeam = playersDB?.[id]?.team;
+            const game = nflTeam ? enrichedByTeamWeek?.[nflTeam]?.[selectedWeek] : null;
+            const hasStarted = game?.state === 'in' || game?.state === 'post';
+            // Refresh before kickoff; at/after kickoff only seed a missing value as a graceful
+            // fallback for someone who first opens the site while that game is already underway.
+            if (!hasStarted || !Number.isFinite(next[conf][id])) {
+              if (next[conf][id] !== projection) { next[conf][id] = projection; changed = true; }
+            }
+          });
+        });
+      };
+      collectPlayers('AFC', afcManagers, afcData, afcSeason);
+      collectPlayers('NFC', nfcManagers, nfcData, nfcSeason);
+    }
+    const nextFingerprint = JSON.stringify(next);
+    if (changed) {
+      try { localStorage.setItem(pregameSnapshotKey, nextFingerprint); } catch {}
+    }
+    if (Object.keys(next.AFC).length || Object.keys(next.NFC).length) {
+      setPregamePlayerSnapshots(previous => (
+        JSON.stringify(previous[selectedWeek] || {}) === nextFingerprint
+          ? previous
+          : { ...previous, [selectedWeek]: next }
+      ));
+    }
+  }, [pregameSnapshotKey, selectedWeek, isSelectedWeekFinal, nflState.week, weekProjections, playersDB, enrichedByTeamWeek, afcManagers, nfcManagers, afcData, nfcData, afcSeason, nfcSeason]);
   const weeklyAwards = computeWeeklyAwards(afcSeason, nfcSeason, selectedWeek, isSelectedWeekFinal ? null : projectedScoreByManager);
   const benchPointsAward = computeBenchPointsAward(afcData, nfcData, afcSeason, nfcSeason, selectedWeek);
   // Real, already-computed facts each manager's speech bubble can reference this week (a trophy
@@ -1405,12 +1518,11 @@ export default function App() {
     : computeCrossWeekRecord(weekCrossPairs, projectedScoreByManager, projectedScoreByManager);
   const projectedTrophies = computeProjectedTrophies(weeklyAwards, projectedMatchupRecord, afcManagers);
 
-  const afcWeekEstimates = afcManagers.map(m => estimateTeamScore(m, afcData, afcSeason, selectedWeek, weekProjections, latestCompletedWeek));
-  const nfcWeekEstimates = nfcManagers.map(m => estimateTeamScore(m, nfcData, nfcSeason, selectedWeek, weekProjections, latestCompletedWeek));
+  const afcWeekEstimates = afcManagers.map(m => estimateTeamScore(m, afcData, afcSeason, selectedWeek, weekProjections, latestCompletedWeek, playersDB, enrichedByTeamWeek));
+  const nfcWeekEstimates = nfcManagers.map(m => estimateTeamScore(m, nfcData, nfcSeason, selectedWeek, weekProjections, latestCompletedWeek, playersDB, enrichedByTeamWeek));
   const hasAnyAfcEstimate = afcWeekEstimates.some(e => e.value != null);
   const hasAnyNfcEstimate = nfcWeekEstimates.some(e => e.value != null);
-  const anyRealScorePosted = Object.values(afcSeason.scoreByWeek[selectedWeek] || {}).some(v => v > 0)
-    || Object.values(nfcSeason.scoreByWeek[selectedWeek] || {}).some(v => v > 0);
+  const anyRealScorePosted = selectedWeekHasPostedScore;
   const weekPoints = {
     afcTotal: hasAnyAfcEstimate ? afcWeekEstimates.reduce((s, e) => s + (e.value || 0), 0) : null,
     nfcTotal: hasAnyNfcEstimate ? nfcWeekEstimates.reduce((s, e) => s + (e.value || 0), 0) : null,
@@ -1422,8 +1534,12 @@ export default function App() {
     nfcWins: nfcManagers.reduce((sum, m) => sum + (crossRecordsForSeason[m]?.wins || 0), 0),
     ties: afcManagers.reduce((sum, m) => sum + (crossRecordsForSeason[m]?.ties || 0), 0)
   };
-  const afcManagerRows = afcManagers.filter(m => selectedManager === "ALL" || m === selectedManager);
-  const nfcManagerRows = nfcManagers.filter(m => selectedManager === "ALL" || m === selectedManager);
+  const matchupManagerFilter = selectedManager;
+  const otherManagers = [...afcManagers, ...nfcManagers];
+  const graphAfcManagers = showAfc ? afcManagers.filter(m => matchupManagerFilter === "ALL" || m === matchupManagerFilter) : [];
+  const graphNfcManagers = showNfc ? nfcManagers.filter(m => matchupManagerFilter === "ALL" || m === matchupManagerFilter) : [];
+  const afcManagerRows = afcManagers.filter(m => m !== myTeamManager && (matchupManagerFilter === "ALL" || m === matchupManagerFilter));
+  const nfcManagerRows = nfcManagers.filter(m => m !== myTeamManager && (matchupManagerFilter === "ALL" || m === matchupManagerFilter));
 
   const teamColorMap = useMemo(
     () => ({
@@ -1486,11 +1602,7 @@ export default function App() {
     { id: "currentWeek", label: `This Week (${selectedWeek})`, shortLabel: `This Week (${selectedWeek})`, icon: Calendar },
     { id: "matchups", label: "Matchups", shortLabel: "Matchups", icon: Swords },
     { id: "standings", label: "Standings", shortLabel: "Standings", icon: Trophy },
-    { id: "grid", label: "Schedule Grid", shortLabel: "Schedule Grid", icon: LayoutGrid },
-    { id: "playoffs", label: "Playoffs", shortLabel: "Playoffs", icon: GitBranch },
-    { id: "players", label: "Players", shortLabel: "Players", icon: Search },
-    { id: "activity", label: "Activity", shortLabel: "Activity", icon: Activity },
-    { id: "news", label: "News", shortLabel: "News", icon: Newspaper },
+    { id: "league", label: "League", shortLabel: "League", icon: Users },
     ...(isAdmin ? [{ id: "teams", label: "MS Teams Broadcast", shortLabel: "Broadcast", icon: Megaphone }] : [])
   ];
 
@@ -1505,7 +1617,7 @@ export default function App() {
     <RosterModalProvider onOpen={playTeamSound}>
     <TeamDepthChartProvider>
     <MatchupPreviewProvider>
-    <div className="min-h-screen bg-[var(--bg)] text-[var(--text)] p-4 md:p-8 pb-24 md:pb-8">
+    <div className={`min-h-screen bg-[var(--bg)] text-[var(--text)] p-4 md:p-8 ${activeTab === "home" ? "pb-8" : "pb-[calc(10rem+env(safe-area-inset-bottom))] md:pb-24"}`}>
       {showLoginModal && (
         <AdminLoginModal onClose={() => setShowLoginModal(false)} onSuccess={handleLoginSuccess} />
       )}
@@ -1531,11 +1643,11 @@ export default function App() {
       <MatchupPreviewModal
         computeIntra={(manager, conf, week) => getIntraInfo(
           manager, conf === "AFC" ? afcSeason : nfcSeason, allStats, week,
-          conf === "AFC" ? afcData : nfcData, weekProjections, latestCompletedWeek
+          conf === "AFC" ? afcData : nfcData, weekProjections, latestCompletedWeek, playersDB, enrichedByTeamWeek
         )}
         computeInter={(manager, conf, week) => getInterInfo(
           manager, conf, schedule.filter(m => m.week === week), afcSeason, nfcSeason, allStats, week,
-          afcData, nfcData, weekProjections, latestCompletedWeek
+          afcData, nfcData, weekProjections, latestCompletedWeek, playersDB, enrichedByTeamWeek
         )}
         afcSlots={afcData.startingSlots || []} nfcSlots={nfcData.startingSlots || []}
         playersDB={playersDB} weekProjections={weekProjections} byTeamWeek={enrichedByTeamWeek}
@@ -1623,7 +1735,7 @@ export default function App() {
       {/* Newscast-style scrolling crawl -- skipped on Home and the dedicated News tab since both
           already show this same real data in full; everywhere else it's the one ambient reminder
           that news exists without needing its own click. */}
-      {activeTab !== "home" && activeTab !== "news" && (
+      {activeTab !== "home" && !(activeTab === "league" && leagueView === "news") && (
         <NewsTicker
           myPlayerNotes={myPlayerNotes} myPlayerHeadlines={myPlayerHeadlines} nflHeadlines={nflHeadlines}
           afcTransactions={afcTransactions} nfcTransactions={nfcTransactions}
@@ -1694,7 +1806,7 @@ export default function App() {
             afcSlots={afcData.startingSlots || []} nfcSlots={nfcData.startingSlots || []}
             afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
             afcManagers={afcManagers} nfcManagers={nfcManagers} schedule={schedule} logoMap={teamLogoMap} hexColorMap={teamHexColorMap}
-            projectedScoreByManager={projectedScoreByManager}
+            projectedScoreByManager={projectedScoreByManager} pregameScoreByManager={pregameScoreByManager}
             afcStandings={afcStandings} nfcStandings={nfcStandings} weekBigPlays={weekBigPlays}
             seasonResultsByTeam={seasonResultsByTeam} managerStreaks={managerStreaks} waiverWireMvp={waiverWireMvp}
           />
@@ -1759,10 +1871,14 @@ export default function App() {
               </div>
               <button
                 type="button"
-                onClick={() => navigateToTab("playoffs")}
-                className="inline-flex items-center gap-2 rounded-full border border-[var(--border2)] bg-[var(--surface)] px-4 py-2 text-sm font-extrabold text-[var(--text)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all"
+                onClick={() => setStandingsView(standingsView === "playoffs" ? "overview" : "playoffs")}
+                className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-extrabold transition-all ${
+                  standingsView === "playoffs"
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-text)]"
+                    : "border-[var(--border2)] bg-[var(--surface)] text-[var(--text)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                }`}
               >
-                <GitBranch className="w-4 h-4" /> View Playoff Bracket
+                <GitBranch className="w-4 h-4" /> {standingsView === "playoffs" ? "Back to Standings" : "View Playoff Bracket"}
               </button>
             </div>
 
@@ -1790,13 +1906,28 @@ export default function App() {
                 hexColorMap={teamHexColorMap} logoMap={teamLogoMap} confFilter={confFilter} latestCompletedWeek={latestCompletedWeek}
               />
             )}
+
+            {standingsView === "playoffs" && (
+              <div className="max-w-7xl mx-auto w-full">
+                {!hasStandingsData ? (
+                  <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
+                    <RefreshCw className="w-7 h-7 animate-spin text-[var(--accent)]" />
+                    <p className="text-sm text-[var(--muted)]">Building the bracket from LENZONE standings&hellip;</p>
+                  </div>
+                ) : (
+                  <PlayoffsTab
+                    afcStandings={afcStandings} nfcStandings={nfcStandings}
+                    afcPostseason={afcPostseason} nfcPostseason={nfcPostseason}
+                    currentWeek={nflState.week || 1} latestCompletedWeek={latestCompletedWeek}
+                  />
+                )}
+              </div>
+            )}
           </div>
         )}
 
-        {/* TAB: MATCHUPS (merged Weekly Matchups + Schedule -- same schedule/score data, two pivots.
-             The Grid used to be a third pivot here -- it's now its own top-level tab, see below,
-             since it's a different-enough view (whole-league/whole-season at once) to earn its own
-             spot in the nav rather than being buried a click into Matchups.) */}
+        {/* TAB: MATCHUPS -- weekly cards, one-team schedule, and whole-league schedule grid are
+            three subtabs over the same matchup data instead of separate top-level destinations. */}
         {activeTab === "matchups" && (
           <div className="space-y-8 max-w-7xl mx-auto w-full">
             <div className="bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-4 flex flex-wrap items-center gap-x-8 gap-y-2">
@@ -1813,22 +1944,21 @@ export default function App() {
               )}
             </div>
 
-            {matchupsView === "season" && (
-              <div className="inline-flex rounded-full bg-[var(--surface2)] border border-[var(--border)] p-1 gap-1">
-                {[["week", "Weekly"], ["season", "Full Season"]].map(([id, label]) => (
+            <div className="inline-flex rounded-full bg-[var(--surface2)] border border-[var(--border)] p-1 gap-1 flex-wrap self-start">
+                {[["week", "Weekly Matchups", Swords], ["season", "Team Schedule", Calendar], ["grid", "Schedule Grid", LayoutGrid]].map(([id, label, Icon]) => (
                   <button
                     key={id}
                     type="button"
                     onClick={() => setMatchupsView(id)}
-                    className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all duration-200 ${
+                    className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-bold transition-all duration-200 ${
                       matchupsView === id ? "bg-[var(--accent)] text-[var(--accent-text)]" : "text-[var(--text2)] hover:text-[var(--text)]"
                     }`}
                   >
+                    <Icon className="w-4 h-4" />
                     {label}
                   </button>
                 ))}
-              </div>
-            )}
+            </div>
 
             {matchupsView === "season" && (
               <ScheduleTab
@@ -1843,32 +1973,21 @@ export default function App() {
               />
             )}
 
+            {matchupsView === "grid" && (
+              <SeasonGridTab
+                afcSeason={afcSeason} nfcSeason={nfcSeason} crossSchedule={schedule}
+                afcManagers={afcManagers} nfcManagers={nfcManagers}
+                seasonWeeks={SEASON_WEEKS} currentWeek={nflState.week}
+                latestCompletedWeek={latestCompletedWeek}
+                logoMap={teamLogoMap}
+              />
+            )}
+
             {matchupsView === "week" && (
               <>
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6 items-start">
             <div className="space-y-8 min-w-0">
             <div className="flex flex-wrap items-center gap-4 bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 p-4 rounded-xl">
-              <div>
-                <label className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)] block mb-1">View</label>
-                <div className="inline-flex rounded-full bg-[var(--surface2)] border border-[var(--border)] p-1 gap-1">
-                  {[["week", "Weekly"], ["season", "Full Season"]].map(([id, label]) => (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => setMatchupsView(id)}
-                      className={`px-3 py-1 rounded-full text-xs font-bold transition-all duration-200 ${
-                        matchupsView === id ? "bg-[var(--accent)] text-[var(--accent-text)]" : "text-[var(--text2)] hover:text-[var(--text)]"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)] block mb-1">Conference</label>
-                <ConfFilterToggle value={confFilter} onChange={setConfFilter} />
-              </div>
               <div>
                 <label className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)] block mb-1">NFL Week</label>
                 <select
@@ -1882,24 +2001,28 @@ export default function App() {
                 </select>
               </div>
               <div>
-                <label className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)] block mb-1">Filter Manager</label>
+                <label className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)] block mb-1">Conference</label>
+                <ConfFilterToggle value={confFilter} onChange={setConfFilter} />
+              </div>
+              <div>
+                <label className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)] block mb-1">Manager</label>
                 <select
-                  value={selectedManager}
+                  value={matchupManagerFilter}
                   onChange={(e) => setSelectedManager(e.target.value)}
                   className="bg-[var(--bg)] border border-[var(--border)]/80 text-sm rounded-lg px-3 py-1.5 text-[var(--text)]"
                 >
                   <option value="ALL">All Managers</option>
-                  {[...afcManagers, ...nfcManagers].map(m => (
+                  {otherManagers.map(m => (
                     <option key={m} value={m}>{m}</option>
                   ))}
                 </select>
               </div>
             </div>
 
-            {/* Your own matchup pinned to the top of the full manager list -- same reasoning as
-                CurrentWeekView: this is the one card here that's actually about you, so it
-                shouldn't require scrolling past the league-wide trophies and every other
-                manager's card first. */}
+            <WeeklyScoresBarChart afcManagers={graphAfcManagers} nfcManagers={graphNfcManagers} afcSeason={afcSeason} nfcSeason={nfcSeason} schedule={schedule} week={selectedWeek} logoMap={teamLogoMap} projectedScores={projectedScoreByManager} pregameScores={pregameScoreByManager} isWeekFinal={isSelectedWeekFinal} />
+
+            {/* After the filtered graph, keep your own matchup pinned regardless of conference or
+                manager filters, then show the filtered remaining cards below it. */}
             {myTeamManager && (
               <div className="space-y-3">
                 <p className="tracking-wider text-xs uppercase font-semibold text-[var(--muted)]">Your Matchup</p>
@@ -1912,16 +2035,16 @@ export default function App() {
               </div>
             )}
 
-            {/* Trophies/highlights deliberately live on This Week, not here -- this tab is just a
-                clear, uncluttered way to look at every matchup, your own first. */}
-            <p className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)] pt-2 border-t border-[var(--border)]/60">
+            <p className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)] pt-3 border-t border-[var(--border)]/60">
               Everyone Else's Matchups
             </p>
 
-            <WeeklyScoresBarChart afcManagers={afcManagers} nfcManagers={nfcManagers} afcSeason={afcSeason} nfcSeason={nfcSeason} schedule={schedule} week={selectedWeek} logoMap={teamLogoMap} projectedScores={projectedScoreByManager} isWeekFinal={isSelectedWeekFinal} />
+            {!((showAfc && afcManagerRows.length > 0) || (showNfc && nfcManagerRows.length > 0)) && (
+              <p className="text-sm text-[var(--muted)] italic">No other matchups match these filters.</p>
+            )}
 
             {(() => {
-              const afcBlock = showAfc && (
+              const afcBlock = showAfc && afcManagerRows.length > 0 && (
                 <div key="afc" className="space-y-3">
                   <div className="flex items-center gap-2">
                     <h2 className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)]">AFC Matchups &mdash; Week {selectedWeek}</h2>
@@ -1932,8 +2055,8 @@ export default function App() {
                         key={m}
                         manager={m}
                         conf="AFC"
-                        intra={getIntraInfo(m, afcSeason, allStats, selectedWeek, afcData, weekProjections, latestCompletedWeek)}
-                        inter={getInterInfo(m, "AFC", weekCrossPairs, afcSeason, nfcSeason, allStats, selectedWeek, afcData, nfcData, weekProjections, latestCompletedWeek)}
+                        intra={getIntraInfo(m, afcSeason, allStats, selectedWeek, afcData, weekProjections, latestCompletedWeek, playersDB, enrichedByTeamWeek)}
+                        inter={getInterInfo(m, "AFC", weekCrossPairs, afcSeason, nfcSeason, allStats, selectedWeek, afcData, nfcData, weekProjections, latestCompletedWeek, playersDB, enrichedByTeamWeek)}
                         afcSlots={afcData.startingSlots || []}
                         nfcSlots={nfcData.startingSlots || []}
                         playersDB={playersDB}
@@ -1945,7 +2068,7 @@ export default function App() {
                   </div>
                 </div>
               );
-              const nfcBlock = showNfc && (
+              const nfcBlock = showNfc && nfcManagerRows.length > 0 && (
                 <div key="nfc" className="space-y-3">
                   <div className="flex items-center gap-2">
                     <h2 className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)]">NFC Matchups &mdash; Week {selectedWeek}</h2>
@@ -1956,8 +2079,8 @@ export default function App() {
                         key={m}
                         manager={m}
                         conf="NFC"
-                        intra={getIntraInfo(m, nfcSeason, allStats, selectedWeek, nfcData, weekProjections, latestCompletedWeek)}
-                        inter={getInterInfo(m, "NFC", weekCrossPairs, afcSeason, nfcSeason, allStats, selectedWeek, afcData, nfcData, weekProjections, latestCompletedWeek)}
+                        intra={getIntraInfo(m, nfcSeason, allStats, selectedWeek, nfcData, weekProjections, latestCompletedWeek, playersDB, enrichedByTeamWeek)}
+                        inter={getInterInfo(m, "NFC", weekCrossPairs, afcSeason, nfcSeason, allStats, selectedWeek, afcData, nfcData, weekProjections, latestCompletedWeek, playersDB, enrichedByTeamWeek)}
                         afcSlots={afcData.startingSlots || []}
                         nfcSlots={nfcData.startingSlots || []}
                         playersDB={playersDB}
@@ -1989,120 +2112,86 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB: GRID (whole-league season schedule grid, its own tab -- see comment above Matchups) */}
-        {activeTab === "grid" && (
-          <div className="max-w-7xl mx-auto w-full">
-            <SeasonGridTab
-              afcSeason={afcSeason} nfcSeason={nfcSeason} crossSchedule={schedule}
-              afcManagers={afcManagers} nfcManagers={nfcManagers}
-              seasonWeeks={SEASON_WEEKS} currentWeek={nflState.week}
-              latestCompletedWeek={latestCompletedWeek}
-              logoMap={teamLogoMap}
-            />
-          </div>
-        )}
-
-        {/* TAB: PLAYOFFS (custom seeds, live results, payouts and consequences) */}
-        {activeTab === "playoffs" && (
-          <div className="max-w-7xl mx-auto w-full">
-            {!hasStandingsData ? (
-              <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
-                <RefreshCw className="w-7 h-7 animate-spin text-[var(--accent)]" />
-                <p className="text-sm text-[var(--muted)]">Building the bracket from LENZONE standings&hellip;</p>
-              </div>
-            ) : (
-              <PlayoffsTab
-                afcStandings={afcStandings} nfcStandings={nfcStandings}
-                afcPostseason={afcPostseason} nfcPostseason={nfcPostseason}
-                currentWeek={nflState.week || 1} latestCompletedWeek={latestCompletedWeek}
-              />
-            )}
-          </div>
-        )}
-
-        {/* TAB: PLAYERS (Player Search + Rosters + Draft Board) */}
-        {activeTab === "players" && (
+        {/* TAB: LEAGUE -- player tools, transaction activity, and news under one destination. */}
+        {activeTab === "league" && (
           <div className="space-y-6">
-            <div className="inline-flex bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-1 gap-1 flex-wrap">
-              {[["search", "Player Search", Search], ["rosters", "Rosters", Users], ["draft", "Draft Board", ListOrdered]].map(([key, label, Icon]) => (
+            <div className="inline-flex rounded-full bg-[var(--surface2)] border border-[var(--border)] p-1 gap-1 flex-wrap">
+              {[["players", "Players", Search], ["activity", "Activity", Activity], ["news", "News", Newspaper]].map(([id, label, Icon]) => (
                 <button
-                  key={key}
-                  onClick={() => setPlayersSubTab(key)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 ${
-                    playersSubTab === key ? "bg-[var(--accent)] text-[var(--accent-text)]" : "text-[var(--text2)] hover:text-[var(--text)]"
+                  key={id}
+                  type="button"
+                  onClick={() => setLeagueView(id)}
+                  className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-bold transition-all duration-200 ${
+                    leagueView === id ? "bg-[var(--accent)] text-[var(--accent-text)]" : "text-[var(--text2)] hover:text-[var(--text)]"
                   }`}
                 >
-                  <Icon className="w-4 h-4" />
-                  {label}
+                  <Icon className="w-4 h-4" /> {label}
                 </button>
               ))}
             </div>
 
-            {playersSubTab === "search" && (
-              // Player Search deliberately defaults to All/All rather than your own team -- unlike
-              // Rosters/Activity below, browsing players isn't "your team" scoped by default.
-              // key={myTeamManager} force-remounts (and so resets its own internal filter state)
-              // every time "I am" changes, rather than leaving a manually-picked team/position
-              // filter from a PREVIOUS identity lingering in memory.
-              <PlayersTab
-                key={myTeamManager}
-                afcData={afcData}
-                nfcData={nfcData}
-                afcDraft={afcDraft}
-                nfcDraft={nfcDraft}
-                afcTransactions={afcTransactions}
-                nfcTransactions={nfcTransactions}
-                afcManagers={afcManagers}
-                nfcManagers={nfcManagers}
-                playersDB={playersDB}
-                playersLoading={playersLoading}
-                focusManager={null} focusConf={null}
+            {leagueView === "players" && (
+              <div className="space-y-6">
+                <div className="inline-flex bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-1 gap-1 flex-wrap">
+                  {[["search", "Player Search", Search], ["rosters", "Rosters", Users], ["draft", "Draft Board", ListOrdered]].map(([key, label, Icon]) => (
+                    <button
+                      key={key}
+                      onClick={() => setPlayersSubTab(key)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 ${
+                        playersSubTab === key ? "bg-[var(--accent)] text-[var(--accent-text)]" : "text-[var(--text2)] hover:text-[var(--text)]"
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {playersSubTab === "search" && (
+                  <PlayersTab
+                    key={myTeamManager}
+                    afcData={afcData} nfcData={nfcData}
+                    afcDraft={afcDraft} nfcDraft={nfcDraft}
+                    afcTransactions={afcTransactions} nfcTransactions={nfcTransactions}
+                    afcManagers={afcManagers} nfcManagers={nfcManagers}
+                    playersDB={playersDB} playersLoading={playersLoading}
+                    focusManager={null} focusConf={null}
+                  />
+                )}
+                {playersSubTab === "rosters" && (
+                  <RosterTab
+                    afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason} playersDB={playersDB} playersLoading={playersLoading}
+                    weekProjections={weekProjections} selectedWeek={selectedWeek} setSelectedWeek={setSelectedWeek} seasonWeeks={SEASON_WEEKS}
+                    byTeamWeek={enrichedByTeamWeek}
+                    focusManager={myTeamManager} focusConf={myTeamConf}
+                  />
+                )}
+                {playersSubTab === "draft" && (
+                  <DraftBoardTab
+                    afcDraft={afcDraft} nfcDraft={nfcDraft}
+                    afcRosterIdMap={afcData.rosterIdMap} nfcRosterIdMap={nfcData.rosterIdMap}
+                    loading={draftLoading} playersDB={playersDB}
+                  />
+                )}
+              </div>
+            )}
+
+            {leagueView === "activity" && (
+              <ActivityTab
+                afcTransactions={afcTransactions} nfcTransactions={nfcTransactions}
+                afcRosterIdMap={afcData.rosterIdMap} nfcRosterIdMap={nfcData.rosterIdMap}
+                playersDB={playersDB} loading={transactionsLoading} focusConf={myTeamConf}
               />
             )}
-            {playersSubTab === "rosters" && (
-              <RosterTab
-                afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason} playersDB={playersDB} playersLoading={playersLoading}
-                weekProjections={weekProjections} selectedWeek={selectedWeek} setSelectedWeek={setSelectedWeek} seasonWeeks={SEASON_WEEKS}
-                byTeamWeek={enrichedByTeamWeek}
-                focusManager={myTeamManager} focusConf={myTeamConf}
-              />
-            )}
-            {playersSubTab === "draft" && (
-              <DraftBoardTab
-                afcDraft={afcDraft}
-                nfcDraft={nfcDraft}
-                afcRosterIdMap={afcData.rosterIdMap}
-                nfcRosterIdMap={nfcData.rosterIdMap}
-                loading={draftLoading}
-                playersDB={playersDB}
+
+            {leagueView === "news" && (
+              <NewsView
+                seasonResultsByTeam={seasonResultsByTeam} nflHeadlines={nflHeadlines} onRefreshHeadlines={refreshHeadlines}
+                myTeamManager={myTeamManager} myPlayerNotes={myPlayerNotes} myPlayerHeadlines={myPlayerHeadlines}
+                onRefreshPlayerNews={() => Promise.all([refreshHeadlines(), refreshPlayerNotes()])}
               />
             )}
           </div>
-        )}
-
-        {/* TAB: ACTIVITY -- live Sleeper trades, waivers and free-agent moves. */}
-        {activeTab === "activity" && (
-          <div className="space-y-6">
-            <ActivityTab
-              afcTransactions={afcTransactions}
-              nfcTransactions={nfcTransactions}
-              afcRosterIdMap={afcData.rosterIdMap}
-              nfcRosterIdMap={nfcData.rosterIdMap}
-              playersDB={playersDB}
-              loading={transactionsLoading}
-              focusConf={myTeamConf}
-            />
-          </div>
-        )}
-
-        {/* TAB: NEWS -- same real ESPN-sourced fun-fact/headlines/your-player-news widgets, just
-            given the same full-width page other tabs get instead of a narrow centered column. */}
-        {activeTab === "news" && (
-          <NewsView
-            seasonResultsByTeam={seasonResultsByTeam} nflHeadlines={nflHeadlines} onRefreshHeadlines={refreshHeadlines}
-            myTeamManager={myTeamManager} myPlayerNotes={myPlayerNotes} myPlayerHeadlines={myPlayerHeadlines}
-            onRefreshPlayerNews={() => Promise.all([refreshHeadlines(), refreshPlayerNotes()])}
-          />
         )}
 
         {/* TAB: MS TEAMS RECAP (admin only) */}
@@ -2118,7 +2207,7 @@ export default function App() {
             {/* Visual reference for whoever's writing the recap -- same "All Teams" chart as the
                 Matchups tab, not part of the copyable markdown text below (Teams chat can't render
                 a live SVG from pasted markdown). */}
-            <WeeklyScoresBarChart afcManagers={afcManagers} nfcManagers={nfcManagers} afcSeason={afcSeason} nfcSeason={nfcSeason} schedule={schedule} week={selectedWeek} logoMap={teamLogoMap} projectedScores={projectedScoreByManager} isWeekFinal={isSelectedWeekFinal} />
+            <WeeklyScoresBarChart afcManagers={afcManagers} nfcManagers={nfcManagers} afcSeason={afcSeason} nfcSeason={nfcSeason} schedule={schedule} week={selectedWeek} logoMap={teamLogoMap} projectedScores={projectedScoreByManager} pregameScores={pregameScoreByManager} isWeekFinal={isSelectedWeekFinal} />
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
@@ -2196,7 +2285,7 @@ Full Standings & Scoreboard: https://lenzone.vercel.app`}
 
       {/* Mobile Sticky Bottom Navigation Bar -- hidden on Home too */}
       {activeTab !== "home" && (
-      <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-[var(--surface)]/70 backdrop-blur-md border-t border-[var(--border)]/80 flex justify-around py-2.5 overflow-x-auto">
+      <nav data-bottom-chrome className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-[var(--surface)]/70 backdrop-blur-md border-t border-[var(--border)]/80 flex justify-around pt-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] overflow-x-auto">
         {tabs.map(tab => (
           <button
             key={tab.id}

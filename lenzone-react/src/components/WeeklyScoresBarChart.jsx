@@ -17,9 +17,14 @@ const HEIGHT = 440;
 // top needs room above the tallest bar for its score number AND (for whoever has the week's
 // single highest score) the little cash/wine-glass flourish stacked above that.
 const MARGIN = { top: 46, right: 110, bottom: 170, left: 160 };
-const MIN_BAR_W = 62;
-const BAR_GAP = 12;
-const GROUP_GAP = 32;
+// One horizontal slot per team. During a live week the slot contains three clustered bars:
+// posted Actual, Sleeper's live projected finish, then the pregame projection baseline.
+// Keep each three-bar cluster compact, then use the saved width as a larger inter-team gutter.
+// The overall 120px cadence is unchanged, so the chart does not become any wider to scroll.
+const MIN_BAR_W = 100;
+const SERIES_GAP = 6;
+const BAR_GAP = 20;
+const GROUP_GAP = 48;
 const AFC_COLOR = "#f87171"; // tailwind red-400, matches CONF_STYLES.AFC.text
 const NFC_COLOR = "#60a5fa"; // tailwind blue-400, matches CONF_STYLES.NFC.text
 // Split typographic role: title + team names are a serif (Playfair Display -- already loaded and
@@ -103,8 +108,15 @@ function niceTicks(max, targetCount = 5) {
 //   color) and their two opponents (green if scoring LESS than the chosen team right now, red if
 //   scoring MORE) are colored; everyone else is a flat neutral bar.
 const LOGO_SIZE = 40;
+const CLUSTER_LOGO_SIZE = 20;
+// Exported live clusters need more than horizontal separation: values can be only fractions of a
+// point apart, so three labels placed at the same y-position visually run together. Give each
+// series its own vertical lane above the cluster instead. The added export-only headroom keeps
+// those lanes clear of the title without making the interactive chart taller.
+const EXPORT_VALUE_LABEL_HEADROOM = 64;
+const EXPORT_VALUE_LABEL_LANE = { actual: 12, live: 34, pregame: 56 };
 
-export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeason, nfcSeason, schedule, week, focusManager, focusOpponents, logoMap, hexColorMap, projectedScores = {}, isWeekFinal = false }) {
+export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeason, nfcSeason, schedule, week, focusManager, focusOpponents, logoMap, hexColorMap, projectedScores = {}, pregameScores = {}, isWeekFinal = false }) {
   const [hovered, setHovered] = useState(null);
   const { mode: nameMode, displayName, managerName } = useNameDisplay();
   const graphName = (manager, conf) => {
@@ -129,6 +141,10 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
   // enter/leave events against a pointer that never actually moved, which read as the hover state
   // randomly flickering. A click is a discrete, deliberate action with none of that ambiguity.
   const [pinned, setPinned] = useState(null);
+  // Focused charts start with the whole league for useful context, but the user can collapse
+  // them to just their two real matchups. Because export renders from this same `bars` list, the
+  // PNG and clipboard image always mirror the live view exactly.
+  const [showEveryoneElse, setShowEveryoneElse] = useState(true);
   // A week/mode change invalidates whatever was selected/pinned before (different real bars
   // entirely).
   React.useEffect(() => { clearSelection(); setPinned(null); }, [week, focusManager]);
@@ -151,13 +167,24 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
   // Cross-conference opponent/result for one manager this week -- `schedule` is the same
   // {week, afcTeam, nfcTeam} pairing list used throughout the app (App.jsx's cross-conference
   // schedule, see computeCrossRecords in statsMath.js for the identical lookup pattern).
+  const weekHasPostedScore = afcManagers.some(manager => (afcSeason.scoreByWeek?.[week]?.[manager] ?? 0) !== 0)
+    || nfcManagers.some(manager => (nfcSeason.scoreByWeek?.[week]?.[manager] ?? 0) !== 0);
   const displayedScoreFor = (manager, season) => {
-    const actualScore = season.scoreByWeek?.[week]?.[manager];
+    const rawActual = season.scoreByWeek?.[week]?.[manager];
+    const actualScore = (isWeekFinal || weekHasPostedScore) && Number.isFinite(rawActual) ? rawActual : null;
     const projectedScore = projectedScores?.[manager];
+    const rawPregameScore = pregameScores?.[manager];
     const useProjection = !isWeekFinal && Number.isFinite(projectedScore);
+    // Pregame is comparison context only after scoring has started; otherwise it is identical to
+    // the normal future-week projection. Finals intentionally retain it beside Actual.
+    const pregameScore = Number.isFinite(rawPregameScore) && (isWeekFinal || actualScore != null)
+      ? rawPregameScore
+      : null;
     return {
-      score: useProjection ? projectedScore : (actualScore > 0 ? actualScore : null),
-      actualScore: actualScore > 0 ? actualScore : null,
+      score: useProjection ? projectedScore : actualScore,
+      actualScore,
+      projectedScore: useProjection ? projectedScore : null,
+      pregameScore,
       scoreType: useProjection ? "Proj" : "Actual"
     };
   };
@@ -178,12 +205,12 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
       .map(m => {
         const scoreInfo = displayedScoreFor(m, season);
         if (scoreInfo.score == null) return null;
-        const { score, actualScore, scoreType } = scoreInfo;
+        const { score, actualScore, projectedScore, pregameScore, scoreType } = scoreInfo;
         const opp = opponentOf(m);
         const oppScore = opp ? displayedScoreFor(opp, season).score : null;
         const result = oppScore != null ? (score > oppScore ? "W" : score < oppScore ? "L" : "T") : null;
         const cross = crossResultFor(m, conf === "AFC", score);
-        return { manager: m, conf, score, actualScore, scoreType, opponent: opp, result, crossResult: cross.result, crossOpponent: cross.opponent };
+        return { manager: m, conf, score, actualScore, projectedScore, pregameScore, scoreType, opponent: opp, result, crossResult: cross.result, crossOpponent: cross.opponent };
       })
       .filter(Boolean);
   };
@@ -204,8 +231,14 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
 
   const focusScore = focusManager ? allBars.find(b => b.manager === focusManager)?.score : null;
   const hasProjectedBars = allBars.some(b => b.scoreType === "Proj");
-  const hasActualBars = allBars.some(b => b.scoreType === "Actual");
-  const scoreTypeLabel = hasProjectedBars && hasActualBars ? "Actual / Proj" : hasProjectedBars ? "Proj" : "Actual";
+  const hasActualBars = allBars.some(b => b.actualScore != null);
+  const hasPregameBars = allBars.some(b => b.pregameScore != null);
+  const scoreTypeLabel = hasActualBars && hasProjectedBars && hasPregameBars
+    ? "Actual / Live Proj / Pregame Proj"
+    : hasActualBars && hasPregameBars
+      ? "Actual / Pregame Proj"
+      : hasProjectedBars ? "Proj" : "Actual";
+  const referenceTypeLabel = hasProjectedBars ? "Proj" : "Actual";
   let bars;
   if (focusManager) {
     const focusSet = new Set([focusManager, ...(focusOpponents || [])]);
@@ -217,7 +250,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
       .filter(b => !focusSet.has(b.manager))
       .sort((a, b) => b.score - a.score)
       .map(b => ({ ...b, group: "rest" }));
-    bars = [...focusList, ...restList];
+    bars = [...focusList, ...(showEveryoneElse ? restList : [])];
   } else {
     // Plain left-to-right, highest to lowest, AFC and NFC mixed together -- one flat ranking of
     // every real score this week, not grouped/gapped by conference.
@@ -234,7 +267,11 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
   // league-wide high score) gets a little "cha-ching" flourish above its bar.
   const highScoreManager = hasProjectedBars ? null : allBars.reduce((best, b) => (!best || b.score > best.score ? b : best), null)?.manager;
 
-  const rawMaxScore = Math.max(1, ...allBars.map(b => b.score), afcMedian || 0, nfcMedian || 0);
+  const rawMaxScore = Math.max(
+    1,
+    ...allBars.flatMap(b => [b.actualScore, b.projectedScore, b.pregameScore, b.score].filter(Number.isFinite)),
+    afcMedian || 0, nfcMedian || 0
+  );
   const numGroupGaps = bars.filter((b, i) => i > 0 && b.group !== bars[i - 1].group).length;
   const plotW = bars.length * MIN_BAR_W + (bars.length - 1) * BAR_GAP + numGroupGaps * GROUP_GAP;
   const width = MARGIN.left + MARGIN.right + plotW;
@@ -289,6 +326,16 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
     x += MIN_BAR_W + BAR_GAP;
     return { ...b, x: cx };
   });
+  // Focus mode starts with the chosen team and their two real opponents, followed by everyone
+  // else. Make that relationship explicit instead of relying on whitespace alone: section labels
+  // sit above each cluster and a dashed vertical rule bisects the enlarged gap between them.
+  const focusSectionBars = focusManager ? positioned.filter(b => b.group === "focus") : [];
+  const restSectionBars = focusManager ? positioned.filter(b => b.group === "rest") : [];
+  const sectionGuide = focusSectionBars.length > 0 && restSectionBars.length > 0 ? {
+    dividerX: (focusSectionBars.at(-1).x + MIN_BAR_W + restSectionBars[0].x) / 2,
+    focusCenterX: (focusSectionBars[0].x + focusSectionBars.at(-1).x + MIN_BAR_W) / 2,
+    restCenterX: (restSectionBars[0].x + restSectionBars.at(-1).x + MIN_BAR_W) / 2
+  } : null;
   // `hovered` also doubles as the key for the AFC/NFC median-line hover dimming ("AFC-median" /
   // "NFC-median"), which aren't real bars -- only look up an actual bar for the hover-reference line.
   const hoveredBarForLine = hovered ? bars.find(b => b.manager === hovered) : null;
@@ -357,8 +404,10 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
         { color: CATEGORY_COLOR.you, label: "Your Team" },
         { color: CATEGORY_COLOR["actual-behind"], label: `${hasProjectedBars ? "Proj" : "Actual"} -- Trails You (${categoryCounts["actual-behind"] || 0})` },
         { color: CATEGORY_COLOR["actual-ahead"], label: `${hasProjectedBars ? "Proj" : "Actual"} -- Leads You (${categoryCounts["actual-ahead"] || 0})` },
-        { color: CATEGORY_COLOR["theo-pos"], label: `Theoretical -- Would Lose to You (${categoryCounts["theo-pos"] || 0})` },
-        { color: CATEGORY_COLOR["theo-neg"], label: `Theoretical -- Would Beat You (${categoryCounts["theo-neg"] || 0})` }
+        ...(showEveryoneElse ? [
+          { color: CATEGORY_COLOR["theo-pos"], label: `Theoretical -- Would Lose to You (${categoryCounts["theo-pos"] || 0})` },
+          { color: CATEGORY_COLOR["theo-neg"], label: `Theoretical -- Would Beat You (${categoryCounts["theo-neg"] || 0})` }
+        ] : [])
       ]
     : hasProjectedBars
       ? [
@@ -377,6 +426,26 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
     { color: AFC_COLOR, label: "AFC Median", dashed: true },
     { color: NFC_COLOR, label: "NFC Median", dashed: true }
   ];
+  // Keep live/final clusters and their exports in lockstep. Live uses all three measures; once a
+  // week is final, the live projection would equal Actual, so it deliberately drops away.
+  const seriesFor = (b, hovered = false) => {
+    const values = [];
+    if (b.actualScore != null) {
+      values.push({ kind: 'actual', label: 'Actual', value: b.actualScore, opacity: hovered ? 0.5 : 0.34, dash: '4 3' });
+    }
+    if (b.projectedScore != null) {
+      values.push({ kind: 'live', label: values.length ? 'Live' : 'Proj', value: b.projectedScore, opacity: hovered ? 0.96 : 0.76, dash: null });
+    }
+    if (b.pregameScore != null) {
+      values.push({ kind: 'pregame', label: 'Pre', value: b.pregameScore, opacity: hovered ? 0.32 : 0.19, dash: '2 2' });
+    }
+    if (values.length === 0 && b.score != null) {
+      values.push({ kind: b.scoreType === 'Proj' ? 'live' : 'actual', label: b.scoreType, value: b.score, opacity: hovered ? 0.92 : 0.7, dash: null });
+    }
+    const seriesWidth = (MIN_BAR_W - SERIES_GAP * Math.max(0, values.length - 1)) / values.length;
+    return values.map((series, index) => ({ ...series, x: b.x + index * (seriesWidth + SERIES_GAP), seriesWidth }));
+  };
+  const labelColorForSeries = (series) => series.kind === 'live' ? 'var(--proj)' : 'var(--muted)';
 
   // ---- Export (PNG download / copy-to-clipboard) ----
   // A deliberately separate, self-built SVG -- not a clone of the live interactive one -- so the
@@ -469,6 +538,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
     // no CORS concerns at all, unlike team logos) as a small watermark in the corner.
     const [brandRing, brandBall] = await Promise.all([fetchLogoDataUrl(lenzoneLogoRing), fetchLogoDataUrl(lenzoneLogoBall)]);
     const titleH = 64;
+    const exportValueLabelHeadroom = hasProjectedBars ? EXPORT_VALUE_LABEL_HEADROOM : 0;
     const exportW = width;
 
     // Real text measurement (not a guess) so the legend can wrap into centered rows instead of
@@ -496,14 +566,17 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
     const legendRowH = 30;
     const legendTopPad = 24;
     const legendH = legendTopPad + legendRows.length * legendRowH + 20;
-    const exportH = titleH + HEIGHT + legendH;
+    const exportH = titleH + exportValueLabelHeadroom + HEIGHT + legendH;
 
     const parts = [];
     parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${exportW}" height="${exportH}" viewBox="0 0 ${exportW} ${exportH}">`);
     parts.push(`<defs><linearGradient id="export-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${EXPORT.bgFrom}"/><stop offset="55%" stop-color="${EXPORT.bg}"/><stop offset="100%" stop-color="${EXPORT.bgTo}"/></linearGradient><pattern id="export-texture" width="14" height="14" patternUnits="userSpaceOnUse"><path d="M-4 14L14 -4M3 17L17 3" stroke="${EXPORT.text}" stroke-opacity="${exportTheme === 'dark' ? 0.03 : 0.02}" stroke-width="0.7"/></pattern></defs>`);
     parts.push(`<rect x="0" y="0" width="${exportW}" height="${exportH}" fill="url(#export-bg)"/>`);
     parts.push(`<rect x="0" y="0" width="${exportW}" height="${exportH}" fill="url(#export-texture)"/>`);
-    parts.push(`<text x="${exportW / 2}" y="40" text-anchor="middle" font-family="${EXPORT_SERIF}" font-size="30" font-weight="700" fill="${EXPORT.text}">${esc(`Week ${week} Scores - ${scoreTypeLabel} ${focusManager ? '- You & Your Opponents' : '- All Teams'}`)}</text>`);
+    const exportScopeLabel = focusManager
+      ? (showEveryoneElse ? '- You, Your Opponents & Everyone Else' : '- You & Your Opponents')
+      : '- All Teams';
+    parts.push(`<text x="${exportW / 2}" y="40" text-anchor="middle" font-family="${EXPORT_SERIF}" font-size="30" font-weight="700" fill="${EXPORT.text}">${esc(`Week ${week} Scores - ${scoreTypeLabel} ${exportScopeLabel}`)}</text>`);
     // Brand watermark, top-left corner -- doesn't compete with the centered title for space and
     // stays in the same spot regardless of how long the title text is.
     if (brandRing && brandBall) {
@@ -512,7 +585,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
       parts.push(`<image href="${brandBall}" x="${logoX}" y="${logoY}" width="${logoSize}" height="${logoSize}"/>`);
     }
 
-    parts.push(`<g transform="translate(0 ${titleH})">`);
+    parts.push(`<g transform="translate(0 ${titleH + exportValueLabelHeadroom})">`);
     ticks.forEach(t => {
       const ty = yFor(t);
       parts.push(`<line x1="${MARGIN.left}" x2="${width - MARGIN.right}" y1="${ty}" y2="${ty}" stroke="${EXPORT.border}" stroke-opacity="0.5" stroke-width="1"/>`);
@@ -520,43 +593,62 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
     });
     parts.push(`<text x="84" y="${MARGIN.top + plotH / 2}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="14" font-weight="700" fill="${EXPORT.muted}" transform="rotate(-90 84 ${MARGIN.top + plotH / 2})">Fantasy Points</text>`);
 
+    if (sectionGuide) {
+      const sectionLabelY = hasProjectedBars ? -30 : 14;
+      const sectionLineY = hasProjectedBars ? -18 : 22;
+      parts.push(`<text x="${sectionGuide.focusCenterX}" y="${sectionLabelY}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="11" font-weight="800" letter-spacing="0.8" fill="${EXPORT.text}">YOU VS YOUR OPPONENTS</text>`);
+      parts.push(`<line x1="${sectionGuide.dividerX}" x2="${sectionGuide.dividerX}" y1="${sectionLineY}" y2="${MARGIN.top + plotH}" stroke="${EXPORT.border}" stroke-width="2" stroke-dasharray="7 6" opacity="0.9"/>`);
+      parts.push(`<text x="${sectionGuide.restCenterX}" y="${sectionLabelY}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="11" font-weight="800" letter-spacing="0.8" fill="${EXPORT.muted}">EVERYONE ELSE</text>`);
+    }
+
     if (afcMedian != null) {
       const my = yFor(afcMedian);
       parts.push(`<line x1="${MARGIN.left}" x2="${width - MARGIN.right}" y1="${my}" y2="${my}" stroke="${AFC_COLOR}" stroke-width="${focusManager ? 1.5 : 2.5}" stroke-dasharray="7 5" opacity="${focusManager ? 0.4 : 1}"/>`);
-      parts.push(`<text x="${width - MARGIN.right + 8}" y="${my}" dominant-baseline="middle" font-family="${EXPORT_SANS}" font-size="15" font-weight="700" fill="${AFC_COLOR}">AFC ${afcMedian.toFixed(1)} ${scoreTypeLabel}</text>`);
+      parts.push(`<text x="${width - MARGIN.right + 8}" y="${my}" dominant-baseline="middle" font-family="${EXPORT_SANS}" font-size="15" font-weight="700" fill="${AFC_COLOR}">AFC ${afcMedian.toFixed(1)} ${referenceTypeLabel}</text>`);
     }
     if (nfcMedian != null) {
       const my = yFor(nfcMedian);
       parts.push(`<line x1="${MARGIN.left}" x2="${width - MARGIN.right}" y1="${my}" y2="${my}" stroke="${NFC_COLOR}" stroke-width="${focusManager ? 1.5 : 2.5}" stroke-dasharray="7 5" opacity="${focusManager ? 0.4 : 1}"/>`);
-      parts.push(`<text x="${width - MARGIN.right + 8}" y="${my}" dominant-baseline="middle" font-family="${EXPORT_SANS}" font-size="15" font-weight="700" fill="${NFC_COLOR}">NFC ${nfcMedian.toFixed(1)} ${scoreTypeLabel}</text>`);
+      parts.push(`<text x="${width - MARGIN.right + 8}" y="${my}" dominant-baseline="middle" font-family="${EXPORT_SANS}" font-size="15" font-weight="700" fill="${NFC_COLOR}">NFC ${nfcMedian.toFixed(1)} ${referenceTypeLabel}</text>`);
     }
     if (focusManager && focusScore != null) {
       const fy = yFor(focusScore);
       const accentColor = (hexColorMap?.[focusManager]) || "#e76f51";
       parts.push(`<line x1="${MARGIN.left}" x2="${width - MARGIN.right}" y1="${fy}" y2="${fy}" stroke="${accentColor}" stroke-width="3" stroke-dasharray="9 5"/>`);
-      parts.push(`<text x="${width - MARGIN.right + 8}" y="${fy}" dominant-baseline="middle" font-family="${EXPORT_SANS}" font-size="15" font-weight="800" fill="${accentColor}">You: ${focusScore.toFixed(2)} ${scoreTypeLabel}</text>`);
+      parts.push(`<text x="${width - MARGIN.right + 8}" y="${fy}" dominant-baseline="middle" font-family="${EXPORT_SANS}" font-size="15" font-weight="800" fill="${accentColor}">You: ${focusScore.toFixed(2)} ${referenceTypeLabel}</text>`);
     }
 
     positioned.forEach(b => {
-      const barY = yFor(b.score);
-      const barHeight = MARGIN.top + plotH - barY;
       const color = resolveExportColor(colorFor(b));
       const cx = b.x + MIN_BAR_W / 2;
-      parts.push(`<rect x="${b.x}" y="${barY}" width="${MIN_BAR_W}" height="${barHeight}" rx="5" fill="${color}" fill-opacity="0.75" stroke="${color}" stroke-width="2"/>`);
+      const series = seriesFor(b);
+      series.forEach(s => {
+        const sy = yFor(s.value);
+        const sh = MARGIN.top + plotH - sy;
+        const scx = s.x + s.seriesWidth / 2;
+        parts.push(`<rect x="${s.x}" y="${sy}" width="${s.seriesWidth}" height="${sh}" rx="5" fill="${color}" fill-opacity="${s.opacity}" stroke="${color}" stroke-width="2"${s.dash ? ` stroke-dasharray="${s.dash}"` : ''}/>`);
+        const labelY = sy - (hasProjectedBars ? EXPORT_VALUE_LABEL_LANE[s.kind] : 14);
+        parts.push(`<text x="${scx}" y="${labelY}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="12" font-weight="800" fill="${EXPORT.text}">${s.value.toFixed(2)}</text>`);
+        parts.push(`<text x="${scx}" y="${labelY + 12}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="9" font-weight="800" fill="${s.kind === 'live' ? '#60a5fa' : EXPORT.muted}">${s.label}</text>`);
+      });
       const logoUrl = logoData[b.manager];
-      if (logoUrl && barHeight >= LOGO_SIZE + 14) {
-        const logoCy = barY + LOGO_SIZE / 2 + 8;
+      const clusterBarY = Math.min(...series.map(s => yFor(s.value)));
+      const logoSize = series.length > 1 ? CLUSTER_LOGO_SIZE : LOGO_SIZE;
+      const logoSeries = series.find(s => s.kind === 'live') || series[0];
+      const logoSeriesY = yFor(logoSeries.value);
+      const logoSeriesHeight = MARGIN.top + plotH - logoSeriesY;
+      const logoCx = logoSeries.x + logoSeries.seriesWidth / 2;
+      if (logoUrl && logoSeriesHeight >= logoSize + 14) {
+        const logoCy = logoSeriesY + logoSize / 2 + 8;
         const clipId = `export-logo-${b.manager.replace(/[^a-zA-Z0-9]/g, '')}`;
-        parts.push(`<defs><clipPath id="${clipId}"><circle cx="${cx}" cy="${logoCy}" r="${LOGO_SIZE / 2}"/></clipPath></defs>`);
-        parts.push(`<image href="${logoUrl}" x="${cx - LOGO_SIZE / 2}" y="${logoCy - LOGO_SIZE / 2}" width="${LOGO_SIZE}" height="${LOGO_SIZE}" clip-path="url(#${clipId})" preserveAspectRatio="xMidYMid slice"/>`);
-        parts.push(`<circle cx="${cx}" cy="${logoCy}" r="${LOGO_SIZE / 2}" fill="none" stroke="${EXPORT.bg}" stroke-width="2"/>`);
+        parts.push(`<defs><clipPath id="${clipId}"><circle cx="${logoCx}" cy="${logoCy}" r="${logoSize / 2}"/></clipPath></defs>`);
+        parts.push(`<image href="${logoUrl}" x="${logoCx - logoSize / 2}" y="${logoCy - logoSize / 2}" width="${logoSize}" height="${logoSize}" clip-path="url(#${clipId})" preserveAspectRatio="xMidYMid slice"/>`);
+        parts.push(`<circle cx="${logoCx}" cy="${logoCy}" r="${logoSize / 2}" fill="none" stroke="${EXPORT.bg}" stroke-width="2"/>`);
       }
       if (b.manager === highScoreManager) {
         const emoji = HIGH_SCORE_PRIZES[week]?.choice === "wine" ? "\u{1F377}" : HIGH_SCORE_PRIZES[week]?.choice === "cash" ? "\u{1F4B0}" : "\u{1F4B0}\u{1F377}";
-        parts.push(`<text x="${cx}" y="${barY - 24}" text-anchor="middle" font-size="17">${emoji}</text>`);
+        parts.push(`<text x="${cx}" y="${clusterBarY - 24}" text-anchor="middle" font-size="17">${emoji}</text>`);
       }
-      parts.push(`<text x="${cx}" y="${barY - 15}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="17" font-weight="800" fill="${EXPORT.text}">${b.score.toFixed(2)}</text>`);
-      parts.push(`<text x="${cx}" y="${barY - 2}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="10" font-weight="800" fill="${EXPORT.muted}">${b.scoreType}</text>`);
       const labelY = MARGIN.top + plotH + 12;
       const visibleName = displayName(b.manager, b.conf);
       const secondaryName = nameMode === 'teams' ? managerName(b.manager, b.conf) : null;
@@ -681,15 +773,15 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
 
   return (
     <div data-mode={exportTheme} data-scheme={exportScheme} className="material-surface bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-5">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex flex-col items-start gap-2 mb-3 sm:flex-row sm:items-center sm:justify-between">
         <p
-          className="tracking-wide text-base text-[var(--text)]"
+          className="min-w-0 tracking-wide text-base text-[var(--text)]"
           style={{ fontFamily: SERIF_FONT, fontWeight: 700 }}
         >
-          Week {week} Scores {focusManager ? "-- You & Your Opponents" : "-- All Teams"}
+          Week {week} Scores {focusManager ? (showEveryoneElse ? "-- You, Your Opponents & Everyone Else" : "-- You & Your Opponents") : "-- All Teams"}
           <span className="ml-2 text-xs font-bold uppercase tracking-wide text-[var(--proj)]">{scoreTypeLabel}</span>
         </p>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
           <div className="flex items-center gap-0.5 mr-1 border-r border-[var(--border)]/60 pr-2">
             <button
               type="button" onClick={() => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))}
@@ -760,8 +852,9 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
         </div>
       </div>
       <p className="text-[10px] text-[var(--muted)] -mt-2 mb-3">
-        <span className="font-bold text-[var(--text2)]">Actual</span> = posted score&nbsp;&nbsp;&bull;&nbsp;&nbsp;
-        <span className="font-bold text-[var(--proj)]">Proj</span> = projected finish
+        {hasActualBars && <><span className="font-bold text-[var(--text2)]">Actual</span> = posted score{(hasProjectedBars || hasPregameBars) && <>&nbsp;&nbsp;&bull;&nbsp;&nbsp;</>}</>}
+        {hasProjectedBars && <><span className="font-bold text-[var(--proj)]">Live Proj</span> = Sleeper projected finish{hasPregameBars && <>&nbsp;&nbsp;&bull;&nbsp;&nbsp;</>}</>}
+        {hasPregameBars && <><span className="font-bold text-[var(--muted)]">Pregame Proj</span> = Sleeper baseline before scoring</>}
       </p>
       {selected.size > 0 && !filterActive && (
         <p className="text-[10px] text-[var(--muted)] -mt-2 mb-2">
@@ -788,6 +881,39 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
             </g>
           ))}
 
+          {sectionGuide && (
+            <g pointerEvents="none">
+              <text x={sectionGuide.focusCenterX} y={14} textAnchor="middle" fontSize={10} fontWeight={800} letterSpacing="0.08em" fill="var(--text2)">
+                YOU VS YOUR OPPONENTS
+              </text>
+              <line
+                x1={sectionGuide.dividerX} x2={sectionGuide.dividerX}
+                y1={22} y2={MARGIN.top + plotH}
+                stroke="var(--border2)" strokeWidth={2} strokeDasharray="7 6" opacity={0.9}
+              />
+              <text x={sectionGuide.restCenterX} y={14} textAnchor="middle" fontSize={10} fontWeight={800} letterSpacing="0.08em" fill="var(--muted)">
+                EVERYONE ELSE
+              </text>
+            </g>
+          )}
+          {focusManager && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowEveryoneElse(v => !v);
+                clearSelection();
+                setPinned(null);
+              }}
+              aria-pressed={showEveryoneElse}
+              title="Include or hide the rest of the league in this chart and its exports"
+              className={`text-[10px] font-semibold px-2 py-1 rounded-md transition-colors duration-150 ${
+                showEveryoneElse ? "bg-[var(--surface2)] text-[var(--text2)]" : "text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface2)]"
+              }`}
+            >
+              {showEveryoneElse ? "Hide Everyone Else" : "Show Everyone Else"}
+            </button>
+          )}
+
           {/* AFC/NFC median reference lines for this specific week -- in focus mode these are just
               backdrop context (faded/thin), since the chosen team's OWN score below is the actual
               reference point everything else on this chart is being read against. Always stay at
@@ -797,7 +923,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
             <g opacity={focusManager ? 0.4 : 1}>
               <line x1={MARGIN.left} x2={width - MARGIN.right} y1={yFor(afcMedian)} y2={yFor(afcMedian)} stroke={AFC_COLOR} strokeWidth={focusManager ? 1.5 : 2.5} strokeDasharray="7 5" />
               <text x={width - MARGIN.right + 8} y={yFor(afcMedian)} dominantBaseline="middle" fontSize={focusManager ? 11 : 13} fontWeight={700} fill={AFC_COLOR}>
-                AFC {afcMedian.toFixed(1)} {scoreTypeLabel}
+                AFC {afcMedian.toFixed(1)} {referenceTypeLabel}
               </text>
             </g>
           )}
@@ -805,7 +931,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
             <g opacity={focusManager ? 0.4 : 1}>
               <line x1={MARGIN.left} x2={width - MARGIN.right} y1={yFor(nfcMedian)} y2={yFor(nfcMedian)} stroke={NFC_COLOR} strokeWidth={focusManager ? 1.5 : 2.5} strokeDasharray="7 5" />
               <text x={width - MARGIN.right + 8} y={yFor(nfcMedian)} dominantBaseline="middle" fontSize={focusManager ? 11 : 13} fontWeight={700} fill={NFC_COLOR}>
-                NFC {nfcMedian.toFixed(1)} {scoreTypeLabel}
+                NFC {nfcMedian.toFixed(1)} {referenceTypeLabel}
               </text>
             </g>
           )}
@@ -816,7 +942,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
             <g>
               <line x1={MARGIN.left} x2={width - MARGIN.right} y1={yFor(focusScore)} y2={yFor(focusScore)} stroke="var(--accent)" strokeWidth={3} strokeDasharray="9 5" />
               <text x={width - MARGIN.right + 8} y={yFor(focusScore)} dominantBaseline="middle" fontSize={13} fontWeight={800} fill="var(--accent)">
-                You: {focusScore.toFixed(2)} {scoreTypeLabel}
+                You: {focusScore.toFixed(2)} {referenceTypeLabel}
               </text>
             </g>
           )}
@@ -856,13 +982,21 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
             // deliberate, persistent choice too -- it shouldn't fade out (dashed ring and all)
             // just because you're now hovering a different bar to compare against.
             const isDimmed = hovered && !isHovered && !isOpponentOfHovered && b.manager !== focusManager && !selected.has(b.manager);
-            const barY = yFor(b.score);
             const color = colorFor(b);
+            const series = seriesFor(b, isHovered);
+            const barY = Math.min(...series.map(s => yFor(s.value)));
             const barHeight = MARGIN.top + plotH - barY;
             const logoUrl = logoMap?.[b.manager];
             const clipId = `wsbc-logo-${week}-${(focusManager || 'all').replace(/[^a-zA-Z0-9]/g, '')}-${b.manager.replace(/[^a-zA-Z0-9]/g, '')}`;
-            const logoCy = barY + LOGO_SIZE / 2 + 8;
-            const showLogo = logoUrl && barHeight >= LOGO_SIZE + 14;
+            // In a live cluster, the logo belongs in the Live Proj bar—the current best read on
+            // that team's finish. Finals fall back to Actual because the live bar is absent.
+            const logoSeries = series.find(s => s.kind === 'live') || series[0];
+            const logoSize = series.length > 1 ? CLUSTER_LOGO_SIZE : LOGO_SIZE;
+            const logoSeriesY = yFor(logoSeries.value);
+            const logoSeriesHeight = MARGIN.top + plotH - logoSeriesY;
+            const logoCx = logoSeries.x + logoSeries.seriesWidth / 2;
+            const logoCy = logoSeriesY + logoSize / 2 + 8;
+            const showLogo = logoUrl && logoSeriesHeight >= logoSize + 14;
             const isSelected = selected.has(b.manager);
             const visibleName = displayName(b.manager, b.conf);
             const secondaryName = nameMode === 'teams' ? managerName(b.manager, b.conf) : null;
@@ -890,15 +1024,30 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
                   transition: 'filter 0.2s ease, transform 0.45s cubic-bezier(.22,1,.36,1)'
                 }}
               >
-                <rect
-                  x={b.x} y={barY} width={MIN_BAR_W} height={barHeight} rx={5} fill={color}
-                  fillOpacity={isHovered ? 0.92 : 0.7} stroke={color} strokeWidth={2}
-                  style={{ transition: 'height 0.6s cubic-bezier(.22,1,.36,1), y 0.6s cubic-bezier(.22,1,.36,1), fill-opacity 0.2s ease' }}
-                />
-                <rect
-                  x={b.x} y={barY} width={MIN_BAR_W} height={barHeight} rx={5} fill="url(#wsbc-bar-sheen)" pointerEvents="none"
-                  style={{ transition: 'height 0.6s cubic-bezier(.22,1,.36,1), y 0.6s cubic-bezier(.22,1,.36,1)' }}
-                />
+                {series.map(s => {
+                  const sy = yFor(s.value);
+                  const sh = MARGIN.top + plotH - sy;
+                  const scx = s.x + s.seriesWidth / 2;
+                  return (
+                    <React.Fragment key={s.kind}>
+                      <rect
+                        x={s.x} y={sy} width={s.seriesWidth} height={sh} rx={5} fill={color}
+                        fillOpacity={s.opacity} stroke={color} strokeWidth={2} strokeDasharray={s.dash || undefined}
+                        style={{ transition: 'height 0.6s cubic-bezier(.22,1,.36,1), y 0.6s cubic-bezier(.22,1,.36,1), fill-opacity 0.2s ease' }}
+                      />
+                      <rect
+                        x={s.x} y={sy} width={s.seriesWidth} height={sh} rx={5} fill="url(#wsbc-bar-sheen)" pointerEvents="none"
+                        style={{ transition: 'height 0.6s cubic-bezier(.22,1,.36,1), y 0.6s cubic-bezier(.22,1,.36,1)' }}
+                      />
+                      <text x={scx} y={sy - 15} textAnchor="middle" fontSize={11} fontWeight={800} fill="var(--text)">
+                        {s.value.toFixed(2)}
+                      </text>
+                      <text x={scx} y={sy - 4} textAnchor="middle" fontSize={8} fontWeight={800} fill={labelColorForSeries(s)}>
+                        {s.label}
+                      </text>
+                    </React.Fragment>
+                  );
+                })}
                 {/* Ctrl/Cmd/Shift-click selection ring -- a persistent outline (not just on hover)
                     so it's obvious which bars are picked for "Filter to Selection" below. */}
                 {isSelected && (
@@ -919,19 +1068,19 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
                   <>
                     <defs>
                       <clipPath id={clipId}>
-                        <circle cx={b.x + MIN_BAR_W / 2} cy={logoCy} r={LOGO_SIZE / 2} />
+                        <circle cx={logoCx} cy={logoCy} r={logoSize / 2} />
                       </clipPath>
                     </defs>
                     {/* Logo/name click opens the full matchup preview (stopPropagation so it
                         doesn't also toggle this bar's pin) -- the bar body itself is what
                         groups/ungroups opponents now. */}
                     <image
-                      href={logoUrl} x={b.x + MIN_BAR_W / 2 - LOGO_SIZE / 2} y={logoCy - LOGO_SIZE / 2}
-                      width={LOGO_SIZE} height={LOGO_SIZE} clipPath={`url(#${clipId})`} preserveAspectRatio="xMidYMid slice"
+                      href={logoUrl} x={logoCx - logoSize / 2} y={logoCy - logoSize / 2}
+                      width={logoSize} height={logoSize} clipPath={`url(#${clipId})`} preserveAspectRatio="xMidYMid slice"
                       onClick={(e) => { e.stopPropagation(); openPreview(b.manager, b.conf, week); }}
                       style={{ cursor: 'pointer' }}
                     />
-                    <circle cx={b.x + MIN_BAR_W / 2} cy={logoCy} r={LOGO_SIZE / 2} fill="none" stroke="var(--surface)" strokeWidth={2} />
+                    <circle cx={logoCx} cy={logoCy} r={logoSize / 2} fill="none" stroke="var(--surface)" strokeWidth={2} />
                   </>
                 )}
                 {b.manager === highScoreManager && (
@@ -939,12 +1088,6 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
                     {HIGH_SCORE_PRIZES[week]?.choice === "wine" ? "\u{1F377}" : HIGH_SCORE_PRIZES[week]?.choice === "cash" ? "\u{1F4B0}" : "\u{1F4B0}\u{1F377}"}
                   </text>
                 )}
-                <text x={b.x + MIN_BAR_W / 2} y={barY - 16} textAnchor="middle" fontSize={14} fontWeight={800} fill="var(--text)">
-                  {b.score.toFixed(2)}
-                </text>
-                <text x={b.x + MIN_BAR_W / 2} y={barY - 4} textAnchor="middle" fontSize={9} fontWeight={800} fill={b.scoreType === "Proj" ? "var(--proj)" : "var(--muted)"}>
-                  {b.scoreType}
-                </text>
                 {/* Rotated team label below the bar -- long manager names need the angle to fit.
                     Serif (matching the title), deliberately different from the sans-serif numbers
                     everywhere else on this chart -- a name is a label, not a number. Real manager
@@ -962,8 +1105,11 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
                   {secondaryName && <tspan x={b.x + MIN_BAR_W / 2} dy="14" fontSize={10} fontWeight={600} fill="var(--muted)">({secondaryName})</tspan>}
                 </text>
                 <title>
-                  {graphName(b.manager, b.conf)} ({b.conf}): {b.score.toFixed(2)} {b.scoreType}
-                  {b.scoreType === "Proj" && b.actualScore != null ? `; ${b.actualScore.toFixed(2)} Actual posted` : ''}
+                  {graphName(b.manager, b.conf)} ({b.conf}):
+                  {b.actualScore != null ? ` ${b.actualScore.toFixed(2)} Actual` : ''}
+                  {b.projectedScore != null ? `; ${b.projectedScore.toFixed(2)} Live Proj` : ''}
+                  {b.pregameScore != null ? `; ${b.pregameScore.toFixed(2)} Pregame Proj` : ''}
+                  {b.projectedScore == null && b.actualScore == null ? ` ${b.score.toFixed(2)} ${b.scoreType}` : ''}
                   {b.opponent ? ` vs ${graphName(b.opponent, b.conf)}${b.result ? ` (${b.result})` : ''}` : ''}
                 </title>
               </g>

@@ -232,6 +232,8 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
     myBenchIds, oppBenchIds, myIrIds, oppIrIds
   } = info;
   const showWinPct = !isFinal && myWinPct !== null;
+  const myWinPctPercent = showWinPct ? Math.round(myWinPct * 100) : null;
+  const oppWinPctPercent = showWinPct ? 100 - myWinPctPercent : null;
   const showScores = isFinal || myHasData || oppHasData;
   // Sleeper's own convention: the big number is always the best REAL number available right now
   // (final score, or the live score while a game is in progress); the projected final is a small
@@ -286,6 +288,9 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
           <span className="font-mono leading-tight shrink-0 whitespace-nowrap flex flex-col sm:items-end">
             <span className={`text-lg font-bold ${showScores ? myBigColor : "text-[var(--muted)]"}`}>
               {showScores && bigMy != null ? bigMy.toFixed(2) : "--"}
+              {isLive && showScores && bigMy != null && (
+                <span className="ml-1 text-[10px] font-bold uppercase tracking-wide text-[var(--muted)]">Actual</span>
+              )}
               {!isFinal && !isLive && showScores && bigMy != null && (
                 <span className="ml-1 text-[10px] font-bold uppercase tracking-wide text-[var(--proj)]">Proj</span>
               )}
@@ -301,10 +306,30 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
             )}
           </span>
         </div>
-        <div className="flex items-center gap-2 sm:contents">
-          <div className="flex-1 h-px bg-[var(--border)]/60 sm:hidden" />
-          <span className="text-xs font-bold text-[var(--muted)] bg-[var(--surface)] px-2 py-1 rounded shrink-0">VS</span>
-          <div className="flex-1 h-px bg-[var(--border)]/60 sm:hidden" />
+        <div className="sm:contents">
+          {showWinPct ? (
+            <div className="sm:hidden py-1" title={winPctIsRough ? "Rough estimate -- limited data so far this week" : undefined}>
+              <div className="flex items-center gap-2 mb-1">
+                <div className="flex-1 h-px bg-[var(--border)]/60" />
+                <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--muted)]">Win probability</span>
+                <div className="flex-1 h-px bg-[var(--border)]/60" />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-9 text-left text-[10px] font-mono font-bold text-[var(--text2)]">{myWinPctPercent}%</span>
+                <div className="flex-1 h-2 rounded-full bg-[var(--surface2)] overflow-hidden flex">
+                  <div className="h-full bg-[var(--accent)]" style={{ width: `${myWinPctPercent}%` }} />
+                </div>
+                <span className="w-9 text-right text-[10px] font-mono font-bold text-[var(--text2)]">{oppWinPctPercent}%</span>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 sm:hidden">
+              <div className="flex-1 h-px bg-[var(--border)]/60" />
+              <span className="text-xs font-bold text-[var(--muted)] bg-[var(--surface)] px-2 py-1 rounded shrink-0">VS</span>
+              <div className="flex-1 h-px bg-[var(--border)]/60" />
+            </div>
+          )}
+          <span className="hidden sm:inline-flex text-xs font-bold text-[var(--muted)] bg-[var(--surface)] px-2 py-1 rounded shrink-0">VS</span>
         </div>
         <div className="flex items-center justify-between sm:flex-col sm:items-start sm:justify-start gap-2 sm:gap-2 min-w-0 flex-1">
           <div className="flex items-center gap-1.5 min-w-0 sm:w-full">
@@ -322,6 +347,9 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
           <span className="font-mono leading-tight shrink-0 whitespace-nowrap flex flex-col">
             <span className={`text-lg font-bold ${showScores ? oppBigColor : "text-[var(--muted)]"}`}>
               {showScores && bigOpp != null ? bigOpp.toFixed(2) : "--"}
+              {isLive && showScores && bigOpp != null && (
+                <span className="ml-1 text-[10px] font-bold uppercase tracking-wide text-[var(--muted)]">Actual</span>
+              )}
               {!isFinal && !isLive && showScores && bigOpp != null && (
                 <span className="ml-1 text-[10px] font-bold uppercase tracking-wide text-[var(--proj)]">Proj</span>
               )}
@@ -337,11 +365,11 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
       </div>
 
       {showWinPct && (
-        <div className="flex items-center gap-2 mt-1.5" title={winPctIsRough ? "Rough estimate -- limited data so far this week" : undefined}>
+        <div className="hidden sm:flex items-center gap-2 mt-1.5" title={winPctIsRough ? "Rough estimate -- limited data so far this week" : undefined}>
           <div className="flex-1 h-1.5 rounded-full bg-[var(--surface2)] overflow-hidden flex">
-            <div className="h-full bg-[var(--accent)]" style={{ width: `${(myWinPct * 100).toFixed(0)}%` }} />
+            <div className="h-full bg-[var(--accent)]" style={{ width: `${myWinPctPercent}%` }} />
           </div>
-          <span className="text-xs text-[var(--muted)] font-mono shrink-0">{(myWinPct * 100).toFixed(0)}% win</span>
+          <span className="text-xs text-[var(--muted)] font-mono shrink-0">{myWinPctPercent}% win</span>
         </div>
       )}
       {!isFinal && !showScores && (

@@ -5,23 +5,22 @@ import { CONF_STYLES, SCORE_COLOR } from '../lib/theme';
 import { computeBlendedRosterScore, computeRosterProjection, scoringFieldFor } from '../lib/players';
 
 // Real final score once that week is actually over (week <= latestCompletedWeek, the same cutoff
-// used by the Matchups tab); otherwise the same per-player blended real+projected total used
-// everywhere else in the app (real stat if a player's game already posted one, their pregame
-// projection otherwise), computed from that week's own roster snapshot -- so a played week shows
-// its real score, the current in-progress week shows a live-blended one, and every future week
-// shows an honest "still projected" number instead of nothing. The "projected" comparison figure
+// used by the Matchups tab); otherwise pair the posted Actual score with the same Sleeper-style
+// projected finish used everywhere else (actual for started games, projection for games not yet
+// started), computed from that week's own roster snapshot. The "projected" comparison figure
 // is the same blended total (falling back to the plain pregame roster projection when there's no
 // snapshot yet) that buildMatchupInfo in App.jsx uses for the Matchups tab, so this view never
-// disagrees with it. "Live" specifically means one of these starters' games is happening RIGHT NOW
-// (byTeamWeek state 'in') -- not just "some real stat already exists somewhere in this not-yet-
-// final week", which can just mean an earlier game already finished while the rest of the week
-// hasn't happened yet.
+// disagrees with it. A current week remains in the Actual + Proj state after an early game finishes,
+// not only while one of its games is happening at that exact moment.
 function weekScore(season, confData, manager, week, weekProjectionsByWeek, latestCompletedWeek, playersDB, byTeamWeek) {
   const isFinalWeek = week <= latestCompletedWeek;
   const fallbackField = scoringFieldFor(confData?.receptionPoints || 0);
   const weekProjections = weekProjectionsByWeek?.[week] || {};
   const snapshot = season.rosterSnapshotByWeek[week]?.[manager];
-  const blended = computeBlendedRosterScore(snapshot, weekProjections, confData?.scoringSettings, fallbackField);
+  const blended = computeBlendedRosterScore(
+    snapshot, weekProjections, confData?.scoringSettings, fallbackField,
+    { playersDB, byTeamWeek, week }
+  );
   const roster = confData?.rosters?.find(r => r.manager === manager);
   const projected = blended?.total ?? computeRosterProjection(roster, weekProjections, confData?.scoringSettings, fallbackField);
   if (isFinalWeek) {
@@ -29,7 +28,7 @@ function weekScore(season, confData, manager, week, weekProjectionsByWeek, lates
     if (real == null) return null;
     // Compared against its own projection so a final score reads green/red by whether it beat
     // expectations, not a flat "it's over" color.
-    return { value: real, projected, state: (projected != null && real < projected) ? 'final-neg' : 'final-pos' };
+    return { value: real, projected: null, state: (projected != null && real < projected) ? 'final-neg' : 'final-pos' };
   }
   if (!snapshot || blended?.total == null) return projected != null ? { value: projected, projected: null, state: 'proj' } : null;
   const isLive = (snapshot.starters || []).some(id => {
@@ -37,8 +36,14 @@ function weekScore(season, confData, manager, week, weekProjectionsByWeek, lates
     const team = playersDB?.[id]?.team;
     return team && byTeamWeek?.[team]?.[week]?.state === 'in';
   });
-  if (!isLive) return { value: projected, projected: null, state: 'proj' };
-  return { value: blended.total, projected, state: 'live' };
+  const hasStarted = isLive || (snapshot.starters || []).some(id => {
+    if (!id || id === '0') return false;
+    const team = playersDB?.[id]?.team;
+    const state = team ? byTeamWeek?.[team]?.[week]?.state : null;
+    return state === 'post' || (snapshot.playersPoints?.[id] ?? 0) !== 0;
+  });
+  if (!hasStarted) return { value: projected, projected: null, state: 'proj' };
+  return { value: season.scoreByWeek[week]?.[manager] ?? 0, projected, state: 'live' };
 }
 
 function ScoreTag({ score }) {
@@ -48,8 +53,9 @@ function ScoreTag({ score }) {
       <span className={`text-xs font-bold ${SCORE_COLOR[score.state]}`}>
         {score.value.toFixed(2)}
         {score.state === 'proj' && <span className="ml-1 text-[9px] uppercase tracking-wide">Proj</span>}
+        {score.state === 'live' && <span className="ml-1 text-[9px] uppercase tracking-wide">Actual</span>}
       </span>
-      {score.projected != null && <span className="text-[10px] font-semibold text-[var(--proj)]">{score.projected.toFixed(2)}</span>}
+      {score.projected != null && <span className="text-[10px] font-semibold text-[var(--proj)]">{score.projected.toFixed(2)} Proj</span>}
     </span>
   );
 }

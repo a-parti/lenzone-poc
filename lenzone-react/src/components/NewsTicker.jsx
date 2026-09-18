@@ -190,7 +190,7 @@ export default function NewsTicker({
   if (playerNewsItems.length === 0 && leagueItems.length === 0) return null;
 
   return (
-    <div className="news-ticker-stack fixed left-0 right-0 bottom-[52px] md:bottom-0 z-40">
+    <div data-bottom-chrome className="news-ticker-stack fixed left-0 right-0 bottom-[calc(52px+env(safe-area-inset-bottom))] md:bottom-0 z-40">
       {leagueItems.length > 0 && (
         <div className={`news-ticker-banner league-news-banner material-banner backdrop-blur-md border-t overflow-hidden group ${hasTrade ? 'has-trade' : ''}`}>
           <div className="flex items-center min-w-0">

@@ -42,7 +42,10 @@ export default function RosterTab({ afcData, nfcData, afcSeason, nfcSeason, play
     })) : [])
   ].map(r => ({
     ...r,
-    teamTotals: computeTeamWeeklyTotals(r.starters, weekProjections, r.scoringSettings, r.fallbackField, r.playersPoints)
+    teamTotals: computeTeamWeeklyTotals(
+      r.starters, weekProjections, r.scoringSettings, r.fallbackField, r.playersPoints,
+      { playersDB, byTeamWeek, week: selectedWeek }
+    )
   }));
   const visible = team === 'ALL' ? pool : pool.filter(r => r.manager === team);
   const sortDef = SORT_OPTIONS[sortKey];

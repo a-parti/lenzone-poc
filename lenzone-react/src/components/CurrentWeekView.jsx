@@ -18,7 +18,7 @@ export default function CurrentWeekView({
   myTeamManager, myTeamIntra, myTeamInter, myTeamConf, myTeamRoster, myTeamConfData, myTeamFallbackField, myTeamPlayersPoints,
   playersDB, weekProjections, byTeamWeek, afcSlots, nfcSlots, afcData, nfcData, afcSeason, nfcSeason,
   afcManagers, nfcManagers, schedule, logoMap, hexColorMap,
-  projectedScoreByManager,
+  projectedScoreByManager, pregameScoreByManager,
   afcStandings, nfcStandings, weekBigPlays, seasonResultsByTeam, managerStreaks, waiverWireMvp
 }) {
   const goToManagerMatchup = (manager) => onGoToMatchup(manager);
@@ -101,7 +101,7 @@ export default function CurrentWeekView({
           afcManagers={afcManagers} nfcManagers={nfcManagers} afcSeason={afcSeason} nfcSeason={nfcSeason}
           schedule={schedule} week={selectedWeek} logoMap={logoMap} hexColorMap={hexColorMap}
           afcData={afcData} nfcData={nfcData}
-          projectedScores={projectedScoreByManager} isWeekFinal={isWeekFinal}
+          projectedScores={projectedScoreByManager} pregameScores={pregameScoreByManager} isWeekFinal={isWeekFinal}
           focusManager={myTeamManager}
           focusOpponents={[myTeamIntra?.opponent, myTeamInter?.opponent].filter(Boolean)}
         />

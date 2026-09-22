@@ -431,7 +431,9 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
   const seriesFor = (b, hovered = false) => {
     const values = [];
     if (b.actualScore != null) {
-      values.push({ kind: 'actual', label: 'Actual', value: b.actualScore, opacity: hovered ? 0.5 : 0.34, dash: '4 3' });
+      // Actual is the primary result, so give it the same bright, solid treatment as the
+      // standings bars. Pregame remains the faint/dashed comparison layer beside it.
+      values.push({ kind: 'actual', label: 'Actual', value: b.actualScore, opacity: hovered ? 0.96 : 0.82, dash: null });
     }
     if (b.projectedScore != null) {
       values.push({ kind: 'live', label: 'Proj', value: b.projectedScore, opacity: hovered ? 0.96 : 0.76, dash: null });
@@ -440,7 +442,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
       values.push({ kind: 'pregame', label: 'Pre', value: b.pregameScore, opacity: hovered ? 0.32 : 0.19, dash: '2 2' });
     }
     if (values.length === 0 && b.score != null) {
-      values.push({ kind: b.scoreType === 'Proj' ? 'live' : 'actual', label: b.scoreType, value: b.score, opacity: hovered ? 0.92 : 0.7, dash: null });
+      values.push({ kind: b.scoreType === 'Proj' ? 'live' : 'actual', label: b.scoreType, value: b.score, opacity: hovered ? 0.96 : 0.82, dash: null });
     }
     const seriesWidth = (MIN_BAR_W - SERIES_GAP * Math.max(0, values.length - 1)) / values.length;
     return values.map((series, index) => ({ ...series, x: b.x + index * (seriesWidth + SERIES_GAP), seriesWidth }));

@@ -1139,6 +1139,19 @@ export default function App() {
   const afcManagers = afcData.rosters.length > 0 ? afcData.rosters.map(r => r.manager) : AFC_DEFAULT;
   const nfcManagers = nfcData.rosters.length > 0 ? nfcData.rosters.map(r => r.manager) : NFC_DEFAULT;
   const myTeamConf = myTeamManager && afcManagers.includes(myTeamManager) ? "AFC" : myTeamManager && nfcManagers.includes(myTeamManager) ? "NFC" : null;
+  const resolvedMyTeamManager = myTeamConf ? myTeamManager : null;
+
+  // Sleeper team names can change while an older name remains in localStorage. Once both real
+  // league rosters have loaded, discard a selection that no longer resolves instead of passing a
+  // truthy manager with a null conference into matchup cards (which expect a valid CONF_STYLES
+  // entry). The viewer can then choose the team's current name from the picker.
+  useEffect(() => {
+    const hasRealRosters = afcData.rosters.length > 0 && nfcData.rosters.length > 0;
+    if (!hasRealRosters || !myTeamManager || myTeamConf) return;
+    setMyTeamManager(null);
+    setSelectedManager("ALL");
+    localStorage.removeItem('lenzone_my_team');
+  }, [afcData.rosters.length, nfcData.rosters.length, myTeamManager, myTeamConf]);
 
   // Jumping to a specific manager's matchup (e.g. from Home) must clear the conference filter to
   // ALL first -- otherwise, if that manager is in the conference NOT currently filtered to (a
@@ -1631,7 +1644,7 @@ export default function App() {
 
   return (
     <ImageLightboxProvider>
-    <MyTeamProvider manager={myTeamManager}>
+    <MyTeamProvider manager={resolvedMyTeamManager}>
     <NameDisplayProvider mode={nameDisplayMode} onModeChange={setNameDisplayMode} afcData={afcData} nfcData={nfcData}>
     <TeamColorProvider colorMap={teamColorMap}>
     <TeamLogoProvider logoMap={teamLogoMap}>
@@ -1810,7 +1823,7 @@ export default function App() {
           <HomeView
             setActiveTab={navigateToTab}
             sections={tabs.map(tab => ({ id: tab.id, title: tab.label }))}
-            afcManagers={afcManagers} nfcManagers={nfcManagers} myTeamManager={myTeamManager} onChooseMyTeam={chooseMyTeam}
+            afcManagers={afcManagers} nfcManagers={nfcManagers} myTeamManager={resolvedMyTeamManager} onChooseMyTeam={chooseMyTeam}
             teamBurst={teamBurst} soundMuted={soundMuted} onToggleSoundMuted={toggleSoundMuted}
           />
         )}
@@ -1821,7 +1834,7 @@ export default function App() {
             onGoToMatchup={goToMatchup} selectedWeek={selectedWeek} onSelectWeek={setSelectedWeek}
             currentNflWeek={currentSleeperWeek} seasonWeeks={SEASON_WEEKS} isWeekFinal={isSelectedWeekFinal}
             weeklyAwards={weeklyAwards} nflGames={enrichedNflGames}
-            myTeamNflTeams={myTeamNflTeams} myTeamManager={myTeamManager}
+            myTeamNflTeams={myTeamNflTeams} myTeamManager={resolvedMyTeamManager}
             myTeamIntra={myTeamIntra} myTeamInter={myTeamInter} myTeamConf={myTeamConf}
             myTeamRoster={myTeamRoster} myTeamConfData={myTeamConfData} myTeamFallbackField={myTeamFallbackField}
             myTeamPlayersPoints={myTeamPlayersPoints} playersDB={playersDB} weekProjections={weekProjections}
@@ -1989,7 +2002,7 @@ export default function App() {
                 afcManagers={afcManagers} nfcManagers={nfcManagers}
                 afcData={afcData} nfcData={nfcData} weekProjectionsByWeek={weekProjectionsByWeek}
                 afcTradeDeadlineWeek={afcData.tradeDeadlineWeek} nfcTradeDeadlineWeek={nfcData.tradeDeadlineWeek}
-                focusManager={myTeamManager} focusConf={myTeamConf} currentWeek={nflState.week}
+                focusManager={resolvedMyTeamManager} focusConf={myTeamConf} currentWeek={nflState.week}
                 latestCompletedWeek={latestCompletedWeek}
                 playersDB={playersDB} byTeamWeek={enrichedByTeamWeek}
                 onGoToMatchup={(week, manager) => goToMatchup(manager, week)}
@@ -2046,11 +2059,11 @@ export default function App() {
 
             {/* After the filtered graph, keep your own matchup pinned regardless of conference or
                 manager filters, then show the filtered remaining cards below it. */}
-            {myTeamManager && (
+            {resolvedMyTeamManager && (
               <div className="space-y-3">
                 <p className="tracking-wider text-xs uppercase font-semibold text-[var(--muted)]">Your Matchup</p>
                 <ManagerMatchupRow
-                  manager={myTeamManager} conf={myTeamConf} intra={myTeamIntra} inter={myTeamInter}
+                  manager={resolvedMyTeamManager} conf={myTeamConf} intra={myTeamIntra} inter={myTeamInter}
                   afcSlots={afcData.startingSlots || []} nfcSlots={nfcData.startingSlots || []} playersDB={playersDB}
                   weekProjections={weekProjections} byTeamWeek={enrichedByTeamWeek} week={selectedWeek}
                   highlightTeams={matchupsHighlightTeams} onSelectGame={toggleMatchupsHighlightGame}
@@ -2172,7 +2185,7 @@ export default function App() {
 
                 {playersSubTab === "search" && (
                   <PlayersTab
-                    key={myTeamManager}
+                    key={resolvedMyTeamManager}
                     afcData={afcData} nfcData={nfcData}
                     afcDraft={afcDraft} nfcDraft={nfcDraft}
                     afcTransactions={afcTransactions} nfcTransactions={nfcTransactions}
@@ -2186,7 +2199,7 @@ export default function App() {
                     afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason} playersDB={playersDB} playersLoading={playersLoading}
                     weekProjections={weekProjections} selectedWeek={selectedWeek} setSelectedWeek={setSelectedWeek} seasonWeeks={SEASON_WEEKS}
                     byTeamWeek={enrichedByTeamWeek}
-                    focusManager={myTeamManager} focusConf={myTeamConf}
+                    focusManager={resolvedMyTeamManager} focusConf={myTeamConf}
                   />
                 )}
                 {playersSubTab === "draft" && (
@@ -2210,7 +2223,7 @@ export default function App() {
             {leagueView === "news" && (
               <NewsView
                 seasonResultsByTeam={seasonResultsByTeam} nflHeadlines={nflHeadlines} onRefreshHeadlines={refreshHeadlines}
-                myTeamManager={myTeamManager} myPlayerNotes={myPlayerNotes} myPlayerHeadlines={myPlayerHeadlines}
+                myTeamManager={resolvedMyTeamManager} myPlayerNotes={myPlayerNotes} myPlayerHeadlines={myPlayerHeadlines}
                 onRefreshPlayerNews={() => Promise.all([refreshHeadlines(), refreshPlayerNotes()])}
               />
             )}

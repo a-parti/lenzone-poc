@@ -132,7 +132,7 @@ export default function ActivityTab({ afcTransactions, nfcTransactions, afcRoste
                         </div>
                       );
                     })}
-                    {team.drops.map(playerId => {
+                    {t.type !== 'trade' && team.drops.map(playerId => {
                       const { name, position, team: nflTeam, number, injuryStatus } = playerLabel(playersDB, playerId);
                       return (
                         <div key={`drop-${playerId}`} className="flex items-center gap-2 text-sm">

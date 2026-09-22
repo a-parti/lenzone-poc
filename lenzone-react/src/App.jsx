@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Trophy, Swords, Megaphone, Scroll, ExternalLink, RefreshCw, Award, Lock, Unlock, X, Activity, ListOrdered, Users, Calendar, Search, Volume2, VolumeX, LayoutGrid, Newspaper, MessageCircle, MessageCircleOff, GitBranch } from 'lucide-react';
+import { Trophy, Swords, Megaphone, Scroll, ExternalLink, RefreshCw, Award, Lock, Unlock, X, Activity, ListOrdered, Users, Calendar, Search, Volume2, VolumeX, LayoutGrid, Newspaper, MessageCircle, MessageCircleOff, GitBranch, Copy, Check } from 'lucide-react';
 import AnimatedLogo from './components/AnimatedLogo';
 import { CONF_STYLES } from './lib/theme';
 import { ConfFilterToggle } from './components/shared';
@@ -62,6 +62,9 @@ import { getRealName } from './lib/realNames';
 import { buildTrophyLinesByManager, mergeTrophyLines } from './lib/speechBubble';
 import { scoringFieldFor, computeRosterProjection, computeBlendedRosterScore, buildOwnerMap, buildAcquisitionHistory, computeMoveCounts, playerLabel, projectedPoints, computeWaiverWireMvp } from './lib/players';
 import { Button, ThemeToggle, TeamPicker, useEscapeKey } from './components/shared';
+import { copyTextToClipboard } from './lib/clipboard';
+import { defaultBrowseWeek, sleeperCurrentWeek } from './lib/weekSelection';
+import { buildWeeklyRecapForWeek } from './lib/recapText';
 
 // LENZONE 2026 is a fixed dual-conference league. These IDs should not change season to season.
 const AFC_LEAGUE_ID = "1394069274644979712";
@@ -697,10 +700,7 @@ export default function App() {
   const [charterText, setCharterText] = useState(() => localStorage.getItem('lenzone_charter') || DEFAULT_CHARTER);
   const [charterDraft, setCharterDraft] = useState(charterText);
 
-  const [broadcastFields, setBroadcastFields] = useState(() => {
-    const saved = localStorage.getItem('lenzone_broadcast_fields');
-    return saved ? JSON.parse(saved) : { highScoreWinner: "TBD", afcWildcardLeader: "TBD", nfcWildcardLeader: "TBD" };
-  });
+  const [broadcastCopyState, setBroadcastCopyState] = useState('idle');
 
   const [afcData, setAfcData] = useState({ name: "AFC Conference", rosters: [], rosterIdMap: {} });
   const [nfcData, setNfcData] = useState({ name: "NFC Conference", rosters: [], rosterIdMap: {} });
@@ -835,9 +835,12 @@ export default function App() {
   // (week - 1) is the latest FULLY COMPLETED week -- the freeze point for standings/records/odds.
   const [nflState, setNflState] = useState({ week: 1, seasonType: null });
   const latestCompletedWeek = Math.max(0, Math.min(SEASON_WEEKS, (nflState.week || 1) - 1));
+  const currentSleeperWeek = sleeperCurrentWeek(nflState.week, SEASON_WEEKS);
+  const defaultSelectedWeek = defaultBrowseWeek(nflState.week, SEASON_WEEKS);
 
-  // "This Week" is an action, not just a tab label: whenever it is clicked, jump back to the
-  // current week reported by Sleeper instead of preserving an older week the viewer browsed.
+  // The weekly pages are actions, not just tab labels: they reset to the useful default
+  // week instead of preserving an older week the viewer browsed. On Tuesdays that is the just-
+  // completed week; Sleeper's newer week remains the official current-week ID everywhere else.
   const navigateToTab = (id) => {
     if (id === 'playoffs') {
       setStandingsView('playoffs');
@@ -854,28 +857,27 @@ export default function App() {
       setActiveTab('league');
       return;
     }
-    if (id === 'currentWeek') {
-      const currentWeek = Math.min(SEASON_WEEKS, Math.max(1, nflState.week || 1));
-      setSelectedWeek(currentWeek);
+    if (id === 'currentWeek' || id === 'matchups' || id === 'teams') {
+      setSelectedWeek(defaultSelectedWeek);
       setActiveTabState(id);
-      window.history.pushState(null, '', `#${id}?week=${currentWeek}`);
+      window.history.pushState(null, '', `#${id}?week=${defaultSelectedWeek}`);
       return;
     }
     setActiveTab(id);
   };
 
-  // The Matchups "Weekly" view's week dropdown defaults to whatever real current NFL week Sleeper
-  // reports, once that loads -- not always week 1. Only does this ONCE (the ref guard), so it
+  // The weekly views default to Sleeper's current week, except on Tuesday when recap work defaults
+  // to the just-completed week. Only does this ONCE (the ref guard), so it
   // doesn't yank the viewer back to the current week if they've already navigated to a different
   // one and this effect re-fires from an unrelated nflState update (e.g. a background refresh).
   // A week deep-linked via the URL hash (see weekFromHash/"Copy Link") wins over the "default to
-  // the current real NFL week" behavior below -- seeding the guard ref as already-fired skips it
+  // the normal day-aware behavior below -- seeding the guard ref as already-fired skips it
   // entirely instead of yanking a shared link back to whatever week it happens to be right now.
   const didSetInitialWeek = useRef(weekFromHash() != null);
   useEffect(() => {
     if (didSetInitialWeek.current || !nflState.week) return;
     didSetInitialWeek.current = true;
-    setSelectedWeek(Math.min(SEASON_WEEKS, Math.max(1, nflState.week)));
+    setSelectedWeek(defaultBrowseWeek(nflState.week, SEASON_WEEKS));
   }, [nflState.week]);
 
   const loadData = async () => {
@@ -1132,12 +1134,6 @@ export default function App() {
   const saveCharter = () => {
     setCharterText(charterDraft);
     localStorage.setItem('lenzone_charter', charterDraft);
-  };
-
-  const updateBroadcastField = (field, value) => {
-    const next = { ...broadcastFields, [field]: value };
-    setBroadcastFields(next);
-    localStorage.setItem('lenzone_broadcast_fields', JSON.stringify(next));
   };
 
   const afcManagers = afcData.rosters.length > 0 ? afcData.rosters.map(r => r.manager) : AFC_DEFAULT;
@@ -1398,6 +1394,7 @@ export default function App() {
       if (estimate.pregame != null) pregameScoreByManager[m] = estimate.pregame;
     });
   };
+
   collectTeamScores(afcManagers, afcData, afcSeason, frozenPregamePlayers.AFC);
   collectTeamScores(nfcManagers, nfcData, nfcSeason, frozenPregamePlayers.NFC);
   const selectedWeekHasPostedScore = Object.values(afcSeason.scoreByWeek[selectedWeek] || {}).some(v => v !== 0)
@@ -1506,6 +1503,32 @@ export default function App() {
     () => computeManagerStreaks(afcManagers, nfcManagers, afcSeason, nfcSeason, latestCompletedWeek),
     [afcManagers, nfcManagers, afcSeason, nfcSeason, latestCompletedWeek]
   );
+  const broadcastText = activeTab === 'teams' ? buildWeeklyRecapForWeek({
+    week: selectedWeek,
+    weeklyAwards,
+    isWeekFinal: isSelectedWeekFinal,
+    afcData,
+    nfcData,
+    afcSeason,
+    nfcSeason,
+    weekProjections,
+    playersDB,
+    afcStandings,
+    nfcStandings,
+    bigPlays: weekBigPlays,
+    managerStreaks,
+    waiverWireMvp
+  }) : '';
+  const copyBroadcast = async () => {
+    setBroadcastCopyState('copying');
+    try {
+      await copyTextToClipboard(broadcastText);
+      setBroadcastCopyState('copied');
+    } catch {
+      setBroadcastCopyState('error');
+    }
+    setTimeout(() => setBroadcastCopyState('idle'), 2200);
+  };
   const weekRecord = isSelectedWeekFinal
     ? computeCrossWeekRecord(weekCrossPairs, afcSeason.scoreByWeek[selectedWeek] || {}, nfcSeason.scoreByWeek[selectedWeek] || {})
     : { afcWins: 0, nfcWins: 0, ties: 0, counted: 0 };
@@ -1599,7 +1622,7 @@ export default function App() {
   // Home isn't listed as a nav tab -- the header logo already links there, so it's not one more
   // click to hold a spot in the bar too.
   const tabs = [
-    { id: "currentWeek", label: `This Week (${selectedWeek})`, shortLabel: `This Week (${selectedWeek})`, icon: Calendar },
+    { id: "currentWeek", label: `This Week (${currentSleeperWeek})`, shortLabel: `This Week (${currentSleeperWeek})`, icon: Calendar },
     { id: "matchups", label: "Matchups", shortLabel: "Matchups", icon: Swords },
     { id: "standings", label: "Standings", shortLabel: "Standings", icon: Trophy },
     { id: "league", label: "League", shortLabel: "League", icon: Users },
@@ -1796,7 +1819,7 @@ export default function App() {
         {activeTab === "currentWeek" && (
           <CurrentWeekView
             onGoToMatchup={goToMatchup} selectedWeek={selectedWeek} onSelectWeek={setSelectedWeek}
-            currentNflWeek={nflState.week} seasonWeeks={SEASON_WEEKS} isWeekFinal={isSelectedWeekFinal}
+            currentNflWeek={currentSleeperWeek} seasonWeeks={SEASON_WEEKS} isWeekFinal={isSelectedWeekFinal}
             weeklyAwards={weeklyAwards} nflGames={enrichedNflGames}
             myTeamNflTeams={myTeamNflTeams} myTeamManager={myTeamManager}
             myTeamIntra={myTeamIntra} myTeamInter={myTeamInter} myTeamConf={myTeamConf}
@@ -1996,7 +2019,7 @@ export default function App() {
                   className="bg-[var(--bg)] border border-[var(--border)]/80 text-sm rounded-lg px-3 py-1.5 text-[var(--text)]"
                 >
                   {Array.from({ length: SEASON_WEEKS }, (_, i) => i + 1).map(w => (
-                    <option key={w} value={w}>Week {w}</option>
+                    <option key={w} value={w}>Week {w}{w === currentSleeperWeek ? " (current)" : ""}</option>
                   ))}
                 </select>
               </div>
@@ -2201,7 +2224,20 @@ export default function App() {
           <div className="bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-6 space-y-4">
             <div>
               <h2 className="text-xl font-bold mb-2 text-[var(--text)]">MS Teams Weekly Broadcast Generator</h2>
-              <p className="text-sm text-[var(--text2)]">Copy and paste this markdown recap directly into your MS Teams channel every Tuesday morning.</p>
+              <p className="text-sm text-[var(--text2)]">A complete Teams-ready recap built from the selected week's real results: trophies, player performances, lineup decisions, streaks, big plays, and standings.</p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <label className="tracking-wider text-xs uppercase font-semibold text-[var(--muted)]">Recap Week</label>
+              <select
+                value={selectedWeek}
+                onChange={(event) => setSelectedWeek(Number(event.target.value))}
+                className="bg-[var(--bg)] border border-[var(--border)]/80 text-sm font-bold rounded-lg px-2 py-1 text-[var(--text)]"
+              >
+                {Array.from({ length: SEASON_WEEKS }, (_, index) => index + 1).map(week => (
+                  <option key={week} value={week}>Week {week}{week === currentSleeperWeek ? " (current)" : ""}</option>
+                ))}
+              </select>
             </div>
 
             {/* Visual reference for whoever's writing the recap -- same "All Teams" chart as the
@@ -2209,48 +2245,18 @@ export default function App() {
                 a live SVG from pasted markdown). */}
             <WeeklyScoresBarChart afcManagers={afcManagers} nfcManagers={nfcManagers} afcSeason={afcSeason} nfcSeason={nfcSeason} schedule={schedule} week={selectedWeek} logoMap={teamLogoMap} projectedScores={projectedScoreByManager} pregameScores={pregameScoreByManager} isWeekFinal={isSelectedWeekFinal} />
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)] block mb-1">High Score Winner</label>
-                <input
-                  type="text"
-                  value={broadcastFields.highScoreWinner}
-                  onChange={(e) => updateBroadcastField("highScoreWinner", e.target.value)}
-                  className="w-full bg-[var(--bg)] border border-[var(--border)]/80 text-xs px-3 py-1.5 rounded-lg focus:outline-none focus:border-[var(--accent)]"
-                />
-              </div>
-              <div>
-                <label className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)] block mb-1">AFC Wildcard Leader</label>
-                <input
-                  type="text"
-                  value={broadcastFields.afcWildcardLeader}
-                  onChange={(e) => updateBroadcastField("afcWildcardLeader", e.target.value)}
-                  className="w-full bg-[var(--bg)] border border-[var(--border)]/80 text-xs px-3 py-1.5 rounded-lg focus:outline-none focus:border-red-500"
-                />
-              </div>
-              <div>
-                <label className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)] block mb-1">NFC Wildcard Leader</label>
-                <input
-                  type="text"
-                  value={broadcastFields.nfcWildcardLeader}
-                  onChange={(e) => updateBroadcastField("nfcWildcardLeader", e.target.value)}
-                  className="w-full bg-[var(--bg)] border border-[var(--border)]/80 text-xs px-3 py-1.5 rounded-lg focus:outline-none focus:border-blue-500"
-                />
-              </div>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={copyBroadcast}
+                disabled={broadcastCopyState === 'copying'}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-[var(--border)]/80 bg-[var(--surface2)] text-[var(--text2)] hover:text-[var(--text)] hover:border-[var(--border2)] transition-all duration-200 disabled:opacity-60"
+              >
+                {broadcastCopyState === 'copied' ? <Check className="w-3.5 h-3.5 text-[var(--pos)]" /> : broadcastCopyState === 'error' ? <X className="w-3.5 h-3.5 text-[var(--neg)]" /> : <Copy className="w-3.5 h-3.5" />}
+                {broadcastCopyState === 'copying' ? 'Copying…' : broadcastCopyState === 'copied' ? 'Copied!' : broadcastCopyState === 'error' ? "Couldn't copy" : 'Copy for MS Teams'}
+              </button>
             </div>
-
-            <pre className="bg-[var(--bg)] p-4 rounded-lg border border-[var(--border)]/80 text-xs font-mono text-emerald-400 whitespace-pre-wrap select-all">
-{`========================================
-LENZONE WEEKLY RECAP: WEEK ${selectedWeek}
-========================================
-- Cross-League Battles: Week ${selectedWeek} scoring is finalized!
-- $15 High Score Winner: ${broadcastFields.highScoreWinner}
-- Seed 6 Wildcard Race (Points For):
-  - AFC Leader: ${broadcastFields.afcWildcardLeader}
-  - NFC Leader: ${broadcastFields.nfcWildcardLeader}
-
-Full Standings & Scoreboard: https://lenzone.vercel.app`}
-            </pre>
+            <pre className="bg-[var(--bg)] p-4 rounded-lg border border-[var(--border)]/80 text-xs font-mono text-emerald-400 whitespace-pre-wrap select-all">{broadcastText}</pre>
           </div>
           </div>
         )}

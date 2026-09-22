@@ -92,7 +92,7 @@ export default function CurrentWeekView({
           afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
           weekProjections={weekProjections} playersDB={playersDB}
           afcStandings={afcStandings} nfcStandings={nfcStandings} weekBigPlays={weekBigPlays}
-          managerStreaks={managerStreaks}
+          managerStreaks={managerStreaks} waiverWireMvp={waiverWireMvp}
         />
       </div>
 

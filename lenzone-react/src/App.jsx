@@ -53,6 +53,7 @@ import { Button, TeamPicker, useEscapeKey, SkeletonRows } from './components/sha
 import { copyTextToClipboard } from './lib/clipboard';
 import { defaultBrowseWeek, sleeperCurrentWeek } from './lib/weekSelection';
 import { startPolling } from './lib/polling';
+import { IS_FRESH_START } from './lib/freshStart';
 import { buildWeeklyRecapForWeek } from './lib/recapText';
 
 // LENZONE 2026 is a fixed dual-conference league. These IDs should not change season to season.
@@ -541,6 +542,8 @@ export default function App() {
   const [activeTab, setActiveTabState] = useState(() => {
     const fromHash = tabFromHash();
     if (fromHash) return fromHash;
+    // First visit after the redesign: everyone starts on Home once (see lib/freshStart.js).
+    if (IS_FRESH_START) return "home";
     try { return localStorage.getItem('lenzone_my_team') ? "currentWeek" : "home"; } catch { return "home"; }
   });
   const setActiveTab = (id) => {

@@ -732,6 +732,39 @@ button.news-ticker-label {
   }
 }
 
+/* Current week column header: a solid accent block (the decorative header gradient above would
+   otherwise cover it and wash out the text). */
+.schedule-grid-header.is-current-week {
+  background-image: none !important;
+  background-color: var(--accent);
+  color: var(--accent-text);
+}
+.schedule-grid-header.is-current-week .schedule-week-date {
+  color: var(--accent-text);
+  opacity: 0.85;
+}
+/* Dark mode: neon week labels -- glowing aqua week numbers, soft-pink dates -- and a lit-up
+   current week. */
+[data-mode="dark"] .schedule-week-header {
+  color: #9FF7FF;
+  text-shadow: 0 0 8px rgba(62, 240, 224, 0.55);
+}
+[data-mode="dark"] .schedule-week-header .schedule-week-date {
+  color: #FFB3CF;
+  text-shadow: 0 0 6px rgba(255, 95, 162, 0.45);
+}
+[data-mode="dark"] .schedule-grid-header.is-current-week {
+  background-color: #3EF0E0;
+  color: #04121A;
+  text-shadow: none;
+  box-shadow: 0 0 18px rgba(62, 240, 224, 0.65), inset 0 -2px 0 rgba(255, 95, 162, 0.9);
+}
+[data-mode="dark"] .schedule-grid-header.is-current-week .schedule-week-date {
+  color: #04121A;
+  text-shadow: none;
+  opacity: 0.8;
+}
+
 /* Same finish, tuned for the bottom-fixed news ticker / header bars -- flatter (no rounded
    corners to clip against), sheen runs the full width instead of one corner. */
 .material-banner {

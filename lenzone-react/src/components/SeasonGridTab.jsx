@@ -414,7 +414,7 @@ export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afc
                     key={w}
                     data-week={w}
                     onClick={() => toggleHighlight(w)}
-                    className={`schedule-grid-header sticky top-0 border-b px-2 py-2 font-bold whitespace-nowrap cursor-pointer select-none ${
+                    className={`schedule-grid-header schedule-week-header ${isCurrent ? "is-current-week" : ""} sticky top-0 border-b px-2 py-2 font-bold whitespace-nowrap cursor-pointer select-none ${
                       isCurrent
                         ? "bg-[var(--accent)] text-[var(--accent-text)] border-[var(--accent)]"
                         : isHighlighted
@@ -424,7 +424,7 @@ export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afc
                     title={`Click to ${isHighlighted ? "clear" : "highlight"} Week ${w}`}
                   >
                     <div>Wk {w}{isCurrent ? " · This week" : ""}{isHighlighted ? " ●" : ""}</div>
-                    {weekDateLabels[w] && <div className={`text-[11px] font-semibold ${isCurrent ? '' : 'text-[var(--muted)]'}`}>{weekDateLabels[w]}</div>}
+                    {weekDateLabels[w] && <div className={`schedule-week-date text-[11px] font-semibold ${isCurrent ? '' : 'text-[var(--muted)]'}`}>{weekDateLabels[w]}</div>}
                   </th>
                 );
               })}

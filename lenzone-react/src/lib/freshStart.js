@@ -1,6 +1,6 @@
 // One-time reset for the October 2026 redesign. The first time each browser loads the new site it:
 // lands on Home (for a plain visit -- a shared #link still opens its page), turns sounds and fun
-// animations off, resets the theme to the new light default, and clears settings from removed
+// animations off, resets the theme to follow the device light/dark setting, and clears settings from removed
 // features. The saved "I am" team is kept. Bump RESET_VERSION to run a reset like this again.
 // Runs at import time (imported first in main.jsx) so it happens before any component reads
 // these settings.

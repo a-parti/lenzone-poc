@@ -35,8 +35,9 @@ export function weekTeamResults(week, afcSeason, nfcSeason, schedule, afcManager
 
 const outcome = (mine, theirs) => (theirs == null ? null : mine > theirs ? 1 : mine < theirs ? 0 : 0.5);
 
-// Luck Meter: actual wins (both weekly games, ties = half) vs. all-play expected wins -- for each
-// game played, the share of the rest of the league you outscored that week.
+// Luck Meter, in standings points: actual points earned (in-conference win = 2, cross-conference
+// win = 1, ties = half) vs. all-play expected points -- each game weighted the same way, times the
+// share of the rest of the league you outscored that week.
 export function allPlayLuck(latestCompletedWeek, afcSeason, nfcSeason, schedule, afcManagers, nfcManagers) {
   const totals = {};
   for (let w = 1; w <= latestCompletedWeek; w++) {
@@ -46,11 +47,11 @@ export function allPlayLuck(latestCompletedWeek, afcSeason, nfcSeason, schedule,
       if (!others.length) return;
       const beat = others.reduce((s, o) => s + (r.score > o.score ? 1 : r.score === o.score ? 0.5 : 0), 0) / others.length;
       const t = totals[r.manager] || (totals[r.manager] = { manager: r.manager, conf: r.conf, wins: 0, games: 0, expected: 0 });
-      [outcome(r.score, r.intraOppScore), outcome(r.score, r.crossOppScore)].forEach(result => {
+      [[outcome(r.score, r.intraOppScore), 2], [outcome(r.score, r.crossOppScore), 1]].forEach(([result, weight]) => {
         if (result == null) return;
-        t.wins += result;
+        t.wins += result * weight;
         t.games += 1;
-        t.expected += beat;
+        t.expected += beat * weight;
       });
     });
   }

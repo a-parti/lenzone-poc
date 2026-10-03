@@ -252,8 +252,8 @@ export function LuckMeter({ luck }) {
         const lucky = l.luck >= 0;
         return (
           <button key={l.manager} type="button" onClick={() => openRoster(l.manager, l.conf)}
-            className="w-full grid grid-cols-[minmax(0,9.5rem)_1fr_4.5rem] items-center gap-2 py-1 text-left hover:bg-[var(--surface2)]/60 rounded-lg px-1"
-            title={`${displayName(l.manager, l.conf)}: ${l.wins.toFixed(1)} actual wins vs ${l.expected.toFixed(1)} all-play expected in ${l.games} games`}>
+            className="w-full grid grid-cols-[minmax(0,9.5rem)_1fr_5rem] items-center gap-2 py-1 text-left hover:bg-[var(--surface2)]/60 rounded-lg px-1"
+            title={`${displayName(l.manager, l.conf)}: ${l.wins.toFixed(1)} points earned vs ${l.expected.toFixed(1)} all-play expected in ${l.games} games`}>
             <span className="flex items-center gap-1.5 min-w-0">
               <TeamMiniLogo manager={l.manager} size={20} />
               <span className="truncate text-xs font-semibold text-[var(--text)]">{displayName(l.manager, l.conf)}</span>
@@ -263,7 +263,7 @@ export function LuckMeter({ luck }) {
               <span className="absolute top-0.5 bottom-0.5 rounded"
                 style={{ ...(lucky ? { left: '50%' } : { right: '50%' }), width: w, background: lucky ? 'linear-gradient(90deg, color-mix(in srgb, var(--pos) 35%, transparent), var(--pos))' : 'linear-gradient(270deg, color-mix(in srgb, var(--neg) 35%, transparent), var(--neg))', boxShadow: `0 0 10px ${lucky ? 'var(--pos)' : 'var(--neg)'}` }} />
             </span>
-            <span className={`text-xs font-black text-right ${Math.abs(l.luck) < 0.05 ? 'text-[var(--muted)]' : lucky ? 'text-[var(--pos)]' : 'text-[var(--neg)]'}`}>{signed(l.luck)} W</span>
+            <span className={`text-xs font-black text-right ${Math.abs(l.luck) < 0.05 ? 'text-[var(--muted)]' : lucky ? 'text-[var(--pos)]' : 'text-[var(--neg)]'}`}>{signed(l.luck)} pts</span>
           </button>
         );
       })}
@@ -273,7 +273,7 @@ export function LuckMeter({ luck }) {
     <FunCard
       chartId="luck-meter"
       title="Luck Meter"
-      subtitle="Actual wins vs. wins if you played everyone each week"
+      subtitle="Points earned vs. points if you played everyone each week"
     >
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-4">
         <Panel conf="AFC" />

@@ -258,16 +258,15 @@ export function LuckMeter({ luck }) {
   const { openRoster } = useRosterModal();
   if (!luck?.length) return null;
   const maxAbs = Math.max(0.5, ...luck.map(l => Math.abs(l.luck)));
-  return (
-    <FunCard
-      chartId="luck-meter"
-      title="Luck Meter"
-      subtitle={`${STANDINGS_PTS.long} earned vs. if you played everyone each week`}
-    >
-      <div className="max-w-3xl mx-auto divide-y divide-[var(--border)]/70">
-      {luck.map(l => {
+  // Split on the shown (one-decimal) value, so a team showing "0.0" never sits beside "Unlucky".
+  const isLucky = (l) => Number(l.luck.toFixed(1)) >= 0;
+  const groups = [
+    { key: 'lucky', label: 'Lucky', color: 'var(--pos)', rows: luck.filter(isLucky) },
+    { key: 'unlucky', label: 'Unlucky', color: 'var(--neg)', rows: luck.filter(l => !isLucky(l)) }
+  ].filter(g => g.rows.length);
+  const renderRow = (l) => {
         const w = `${(Math.abs(l.luck) / maxAbs) * 50}%`;
-        const lucky = l.luck >= 0;
+        const lucky = isLucky(l);
         return (
           <button key={l.manager} type="button" onClick={() => openRoster(l.manager, l.conf)}
             className="w-full grid grid-cols-[minmax(0,13rem)_1fr_5rem] items-center gap-2 py-1.5 text-left hover:bg-[var(--surface2)]/60 px-1"
@@ -287,7 +286,26 @@ export function LuckMeter({ luck }) {
             <span className={`text-xs font-black text-right ${Math.abs(l.luck) < 0.05 ? 'text-[var(--muted)]' : lucky ? 'text-[var(--pos)]' : 'text-[var(--neg)]'}`}>{signed(l.luck)} {STANDINGS_PTS.short}</span>
           </button>
         );
-      })}
+  };
+  return (
+    <FunCard
+      chartId="luck-meter"
+      title="Luck Meter"
+      subtitle={`${STANDINGS_PTS.long} earned vs. if you played everyone each week`}
+    >
+      <div className="max-w-3xl mx-auto divide-y divide-[var(--border2)]">
+        {groups.map(g => (
+          <div key={g.key} className="flex">
+            {/* Side label running the height of its group. */}
+            <div className="w-6 shrink-0 flex items-center justify-center border-r-2 my-1" style={{ borderColor: g.color }}>
+              <span className="text-[10px] font-black uppercase tracking-[0.25em] whitespace-nowrap"
+                style={{ color: g.color, writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>{g.label}</span>
+            </div>
+            <div className="flex-1 min-w-0 pl-2 divide-y divide-[var(--border)]/70">
+              {g.rows.map(renderRow)}
+            </div>
+          </div>
+        ))}
       </div>
     </FunCard>
   );

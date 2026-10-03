@@ -5,6 +5,8 @@ import useElementPngExport from '../hooks/useElementPngExport';
 import { useNameDisplay } from '../context/NameDisplayContext';
 import { useMatchupPreview } from '../context/MatchupPreviewContext';
 import { useRosterModal } from '../context/RosterModalContext';
+import { useMyTeam } from '../context/MyTeamContext';
+import { STANDINGS_PTS } from '../lib/terms';
 
 // The "fun" visuals: Luck of the Week + Boom or Bust (Matchups) and Luck Meter + Season Heat Map
 // (Standings). Each is a card with the same Light/Dark/Copy PNG export as the other charts so it
@@ -236,48 +238,56 @@ export function BoomOrBust({ week, rows, pregameScores }) {
 // ---------------------------------------------------------------------------------------------
 // Luck Meter: actual wins minus all-play expected wins, per conference.
 // ---------------------------------------------------------------------------------------------
+const ConfTag = ({ conf }) => <span className={`shrink-0 text-[10px] font-black px-1.5 py-0.5 rounded-full border ${conf === 'AFC' ? 'text-[var(--afc)] border-[var(--afc)]/40 bg-[var(--afc)]/10' : 'text-[var(--nfc)] border-[var(--nfc)]/40 bg-[var(--nfc)]/10'}`}>{conf}</span>;
+
+// Team name with the other name (real name, or team name when showing real names) underneath.
+function TeamNameStack({ manager, conf, strong = false }) {
+  const { mode, displayName, managerName } = useNameDisplay();
+  const real = managerName(manager, conf);
+  const secondary = mode === 'managers' ? (real ? manager : null) : real;
+  return (
+    <span className="min-w-0 flex flex-col leading-tight text-left">
+      <span className={`truncate text-xs text-[var(--text)] ${strong ? 'font-black' : 'font-semibold'}`}>{displayName(manager, conf)}</span>
+      {secondary && <span className="truncate text-[10px] font-medium text-[var(--muted)]">{secondary}</span>}
+    </span>
+  );
+}
+
 export function LuckMeter({ luck }) {
   const { displayName } = useNameDisplay();
   const { openRoster } = useRosterModal();
   if (!luck?.length) return null;
   const maxAbs = Math.max(0.5, ...luck.map(l => Math.abs(l.luck)));
-  const Panel = ({ conf }) => (
-    <div className="min-w-0">
-      <div className="flex items-center gap-3 mb-2">
-        <span className={`text-xs font-black tracking-[0.2em] ${conf === 'AFC' ? 'text-[var(--afc)]' : 'text-[var(--nfc)]'}`}>{conf}</span>
-        <span className="h-px flex-1 bg-[var(--border)]" />
-      </div>
-      {luck.filter(l => l.conf === conf).map(l => {
-        const w = `${(Math.abs(l.luck) / maxAbs) * 50}%`;
-        const lucky = l.luck >= 0;
-        return (
-          <button key={l.manager} type="button" onClick={() => openRoster(l.manager, l.conf)}
-            className="w-full grid grid-cols-[minmax(0,9.5rem)_1fr_5rem] items-center gap-2 py-1 text-left hover:bg-[var(--surface2)]/60 rounded-lg px-1"
-            title={`${displayName(l.manager, l.conf)}: ${l.wins.toFixed(1)} points earned vs ${l.expected.toFixed(1)} all-play expected in ${l.games} games`}>
-            <span className="flex items-center gap-1.5 min-w-0">
-              <TeamMiniLogo manager={l.manager} size={20} />
-              <span className="truncate text-xs font-semibold text-[var(--text)]">{displayName(l.manager, l.conf)}</span>
-            </span>
-            <span className="relative h-4">
-              <span className="absolute inset-y-0 left-1/2 w-px bg-[var(--border2)]" />
-              <span className="absolute top-0.5 bottom-0.5 rounded"
-                style={{ ...(lucky ? { left: '50%' } : { right: '50%' }), width: w, background: lucky ? 'linear-gradient(90deg, color-mix(in srgb, var(--pos) 35%, transparent), var(--pos))' : 'linear-gradient(270deg, color-mix(in srgb, var(--neg) 35%, transparent), var(--neg))', boxShadow: `0 0 10px ${lucky ? 'var(--pos)' : 'var(--neg)'}` }} />
-            </span>
-            <span className={`text-xs font-black text-right ${Math.abs(l.luck) < 0.05 ? 'text-[var(--muted)]' : lucky ? 'text-[var(--pos)]' : 'text-[var(--neg)]'}`}>{signed(l.luck)} pts</span>
-          </button>
-        );
-      })}
-    </div>
-  );
   return (
     <FunCard
       chartId="luck-meter"
       title="Luck Meter"
-      subtitle="Points earned vs. points if you played everyone each week"
+      subtitle={`${STANDINGS_PTS.long} earned vs. if you played everyone each week`}
     >
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-4">
-        <Panel conf="AFC" />
-        <Panel conf="NFC" />
+      <div className="max-w-3xl mx-auto divide-y divide-[var(--border)]/70">
+      {luck.map(l => {
+        const w = `${(Math.abs(l.luck) / maxAbs) * 50}%`;
+        const lucky = l.luck >= 0;
+        return (
+          <button key={l.manager} type="button" onClick={() => openRoster(l.manager, l.conf)}
+            className="w-full grid grid-cols-[minmax(0,13rem)_1fr_5rem] items-center gap-2 py-1.5 text-left hover:bg-[var(--surface2)]/60 px-1"
+            title={`${displayName(l.manager, l.conf)}: ${l.wins.toFixed(1)} ${STANDINGS_PTS.short} earned vs ${l.expected.toFixed(1)} all-play expected in ${l.games} games`}>
+            <span className="flex items-center gap-1.5 min-w-0">
+              <TeamMiniLogo manager={l.manager} size={20} />
+              <TeamNameStack manager={l.manager} conf={l.conf} />
+              <ConfTag conf={l.conf} />
+            </span>
+            <span className="relative h-4">
+              <span className="absolute -inset-y-1.5 left-1/4 border-l border-dashed border-[var(--border)]" />
+              <span className="absolute -inset-y-1.5 left-3/4 border-l border-dashed border-[var(--border)]" />
+              <span className="absolute -inset-y-1.5 left-1/2 w-px bg-[var(--border2)]" />
+              <span className="absolute top-0.5 bottom-0.5 rounded"
+                style={{ ...(lucky ? { left: '50%' } : { right: '50%' }), width: w, background: lucky ? 'linear-gradient(90deg, color-mix(in srgb, var(--pos) 35%, transparent), var(--pos))' : 'linear-gradient(270deg, color-mix(in srgb, var(--neg) 35%, transparent), var(--neg))', boxShadow: `0 0 10px ${lucky ? 'var(--pos)' : 'var(--neg)'}` }} />
+            </span>
+            <span className={`text-xs font-black text-right ${Math.abs(l.luck) < 0.05 ? 'text-[var(--muted)]' : lucky ? 'text-[var(--pos)]' : 'text-[var(--neg)]'}`}>{signed(l.luck)} {STANDINGS_PTS.short}</span>
+          </button>
+        );
+      })}
       </div>
     </FunCard>
   );
@@ -291,43 +301,62 @@ const heatColor = (pct) => `color-mix(in srgb, var(--coral) ${Math.round(pct * 1
 export function SeasonHeatMap({ heat, weeks }) {
   const { displayName } = useNameDisplay();
   const { openRoster } = useRosterModal();
+  const myTeam = useMyTeam();
+  // Hover highlights a row (and its week column) so one team can be followed across the season.
+  const [hover, setHover] = useState(null); // { manager, week? }
+  const teams = useMemo(() => Object.values(heat)
+    .map(t => {
+      const pcts = weeks.map(w => t.weeks[w]?.pct).filter(v => v != null);
+      return { ...t, avg: pcts.length ? pcts.reduce((a, b) => a + b, 0) / pcts.length : -1 };
+    })
+    .sort((a, b) => b.avg - a.avg), [heat, weeks]);
   if (!weeks.length) return null;
   // All 24 teams in one table (heat is already league-wide), sorted by average heat.
-  const Panel = () => {
-    const teams = Object.values(heat)
-      .map(t => {
-        const pcts = weeks.map(w => t.weeks[w]?.pct).filter(v => v != null);
-        return { ...t, avg: pcts.length ? pcts.reduce((a, b) => a + b, 0) / pcts.length : -1 };
-      })
-      .sort((a, b) => b.avg - a.avg);
-    return (
-      <div className="min-w-0 overflow-x-auto scroll-thin">
-        <table className="w-auto mx-auto border-separate" style={{ borderSpacing: 3 }}>
-          <thead>
-            <tr>
-              <th />
-              <th />
-              {weeks.map(w => <th key={w} className="text-[11px] font-semibold text-[var(--muted)]">Wk {w}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {teams.map(t => (
-              <tr key={t.manager}>
-                <td className="pr-1">
-                  <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full border ${t.conf === 'AFC' ? 'text-[var(--afc)] border-[var(--afc)]/40 bg-[var(--afc)]/10' : 'text-[var(--nfc)] border-[var(--nfc)]/40 bg-[var(--nfc)]/10'}`}>{t.conf}</span>
+  const table = (
+    <div className="min-w-0 overflow-x-auto scroll-thin">
+      <table className="w-auto mx-auto border-separate" style={{ borderSpacing: 0 }} onMouseLeave={() => setHover(null)}>
+        <thead>
+          <tr>
+            <th />
+            <th />
+            {weeks.map(w => (
+              <th key={w} className={`text-[11px] font-semibold transition-colors ${hover?.week === w ? 'text-[var(--accent)]' : 'text-[var(--muted)]'}`}>Wk {w}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {teams.map(t => {
+            const isHover = hover?.manager === t.manager;
+            const isMe = myTeam === t.manager;
+            const dim = hover && !isHover;
+            return (
+              <tr
+                key={t.manager}
+                onMouseEnter={() => setHover(h => ({ manager: t.manager, week: h?.manager === t.manager ? h.week : null }))}
+                className="transition-opacity duration-150"
+                style={{ opacity: dim ? 0.35 : 1 }}
+              >
+                <td className="pr-1 py-[3px] border-b border-[var(--border)]/70">
+                  <ConfTag conf={t.conf} />
                 </td>
-                <td className="pr-2">
-                  <button type="button" onClick={() => openRoster(t.manager, t.conf)} className="flex items-center gap-1.5 min-w-0 max-w-[10rem]">
+                <td className="pr-2 py-[3px] border-b border-[var(--border)]/70">
+                  <button
+                    type="button" onClick={() => openRoster(t.manager, t.conf)}
+                    className={`flex items-center gap-1.5 min-w-0 max-w-[11rem] rounded-xl px-1.5 py-0.5 transition-colors ${
+                      isHover ? 'bg-[var(--surface2)]' : ''
+                    } ${isMe ? 'ring-2 ring-[var(--accent)]' : ''}`}
+                  >
                     <TeamMiniLogo manager={t.manager} size={18} />
-                    <span className="truncate text-xs font-semibold text-[var(--text)]">{displayName(t.manager, t.conf)}</span>
+                    <TeamNameStack manager={t.manager} conf={t.conf} strong={isHover || isMe} />
                   </button>
                 </td>
                 {weeks.map(w => {
                   const cell = t.weeks[w];
+                  const isCell = isHover && hover?.week === w;
                   return (
-                    <td key={w} className="p-0">
+                    <td key={w} className="px-[1.5px] py-[3px] border-b border-[var(--border)]/70" onMouseEnter={() => setHover({ manager: t.manager, week: w })}>
                       <div
-                        className="h-8 min-w-[2.6rem] rounded-md grid place-items-center text-[11px] font-bold text-white"
+                        className={`h-8 min-w-[2.6rem] rounded-md grid place-items-center text-[11px] font-bold text-white transition-transform duration-150 ${isHover ? 'scale-[1.06]' : ''} ${isCell ? 'ring-2 ring-[var(--text)]' : ''}`}
                         style={cell ? { backgroundColor: heatColor(cell.pct), backgroundImage: 'linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0) 55%)', boxShadow: cell.pct >= 0.85 ? `0 0 10px ${heatColor(cell.pct)}` : 'none', textShadow: '0 1px 2px rgba(0,0,0,0.45)' } : { backgroundColor: 'var(--surface2)' }}
                         title={cell ? `${displayName(t.manager, t.conf)} -- Week ${w}: ${cell.score.toFixed(1)}` : 'No score'}
                       >
@@ -337,18 +366,18 @@ export function SeasonHeatMap({ heat, weeks }) {
                   );
                 })}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  };
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
   return (
     <FunCard
       chartId="season-heat-map"
       title="Season Heat Map"
     >
-      <Panel />
+      {table}
       <div className="mt-3 flex items-center justify-center gap-2 text-[11px] font-semibold text-[var(--muted)]">
         <span>Cold</span>
         <span className="h-2.5 w-40 rounded-full" style={{ background: 'linear-gradient(90deg, var(--proj), var(--coral))' }} />

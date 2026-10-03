@@ -3,6 +3,7 @@ import { Check, X as XIcon, Link as LinkIcon } from 'lucide-react';
 import { useRosterModal } from '../context/RosterModalContext';
 import { buildPostseasonSeeds } from '../lib/statsMath';
 import { readThemeTokens } from '../lib/themeTokens';
+import { STANDINGS_PTS } from '../lib/terms';
 import { useNameDisplay } from '../context/NameDisplayContext';
 import lenzoneLogoRing from '../assets/lenzone-logo-ring.png';
 import lenzoneLogoBall from '../assets/lenzone-logo-ball.png';
@@ -29,9 +30,9 @@ const LOGO_MAX_SIZE = 68;
 const AFC_COLOR = "var(--afc)";
 const NFC_COLOR = "var(--nfc)";
 const WILDCARD_COLOR = "var(--live)";
-// "League Pts" (standings points: 2 per in-conference win, 1 per cross-conference win) -- spelled
+// Victory Points (VP, from lib/terms.js: 2 per in-conference win, 1 per cross-conference win) -- spelled
 // out instead of the old "SP" shorthand.
-const PTS_LABEL = "League Pts";
+const PTS_LABEL = STANDINGS_PTS.long;
 const formatTick = (t) => (Number.isInteger(t) ? String(t) : t.toFixed(1));
 // Same serif/sans split as WeeklyScoresBarChart -- a name is a label (serif), a number is data
 // (bold geometric sans) -- so the two chart types read as one consistent visual system.
@@ -283,7 +284,7 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
         parts.push(`<image href="${logoUrl}" x="${cx - logoSize / 2}" y="${logoCy - logoSize / 2}" width="${logoSize}" height="${logoSize}" clip-path="url(#${clipId})" preserveAspectRatio="xMidYMid slice"/>`);
         parts.push(`<circle cx="${cx}" cy="${logoCy}" r="${logoSize / 2}" fill="none" stroke="${EXPORT.bg}" stroke-width="2"/>`);
       }
-      parts.push(`<text x="${cx}" y="${standingsY - 20}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="12" font-weight="800" fill="${EXPORT.text}">${formatTick(b.totalPts || 0)} ${b.totalPts === 1 ? 'pt' : 'pts'}</text>`);
+      parts.push(`<text x="${cx}" y="${standingsY - 20}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="12" font-weight="800" fill="${EXPORT.text}">${formatTick(b.totalPts || 0)} ${STANDINGS_PTS.short}</text>`);
       parts.push(`<text x="${cx}" y="${standingsY - 6}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="11" font-weight="700" fill="${EXPORT.muted}">PF ${b.pfAvg.toFixed(1)}</text>`);
       const labelY = labelStartY;
       const visibleName = displayName(b.manager, b.conf);
@@ -547,7 +548,7 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
                   </text>
                 )}
                 <text x={cx} y={standingsY - 20} textAnchor="middle" fontSize={12} fontWeight={800} fill="var(--text)">
-                  {formatTick(b.totalPts || 0)} {b.totalPts === 1 ? 'pt' : 'pts'}
+                  {formatTick(b.totalPts || 0)} {STANDINGS_PTS.short}
                 </text>
                 <text x={cx} y={standingsY - 6} textAnchor="middle" fontSize={11} fontWeight={700} fill="var(--muted)">
                   PF {(b.pfAvg || 0).toFixed(1)}

@@ -36,19 +36,22 @@ export function weekTeamResults(week, afcSeason, nfcSeason, schedule, afcManager
 const outcome = (mine, theirs) => (theirs == null ? null : mine > theirs ? 1 : mine < theirs ? 0 : 0.5);
 
 // Luck Meter, in standings points: actual points earned (in-conference win = 2, cross-conference
-// win = 1, ties = half) vs. all-play expected points -- each game weighted the same way, times the
-// share of the rest of the league you outscored that week.
+// win = 1, ties = half) vs. all-play expected points. Each game is compared against the pool its
+// opponent came from: the in-conference game against everyone else in your conference, the
+// cross-conference game against everyone in the other conference.
 export function allPlayLuck(latestCompletedWeek, afcSeason, nfcSeason, schedule, afcManagers, nfcManagers) {
   const totals = {};
   for (let w = 1; w <= latestCompletedWeek; w++) {
     const rows = weekTeamResults(w, afcSeason, nfcSeason, schedule, afcManagers, nfcManagers);
     rows.forEach(r => {
-      const others = rows.filter(o => o.manager !== r.manager);
-      if (!others.length) return;
-      const beat = others.reduce((s, o) => s + (r.score > o.score ? 1 : r.score === o.score ? 0.5 : 0), 0) / others.length;
+      const shareBeaten = (pool) => (pool.length
+        ? pool.reduce((s, o) => s + (r.score > o.score ? 1 : r.score === o.score ? 0.5 : 0), 0) / pool.length
+        : null);
+      const inConf = shareBeaten(rows.filter(o => o.conf === r.conf && o.manager !== r.manager));
+      const crossConf = shareBeaten(rows.filter(o => o.conf !== r.conf));
       const t = totals[r.manager] || (totals[r.manager] = { manager: r.manager, conf: r.conf, wins: 0, games: 0, expected: 0 });
-      [[outcome(r.score, r.intraOppScore), 2], [outcome(r.score, r.crossOppScore), 1]].forEach(([result, weight]) => {
-        if (result == null) return;
+      [[outcome(r.score, r.intraOppScore), 2, inConf], [outcome(r.score, r.crossOppScore), 1, crossConf]].forEach(([result, weight, beat]) => {
+        if (result == null || beat == null) return;
         t.wins += result * weight;
         t.games += 1;
         t.expected += beat * weight;

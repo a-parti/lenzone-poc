@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { STANDINGS_PTS } from '../lib/terms';
 import { ChevronDown } from 'lucide-react';
 import { CONF_STYLES, SCORE_COLOR, scoreState } from '../lib/theme';
 import { projectedPoints } from '../lib/players';
@@ -280,7 +281,7 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
           <div className="flex items-center gap-1.5 min-w-0 sm:w-full sm:justify-end">
             {result && (
               <span className={`text-sm font-black px-2 py-0.5 rounded shrink-0 whitespace-nowrap ${RESULT_STYLE[result]}`}>
-                {result} +{myStandingsPts}
+                {result} +{myStandingsPts} {STANDINGS_PTS.short}
               </span>
             )}
             <TeamName manager={myTeam} conf={myConf} className="font-semibold truncate" />
@@ -339,7 +340,7 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
               const oppStandingsPts = oppResult === "W" ? (isInConf ? 2 : 1) : oppResult === "T" ? (isInConf ? 1 : 0.5) : 0;
               return (
                 <span className={`text-sm font-black px-2 py-0.5 rounded shrink-0 whitespace-nowrap ${RESULT_STYLE[oppResult]}`}>
-                  {oppResult} +{oppStandingsPts}
+                  {oppResult} +{oppStandingsPts} {STANDINGS_PTS.short}
                 </span>
               );
             })()}

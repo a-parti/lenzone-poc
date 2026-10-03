@@ -55,6 +55,7 @@ import { Button, TeamPicker, useEscapeKey, SkeletonRows } from './components/sha
 import { copyTextToClipboard } from './lib/clipboard';
 import { defaultBrowseWeek, sleeperCurrentWeek } from './lib/weekSelection';
 import { startPolling } from './lib/polling';
+import { STANDINGS_PTS } from './lib/terms';
 import { IS_FRESH_START } from './lib/freshStart';
 import { buildWeeklyRecapForWeek } from './lib/recapText';
 
@@ -70,11 +71,11 @@ const AFC_DEFAULT = ["Kenny", "Grant", "Rob", "Tim", "Ted", "Nikko", "Dan", "Mag
 const NFC_DEFAULT = ["Alanna", "Kruti", "Mario", "Ahmad", "Melody", "Kris + Mahtab", "David C", "Eric", "Sam", "Jeremy", "Chris", "Melissa"];
 
 const DEFAULT_CHARTER = `Standings
-In-Conference Win = 2.0 Standings Pts | Cross-Conference Win = 1.0 Standings Pt | Ties = 50% value.
+In-Conference Win = 2.0 Victory Points (VP) | Cross-Conference Win = 1.0 VP | Ties = 50% value.
 Tiebreaker: Points For (PF) -- whoever has scored more total points wins the tiebreak.
 
 Playoff Qualification (Per Conference)
-Each 12-team conference sends 6 teams to the playoffs. Seeds 1-5 are locked by total Standings Points (in-conference + cross-conference). Seed 6 (the Wildcard) goes to whichever of the remaining 7 teams in that same conference has the highest Points For (PF). AFC and NFC seed independently of each other.
+Each 12-team conference sends 6 teams to the playoffs. Seeds 1-5 are locked by total VP (in-conference + cross-conference). Seed 6 (the Wildcard) goes to whichever of the remaining 7 teams in that same conference has the highest Points For (PF). AFC and NFC seed independently of each other.
 
 Prizes
 Conference Champion (AFC and NFC): $300 each
@@ -246,7 +247,7 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek }) {
             <tr>
               <SortHeader label="#" sortKey="rank" activeKey={sortKey} dir={sortDir} onClick={handleSort} title="Rank" />
               <SortHeader label={nameDisplayMode === 'teams' ? 'Team' : 'Manager'} sortKey="manager" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
-              <SortHeader label="League Pts" sortKey="totalPts" activeKey={sortKey} dir={sortDir} onClick={handleSort} title="2 per in-conference win, 1 per cross-conference win" />
+              <SortHeader label={STANDINGS_PTS.short} sortKey="totalPts" activeKey={sortKey} dir={sortDir} onClick={handleSort} title={`${STANDINGS_PTS.long}: 2 per in-conference win, 1 per cross-conference win`} />
               <SortHeader label="Record" sortKey="overall" activeKey={sortKey} dir={sortDir} onClick={handleSort} title="Overall W-L-T, with in-conference and cross-conference records underneath" />
               <SortHeader label="PF / gm" sortKey="pf" activeKey={sortKey} dir={sortDir} onClick={handleSort} title="Points scored per game, with points against underneath" />
               <SortHeader label="Playoff %" sortKey="playoffPct" activeKey={sortKey} dir={sortDir} onClick={handleSort} title="Estimated from 2,500 simulations; frozen until the next completed week" />
@@ -307,7 +308,7 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek }) {
               </div>
               <div className="text-right shrink-0">
                 <div className={`text-lg font-extrabold tabular-nums leading-none ${style.text}`}>{item.totalPts.toFixed(1)}</div>
-                <div className="text-[11px] font-semibold text-[var(--muted)]">League Pts</div>
+                <div className="text-[11px] font-semibold text-[var(--muted)]">{STANDINGS_PTS.short}</div>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 mb-3">

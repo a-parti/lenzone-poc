@@ -10,6 +10,7 @@ import lenzoneLogoBall from '../assets/lenzone-logo-ball.png';
 import ExportControls from './ExportControls';
 import useModuleExportTheme from '../hooks/useModuleExportTheme';
 import { readThemeTokens } from '../lib/themeTokens';
+import { STANDINGS_PTS } from '../lib/terms';
 
 // Fixed width so the sticky team column is stable; narrower on phones so the weeks get room.
 const TEAM_COL_CLASS = 'w-[120px] min-w-[120px] max-w-[120px] sm:w-[232px] sm:min-w-[232px] sm:max-w-[232px]';
@@ -302,8 +303,8 @@ export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afc
     parts.push(`<rect x="22" y="${notesY}" width="8" height="102" rx="4" fill="${COLORS.accent}"/>`);
     parts.push(`<text x="50" y="${notesY + 40}" font-family="${EXPORT_SANS}" font-size="18" font-weight="900" letter-spacing="1.5" fill="${COLORS.accent}">LEAGUE NOTES</text>`);
     parts.push(`<line x1="240" x2="240" y1="${notesY + 18}" y2="${notesY + 84}" stroke="${COLORS.border}" stroke-width="1.3"/>`);
-    parts.push(`<text x="268" y="${notesY + 38}" font-family="${EXPORT_SANS}" font-size="21" font-weight="800" fill="${COLORS.text}">+2 standings pts for an in-conference win  •  +1 standings pt for a cross-conference win  •  Weekly high score: $15 or wine</text>`);
-    parts.push(`<text x="268" y="${notesY + 75}" font-family="${EXPORT_SANS}" font-size="20" font-weight="650" fill="${COLORS.muted}">Playoffs begin Week 15: Top 5 by standings points + one highest-PF wildcard per conference  •  Everyone else dukes it out in the Toilet Bowl</text>`);
+    parts.push(`<text x="268" y="${notesY + 38}" font-family="${EXPORT_SANS}" font-size="21" font-weight="800" fill="${COLORS.text}">+2 ${STANDINGS_PTS.short} for an in-conference win  •  +1 ${STANDINGS_PTS.short} for a cross-conference win  •  Weekly high score: $15 or wine</text>`);
+    parts.push(`<text x="268" y="${notesY + 75}" font-family="${EXPORT_SANS}" font-size="20" font-weight="650" fill="${COLORS.muted}">Playoffs begin Week 15: Top 5 by ${STANDINGS_PTS.long} + one highest-PF wildcard per conference  •  Everyone else dukes it out in the Toilet Bowl</text>`);
 
     const footerY = gridBottom + 145;
     parts.push(`<text x="${exportW / 2}" y="${footerY}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="19" font-weight="750" fill="${COLORS.muted}">W/L/T reflects posted results through Week ${latestCompletedWeek ?? 0}</text>`);

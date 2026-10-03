@@ -293,7 +293,7 @@ export function LuckMeter({ luck }) {
     <FunCard
       chartId="luck-meter"
       title="Luck Meter"
-      subtitle={`${STANDINGS_PTS.long} earned vs. if you played everyone each week`}
+      subtitle={`${STANDINGS_PTS.long} earned vs. expected against every possible opponent`}
     >
       <div className="max-w-3xl mx-auto divide-y divide-[var(--border2)]">
         {groups.map(g => (

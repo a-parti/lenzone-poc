@@ -292,23 +292,20 @@ export function SeasonHeatMap({ heat, weeks }) {
   const { displayName } = useNameDisplay();
   const { openRoster } = useRosterModal();
   if (!weeks.length) return null;
-  const Panel = ({ conf }) => {
+  // All 24 teams in one table (heat is already league-wide), sorted by average heat.
+  const Panel = () => {
     const teams = Object.values(heat)
-      .filter(t => t.conf === conf)
       .map(t => {
         const pcts = weeks.map(w => t.weeks[w]?.pct).filter(v => v != null);
         return { ...t, avg: pcts.length ? pcts.reduce((a, b) => a + b, 0) / pcts.length : -1 };
       })
       .sort((a, b) => b.avg - a.avg);
     return (
-      <div className="min-w-0 overflow-x-auto">
-        <div className="flex items-center gap-3 mb-2">
-          <span className={`text-xs font-black tracking-[0.2em] ${conf === 'AFC' ? 'text-[var(--afc)]' : 'text-[var(--nfc)]'}`}>{conf}</span>
-          <span className="h-px flex-1 bg-[var(--border)]" />
-        </div>
-        <table className="w-auto border-separate" style={{ borderSpacing: 3 }}>
+      <div className="min-w-0 overflow-x-auto scroll-thin">
+        <table className="w-auto mx-auto border-separate" style={{ borderSpacing: 3 }}>
           <thead>
             <tr>
+              <th />
               <th />
               {weeks.map(w => <th key={w} className="text-[11px] font-semibold text-[var(--muted)]">Wk {w}</th>)}
             </tr>
@@ -316,6 +313,9 @@ export function SeasonHeatMap({ heat, weeks }) {
           <tbody>
             {teams.map(t => (
               <tr key={t.manager}>
+                <td className="pr-1">
+                  <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full border ${t.conf === 'AFC' ? 'text-[var(--afc)] border-[var(--afc)]/40 bg-[var(--afc)]/10' : 'text-[var(--nfc)] border-[var(--nfc)]/40 bg-[var(--nfc)]/10'}`}>{t.conf}</span>
+                </td>
                 <td className="pr-2">
                   <button type="button" onClick={() => openRoster(t.manager, t.conf)} className="flex items-center gap-1.5 min-w-0 max-w-[10rem]">
                     <TeamMiniLogo manager={t.manager} size={18} />
@@ -348,11 +348,8 @@ export function SeasonHeatMap({ heat, weeks }) {
       chartId="season-heat-map"
       title="Season Heat Map"
     >
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-x-8 gap-y-6">
-        <Panel conf="AFC" />
-        <Panel conf="NFC" />
-      </div>
-      <div className="mt-3 flex items-center gap-2 text-[11px] font-semibold text-[var(--muted)]">
+      <Panel />
+      <div className="mt-3 flex items-center justify-center gap-2 text-[11px] font-semibold text-[var(--muted)]">
         <span>Cold</span>
         <span className="h-2.5 w-40 rounded-full" style={{ background: 'linear-gradient(90deg, var(--proj), var(--coral))' }} />
         <span>Hot</span>

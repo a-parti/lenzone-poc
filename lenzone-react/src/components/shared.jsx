@@ -1,8 +1,6 @@
-import React, { useEffect, useRef } from 'react';
-import { Sun, Moon, ChevronLeft, ChevronRight } from 'lucide-react';
+import React, { useEffect } from 'react';
 import { positionStyle } from '../lib/theme';
 import { nflTeamColor, readableTextOn, nflTeamLogoUrl } from '../lib/nflTeams';
-import { ALL_SCHEMES, useTheme } from '../context/ThemeContext';
 import { useTeamDepthChart } from '../context/TeamDepthChartContext';
 import { useNameDisplay } from '../context/NameDisplayContext';
 
@@ -25,13 +23,15 @@ export function PositionBadge({ position }) {
   );
 }
 
+const INJURY_WARN = "bg-[var(--live)]/10 text-[var(--live)] border border-[var(--live)]/25";
+const INJURY_OUT = "bg-[var(--neg)]/10 text-[var(--neg)] border border-[var(--neg)]/25";
 const INJURY_STYLES = {
-  Questionable: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
-  Doubtful: "bg-orange-500/10 text-orange-400 border border-orange-500/20",
-  Out: "bg-rose-500/10 text-rose-400 border border-rose-500/20",
-  IR: "bg-rose-500/10 text-rose-400 border border-rose-500/20",
-  PUP: "bg-rose-500/10 text-rose-400 border border-rose-500/20",
-  Suspended: "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+  Questionable: INJURY_WARN,
+  Doubtful: INJURY_WARN,
+  Out: INJURY_OUT,
+  IR: INJURY_OUT,
+  PUP: INJURY_OUT,
+  Suspended: INJURY_OUT
 };
 
 // Standard fantasy-football shorthand for Sleeper's real injury_status values -- IR/PUP are
@@ -51,7 +51,7 @@ export function InjuryBadge({ status }) {
   return (
     <span
       title={status}
-      className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${INJURY_STYLES[status] || "bg-slate-500/10 text-[var(--text2)] border border-slate-500/20"}`}
+      className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${INJURY_STYLES[status] || "bg-[var(--surface2)] text-[var(--text2)] border border-[var(--border)]"}`}
     >
       {INJURY_ABBREV[status] || status}
     </span>
@@ -60,11 +60,11 @@ export function InjuryBadge({ status }) {
 
 export function StatusBadge({ type }) {
   const styles = {
-    BYE: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
-    WILDCARD: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
-    TOILET_BOWL: "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+    BYE: "bg-[var(--pos)]/10 text-[var(--pos)] border border-[var(--pos)]/25",
+    WILDCARD: "bg-[var(--coral)]/10 text-[var(--coral)] border border-[var(--coral)]/30",
+    TOILET_BOWL: "bg-[var(--surface2)] text-[var(--muted)] border border-[var(--border)]"
   };
-  const labels = { BYE: "Bye", WILDCARD: "Wildcard", TOILET_BOWL: "Toilet Bowl" };
+  const labels = { BYE: "Bye", WILDCARD: "Wild Card", TOILET_BOWL: "Toilet Bowl" };
   return (
     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${styles[type]}`}>
       {labels[type]}
@@ -81,8 +81,8 @@ export function GameBadge({ nflTeam, week, byTeamWeek }) {
   const isLive = g.state === 'in';
   if (isLive) {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-bold text-red-400 min-w-0 max-w-full">
-        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+      <span className="inline-flex items-center gap-1 text-xs font-bold text-[var(--neg)] min-w-0 max-w-full">
+        <span className="w-1.5 h-1.5 rounded-full bg-[var(--neg)] animate-pulse shrink-0" />
         <span className="truncate">LIVE Q{g.period} {g.displayClock} vs {g.opponent}</span>
       </span>
     );
@@ -186,103 +186,13 @@ export function SkeletonRows({ rows = 3, className = "" }) {
   );
 }
 
-// Fits ~5.5 swatches (28px + 6px gap each) so a couple more peek in at each edge as a scroll
-// affordance -- the rest of the 37 (5 curated + 32 team) schemes are reached by scrolling, not by
-// growing the strip to fit them all.
-const SWATCH_STRIP_WIDTH = 190;
-
-export function ThemeToggle() {
-  const { scheme, setSchemeManually, mode, setMode } = useTheme();
-  const stripRef = useRef(null);
-
-  // Whenever the active scheme changes -- picked here, forced by a manager selection, or the
-  // random Home-page default -- bring its swatch into view instead of leaving the strip scrolled
-  // wherever it happened to be, so the ring around the active color is never scrolled off-screen.
-  useEffect(() => {
-    const el = stripRef.current?.querySelector(`[data-scheme-id="${scheme}"]`);
-    el?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-  }, [scheme]);
-
-  // A horizontal strip doesn't respond to a normal (vertical) mouse wheel by default -- redirect
-  // vertical wheel delta into horizontal scroll so it can be browsed without a horizontal scrollbar/drag.
-  const onWheel = (e) => {
-    if (e.deltaY === 0) return;
-    e.preventDefault();
-    e.currentTarget.scrollLeft += e.deltaY;
-  };
-
-  // Wheel-scrolling isn't discoverable on its own (and doesn't exist at all on touch) -- these
-  // arrows page the strip by roughly 3 swatches at a time as an explicit, obvious way to browse it.
-  const scrollByPage = (dir) => {
-    stripRef.current?.scrollBy({ left: dir * 102, behavior: 'smooth' });
-  };
-
-  return (
-    <div className="flex items-center gap-2">
-      <button
-        type="button"
-        onClick={() => scrollByPage(-1)}
-        title="Previous colors"
-        aria-label="Scroll color scheme options left"
-        className="p-1 rounded-full text-[var(--text2)] hover:text-[var(--text)] hover:bg-[var(--surface2)] transition-colors duration-200 shrink-0"
-      >
-        <ChevronLeft className="w-4 h-4" />
-      </button>
-      <div className="relative" style={{ width: SWATCH_STRIP_WIDTH }}>
-        <div
-          ref={stripRef}
-          onWheel={onWheel}
-          className="flex items-center gap-1.5 rounded-full bg-[var(--surface2)] border border-[var(--border)] px-2 py-1.5 overflow-x-auto scroll-smooth scrollbar-none"
-          style={{ scrollbarWidth: 'none' }}
-        >
-          {ALL_SCHEMES.map(s => (
-            <button
-              key={s.id}
-              type="button"
-              title={s.label}
-              data-scheme-id={s.id}
-              aria-label={`Switch to ${s.label} color scheme`}
-              aria-pressed={scheme === s.id}
-              onClick={() => setSchemeManually(s.id)}
-              className={`w-5 h-5 rounded-full shrink-0 transition-all duration-200 ${scheme === s.id ? "ring-2 ring-offset-2 ring-offset-[var(--surface2)] ring-[var(--text)] scale-110" : "opacity-70 hover:opacity-100"}`}
-              style={{ backgroundColor: s.swatch }}
-            />
-          ))}
-        </div>
-        {/* Edge fades hint that the strip scrolls -- match the strip's own background so they blend
-            in rather than reading as a border. */}
-        <div className="pointer-events-none absolute inset-y-0 left-0 w-4 rounded-l-full bg-gradient-to-r from-[var(--surface2)] to-transparent" />
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-4 rounded-r-full bg-gradient-to-l from-[var(--surface2)] to-transparent" />
-      </div>
-      <button
-        type="button"
-        onClick={() => scrollByPage(1)}
-        title="More colors"
-        aria-label="Scroll color scheme options right"
-        className="p-1 rounded-full text-[var(--text2)] hover:text-[var(--text)] hover:bg-[var(--surface2)] transition-colors duration-200 shrink-0"
-      >
-        <ChevronRight className="w-4 h-4" />
-      </button>
-      <button
-        type="button"
-        onClick={() => setMode(m => m === 'dark' ? 'light' : 'dark')}
-        title={mode === 'dark' ? "Switch to light mode" : "Switch to dark mode"}
-        aria-label={mode === 'dark' ? "Switch to light mode" : "Switch to dark mode"}
-        className="p-2 rounded-full bg-[var(--surface2)] border border-[var(--border)] text-[var(--text2)] hover:text-[var(--text)] transition-colors duration-200"
-      >
-        {mode === 'dark' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-      </button>
-    </div>
-  );
-}
-
 // The closed <select> box is styled fine with Tailwind classes, but the opened native options
 // popup ignores them everywhere except Chromium (background-color/color on <option> itself) --
 // without this it renders as a plain white browser-default list regardless of the active scheme.
 const optionStyle = { backgroundColor: 'var(--surface2)', color: 'var(--text)' };
 
 export function TeamPicker({ afcManagers, nfcManagers, value, onChange, prefix = "I am", variant = "compact" }) {
-  const { mode: nameDisplayMode, displayName } = useNameDisplay();
+  const { displayName } = useNameDisplay();
   if (!(afcManagers?.length > 0 || nfcManagers?.length > 0)) return null;
   const isBlend = variant === "blend";
   return (
@@ -302,7 +212,7 @@ export function TeamPicker({ afcManagers, nfcManagers, value, onChange, prefix =
               : "bg-[var(--surface2)] border border-[var(--border)] rounded-lg px-3 py-1.5 font-semibold text-[var(--text)] text-sm focus:outline-none focus:border-[var(--accent)] w-full max-w-[22rem]"
           }
         >
-          <option value="" style={optionStyle}>choose your {nameDisplayMode === 'managers' ? 'name' : 'team'}&hellip;</option>
+          <option value="" style={optionStyle}>Pick your team&hellip;</option>
           <optgroup label="AFC" style={optionStyle}>
             {(afcManagers || []).map(m => <option key={m} value={m} style={optionStyle}>{displayName(m, 'AFC')}</option>)}
           </optgroup>
@@ -321,16 +231,18 @@ export function TeamPicker({ afcManagers, nfcManagers, value, onChange, prefix =
 
 export function ConfFilterToggle({ value, onChange }) {
   return (
-    <div className="inline-flex rounded-lg bg-[var(--bg)] p-1 border border-[var(--border)]/80">
-      {["ALL", "AFC", "NFC"].map(conf => (
+    <div className="inline-flex rounded-lg bg-[var(--bg)] p-1 border border-[var(--border)]/80" role="group" aria-label="Conference">
+      {[["ALL", "Both"], ["AFC", "AFC"], ["NFC", "NFC"]].map(([conf, label]) => (
         <button
           key={conf}
+          type="button"
           onClick={() => onChange(conf)}
-          className={`px-3 py-1 rounded-md text-xs font-bold transition-all duration-200 ${
+          aria-pressed={value === conf}
+          className={`px-3.5 py-2 rounded-md text-xs font-bold transition-all duration-200 ${
             value === conf ? "bg-[var(--accent)] text-[var(--accent-text)]" : "text-[var(--text2)] hover:text-[var(--text)]"
           }`}
         >
-          {conf}
+          {label}
         </button>
       ))}
     </div>

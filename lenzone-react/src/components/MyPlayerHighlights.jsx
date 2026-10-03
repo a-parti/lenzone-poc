@@ -71,8 +71,7 @@ export default function MyPlayerHighlights({
 
   return (
     <div className="space-y-3">
-      <p className="tracking-wider text-xs uppercase font-semibold text-[var(--muted)]">Your Player Trophies</p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <PlayerCard
           icon={Target} label="Highest Projected" entry={highestProjected} playersDB={playersDB}
           value={highestProjected ? `${highestProjected.projected.toFixed(2)} proj` : ""}
@@ -119,19 +118,19 @@ export default function MyPlayerHighlights({
         )}
         {myLongestPass && (
           <MyBigPlayCard
-            icon={Zap} label="Your Longest Pass" play={myLongestPass} accent="text-sky-400"
+            icon={Zap} label="Your Longest Pass" play={myLongestPass} accent="text-[var(--proj)]"
             onClick={() => openPlayer(myLongestPass.playerId, myLongestPass.position)}
           />
         )}
         {myLongestRun && (
           <MyBigPlayCard
-            icon={Footprints} label="Your Longest Run" play={myLongestRun} accent="text-emerald-400"
+            icon={Footprints} label="Your Longest Run" play={myLongestRun} accent="text-[var(--pos)]"
             onClick={() => openPlayer(myLongestRun.playerId, myLongestRun.position)}
           />
         )}
         {myLongestFg && (
           <MyBigPlayCard
-            icon={Goal} label="Your Longest FG" play={myLongestFg} accent="text-amber-400"
+            icon={Goal} label="Your Longest FG" play={myLongestFg} accent="text-[var(--live)]"
             onClick={() => openPlayer(myLongestFg.playerId, myLongestFg.position)}
           />
         )}

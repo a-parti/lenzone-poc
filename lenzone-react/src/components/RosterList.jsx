@@ -67,7 +67,7 @@ function isLiveGame(byTeamWeek, team, week) {
 // Amber, deliberately not red/accent -- a live game and "this game involves your roster" (which
 // often IS accent-red/orange, depending on the color scheme) need to read as two different things
 // at a glance, not blend into the same tint.
-const LIVE_ROW_CLASS = "bg-amber-400/10 -mx-1.5 px-1.5 rounded border-l-2 border-amber-400";
+const LIVE_ROW_CLASS = "bg-[var(--live)]/10 -mx-1.5 px-1.5 rounded border-l-2 border-[var(--live)]";
 
 // Fixed-width columns (avatar / position / name+health / score / team+number) so every row lines up
 // vertically regardless of name length -- a plain flex row only pins the LAST item to the edge, not

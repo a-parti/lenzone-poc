@@ -131,7 +131,7 @@ function TeamRow({ team, score, placeholder, conf, activeManager, onHover, onSel
         <span className="playoff-team-name">{primary}</span>
         {secondary && secondary !== primary && <span className="playoff-team-secondary">{secondary}</span>}
       </span>
-      {winner && <Crown className="w-3.5 h-3.5 text-amber-400 shrink-0" aria-label="Advances" />}
+      {winner && <Crown className="w-3.5 h-3.5 text-[var(--live)] shrink-0" aria-label="Advances" />}
       {score != null && <span className="playoff-score">{score.toFixed(2)}</span>}
     </button>
   );

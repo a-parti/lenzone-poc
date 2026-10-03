@@ -63,7 +63,7 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
     // see the rest, the same way the standings/grid tables already do.
     <div className="grid grid-cols-2 gap-4 text-xs py-1.5">
       <div
-        className={`${ROSTER_ROW_FLEX} min-w-0 rounded ${onSelectGame && my ? "cursor-pointer" : ""} ${myHighlighted ? "bg-violet-400/20 ring-2 ring-violet-400/70" : ""}`}
+        className={`${ROSTER_ROW_FLEX} min-w-0 rounded ${onSelectGame && my ? "cursor-pointer" : ""} ${myHighlighted ? "bg-[var(--coral)]/15 ring-2 ring-[var(--coral)]/60" : ""}`}
         onClick={my ? handleRowClick(my.team) : undefined}
       >
         {my ? (
@@ -93,7 +93,7 @@ function RosterCompareRow({ label, myId, oppId, myPts, oppPts, myProj, oppProj, 
           outer edge, score sits closest to the VS divider -- both teams' scores converge toward
           the middle, matching the header's own left/right layout above. */}
       <div
-        className={`${ROSTER_ROW_FLEX} flex-row-reverse min-w-0 rounded ${onSelectGame && opp ? "cursor-pointer" : ""} ${oppHighlighted ? "bg-violet-400/20 ring-2 ring-violet-400/70" : ""}`}
+        className={`${ROSTER_ROW_FLEX} flex-row-reverse min-w-0 rounded ${onSelectGame && opp ? "cursor-pointer" : ""} ${oppHighlighted ? "bg-[var(--coral)]/15 ring-2 ring-[var(--coral)]/60" : ""}`}
         onClick={opp ? handleRowClick(opp.team) : undefined}
       >
         {opp ? (

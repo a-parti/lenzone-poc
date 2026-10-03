@@ -78,7 +78,7 @@ export default function RosterTab({ afcData, nfcData, afcSeason, nfcSeason, play
           </select>
         </div>
         <div>
-          <label className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)] block mb-1">Projected Pts Week</label>
+          <label className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)] block mb-1">Week</label>
           <select
             value={selectedWeek}
             onChange={(e) => setSelectedWeek(Number(e.target.value))}
@@ -105,7 +105,7 @@ export default function RosterTab({ afcData, nfcData, afcSeason, nfcSeason, play
 
       {playersLoading && <SkeletonRows rows={4} />}
       {!playersLoading && pool.length === 0 && (
-        <div className="text-sm text-[var(--muted)] italic">Connect a Sleeper League ID (Standings tab, admin mode) to view rosters.</div>
+        <div className="text-sm text-[var(--muted)] italic">Rosters aren't available yet. Try again in a minute.</div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

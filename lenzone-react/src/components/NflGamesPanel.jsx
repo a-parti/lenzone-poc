@@ -138,10 +138,10 @@ export default function NflGamesPanel({ games, week, myTeamNflTeams, myPlayersBy
                 // so "this game is selected" reads as one consistent highlight across both surfaces
                 // instead of two different colors for the same action.
                 isSelected
-                  ? "bg-violet-400/20 border-violet-400 ring-2 ring-violet-400/70"
+                  ? "bg-[var(--coral)]/15 border-[var(--coral)] ring-2 ring-[var(--coral)]/60"
                   : involvesMyTeam && !isFinal
                     ? isLive
-                      ? "bg-amber-400/15 border-amber-400"
+                      ? "bg-[var(--live)]/15 border-[var(--live)]"
                       : "bg-[var(--accent)]/15 border-[var(--accent)]"
                     : "bg-[var(--surface2)]/50 border-transparent"
               }`}
@@ -167,13 +167,13 @@ export default function NflGamesPanel({ games, week, myTeamNflTeams, myPlayersBy
                     <span className="font-mono tabular-nums font-bold text-[var(--text)]">{g.awayScore} - {g.homeScore}</span>
                   )}
                   {isLive ? (
-                    <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-red-400">
-                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[var(--neg)]">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--neg)] animate-pulse" />
                       Live Q{g.period} {g.displayClock}
                     </span>
                   ) : (
                     <span className={`text-xs font-bold uppercase tracking-wider ${
-                      isFinal ? 'text-emerald-400' : g.status === 'canceled' ? 'text-red-400' : 'text-[var(--muted)]'
+                      isFinal ? 'text-[var(--pos)]' : g.status === 'canceled' ? 'text-[var(--neg)]' : 'text-[var(--muted)]'
                     }`}>
                       {isFinal ? 'Final' : g.status === 'canceled' ? 'Canceled' : kickoffLabel}
                     </span>

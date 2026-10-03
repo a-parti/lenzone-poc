@@ -1,36 +1,28 @@
 import React from 'react';
-import { Shield, UserRound } from 'lucide-react';
 import { useNameDisplay } from '../context/NameDisplayContext';
 
-// Shared by the regular header and Home so both controls always reflect the same site-wide mode.
+// Text-labelled segmented control (lives in the settings menu) so it's clear on a phone, where
+// icon tooltips never show.
 export default function NameDisplayToggle() {
   const { mode: activeMode, setMode } = useNameDisplay();
   const options = [
-    ['teams', 'Fantasy team names', Shield],
-    ['managers', 'Manager names', UserRound]
+    ['teams', 'Team names'],
+    ['managers', 'Real names']
   ];
 
   return (
-    <div
-      className="inline-flex items-center rounded-full bg-[var(--bg)]/55 border border-[var(--border)]/80 p-0.5 shadow-sm"
-      role="group"
-      aria-label="Name display"
-    >
-      {options.map(([mode, label, Icon]) => (
+    <div className="inline-flex rounded-lg bg-[var(--bg)] p-1 border border-[var(--border)]" role="group" aria-label="Name display">
+      {options.map(([mode, label]) => (
         <button
           key={mode}
           type="button"
           onClick={() => setMode(mode)}
           aria-pressed={activeMode === mode}
-          aria-label={`Show ${label.toLowerCase()}`}
-          title={label}
-          className={`grid h-7 w-7 place-items-center rounded-full transition-all duration-150 ${
-            activeMode === mode
-              ? 'bg-[var(--accent)] text-[var(--accent-text)] shadow-sm scale-100'
-              : 'text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface)]'
+          className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors duration-150 ${
+            activeMode === mode ? 'bg-[var(--accent)] text-[var(--accent-text)]' : 'text-[var(--text2)] hover:text-[var(--text)]'
           }`}
         >
-          <Icon size={14} strokeWidth={2.25} aria-hidden="true" />
+          {label}
         </button>
       ))}
     </div>

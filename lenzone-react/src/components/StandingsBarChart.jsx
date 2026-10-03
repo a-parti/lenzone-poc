@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Check, X as XIcon, Link as LinkIcon, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { Check, X as XIcon, Link as LinkIcon } from 'lucide-react';
 import { useRosterModal } from '../context/RosterModalContext';
+import { buildPostseasonSeeds } from '../lib/statsMath';
 import { useNameDisplay } from '../context/NameDisplayContext';
 import lenzoneLogoRing from '../assets/lenzone-logo-ring.png';
 import lenzoneLogoBall from '../assets/lenzone-logo-ball.png';
@@ -15,7 +16,7 @@ const HEIGHT = 420;
 // (textAnchor="end" + a negative rotation), same reasoning as WeeklyScoresBarChart's own left
 // margin -- 56px was only ever enough for the y-axis ticks/label, nowhere near enough room for the
 // league's longest team name (e.g. "Justhereforthegroupchat") to swing left without clipping.
-const MARGIN = { top: 40, right: 58, bottom: 190, left: 185 };
+const MARGIN = { top: 64, right: 58, bottom: 190, left: 185 };
 // PF owns the horizontal footprint: higher PF average literally gets a wider bar and a larger
 // x-axis slot. Each bar still has enough minimum width for a clear team badge.
 const BAR_GAP = 12;
@@ -24,8 +25,13 @@ const PF_BAR_MAX_W = 108;
 const GROUP_GAP = 30;
 const LOGO_MIN_SIZE = 18;
 const LOGO_MAX_SIZE = 68;
-const AFC_COLOR = "#f87171"; // matches WeeklyScoresBarChart's AFC_COLOR / CONF_STYLES.AFC.text
-const NFC_COLOR = "#60a5fa"; // matches WeeklyScoresBarChart's NFC_COLOR / CONF_STYLES.NFC.text
+const AFC_COLOR = "var(--afc)";
+const NFC_COLOR = "var(--nfc)";
+const WILDCARD_COLOR = "var(--live)";
+// "League Pts" (standings points: 2 per in-conference win, 1 per cross-conference win) -- spelled
+// out instead of the old "SP" shorthand.
+const PTS_LABEL = "League Pts";
+const formatTick = (t) => (Number.isInteger(t) ? String(t) : t.toFixed(1));
 // Same serif/sans split as WeeklyScoresBarChart -- a name is a label (serif), a number is data
 // (bold geometric sans) -- so the two chart types read as one consistent visual system.
 const DATA_FONT = "'DM Sans', ui-sans-serif, sans-serif";
@@ -65,8 +71,6 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
     return secondary ? `${primary} (${secondary})` : primary;
   };
   const { openRoster } = useRosterModal();
-  const [zoom, setZoom] = useState(1);
-  const ZOOM_MIN = 0.5, ZOOM_MAX = 2, ZOOM_STEP = 0.25;
   const [exporting, setExporting] = useState(false);
   const [copyState, setCopyState] = useState("idle");
   const [downloadState, setDownloadState] = useState("idle");
@@ -130,12 +134,19 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
         return fifth && sixth ? { conf: group.conf, x: (fifth.x + fifth.barWidth + sixth.x) / 2 } : null;
       }).filter(Boolean)
     : [];
-  const playoffCutoffLabelY = groupSpans.length > 1 ? MARGIN.top - 30 : MARGIN.top - 16;
+  const playoffCutoffLabelY = groupSpans.length > 1 ? MARGIN.top - 52 : MARGIN.top - 40;
+  // The 6th playoff spot goes to the highest-PF team outside the top 5 (same rule as the bracket),
+  // so it can sit anywhere right of the TOP 5 line -- mark that bar explicitly.
+  const wildcardManagers = new Set(
+    mode === "segregated"
+      ? groups.flatMap(group => buildPostseasonSeeds(group.rows, group.conf).filter(t => t.status === 'WILDCARD').map(t => t.manager))
+      : []
+  );
 
   // Height uses the standings-points scale. PF has no competing y-axis: it determines each
-  // bar's real width and therefore its own x-axis footprint.
+  // bar's real width and therefore its own x-axis footprint. ~8 ticks so values read off easily.
   const maxStandingsPts = Math.max(1, ...bars.map(b => b.totalPts || 0));
-  const { ticks: standingsTicks, domainMax: standingsDomainMax } = niceTicks(maxStandingsPts, 4);
+  const { ticks: standingsTicks, domainMax: standingsDomainMax } = niceTicks(maxStandingsPts, 10);
   const yForStandings = (v) => MARGIN.top + plotH - (v / standingsDomainMax) * plotH;
   const logoSizeFor = (barWidth, standingsHeight) => {
     // A short bar gets a deliberately tiny badge even if its PF made it wide. The bar's relative
@@ -148,15 +159,16 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
   const rankLabelY = MARGIN.top + plotH + 22;
   const labelStartY = MARGIN.top + plotH + 48;
   const titleSuffix = mode === "combined" ? " (Overall)" : confFilter === "AFC" ? " (AFC)" : confFilter === "NFC" ? " (NFC)" : "";
-  const chartTitle = `Standings -- Pts Height / PF Width${titleSuffix}`;
+  const chartTitle = `Standings${titleSuffix}`;
 
   // ---- Export (PNG download / copy-to-clipboard / deep link) -- same approach as
   // WeeklyScoresBarChart: a deliberately separate, self-built SVG (not a clone of the live one) so
   // the export never depends on the viewer's own theme, webfonts, or hover state; team logos are
   // pre-fetched as base64 data URIs since an isolated SVG rasterization can't load external images.
   const EXPORT = exportTheme === 'dark'
-    ? { bg: "#0f172a", bgFrom: "#1b2338", bgTo: "#080a12", text: "#f8fafc", muted: "#aeb9c8", border: "#526178" }
-    : { bg: "#f5f1e8", bgFrom: "#fffaf1", bgTo: "#e8edf0", text: "#172033", muted: "#526073", border: "#9ba8b8" };
+    ? { bg: "#0B1F2A", bgFrom: "#12303B", bgTo: "#071820", text: "#EAF4F4", muted: "#93AEB5", border: "#34606F", afc: "#FF8A73", nfc: "#4FD1C5", wildcard: "#F2C14E" }
+    : { bg: "#FAF7F2", bgFrom: "#FFFFFF", bgTo: "#F0ECE4", text: "#12303B", muted: "#5F7680", border: "#CFC7B9", afc: "#D9604A", nfc: "#0E8A95", wildcard: "#B87A12" };
+  const exportConfColor = (conf) => (conf === "AFC" ? EXPORT.afc : conf === "NFC" ? EXPORT.nfc : EXPORT.text);
   const EXPORT_SANS = "Arial, Helvetica, sans-serif";
   const EXPORT_SERIF = "Georgia, 'Times New Roman', serif";
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -231,13 +243,13 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
       const ty = yForStandings(t);
       parts.push(`<line x1="${MARGIN.left}" x2="${width - MARGIN.right}" y1="${ty}" y2="${ty}" stroke="${EXPORT.border}" stroke-opacity="0.5" stroke-width="1"/>`);
       parts.push(`<line x1="${MARGIN.left - 5}" x2="${MARGIN.left}" y1="${ty}" y2="${ty}" stroke="${EXPORT.border}" stroke-width="1"/>`);
-      parts.push(`<text x="${MARGIN.left - 10}" y="${ty}" text-anchor="end" dominant-baseline="middle" font-family="${EXPORT_SANS}" font-size="13" fill="${EXPORT.muted}">${t.toFixed(1)}</text>`);
+      parts.push(`<text x="${MARGIN.left - 10}" y="${ty}" text-anchor="end" dominant-baseline="middle" font-family="${EXPORT_SANS}" font-size="13" fill="${EXPORT.muted}">${formatTick(t)}</text>`);
     });
-    parts.push(`<text x="150" y="${MARGIN.top + plotH / 2}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="13" font-weight="700" fill="${EXPORT.muted}" transform="rotate(-90 150 ${MARGIN.top + plotH / 2})">Standings Pts</text>`);
+    parts.push(`<text x="150" y="${MARGIN.top + plotH / 2}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="13" font-weight="700" fill="${EXPORT.muted}" transform="rotate(-90 150 ${MARGIN.top + plotH / 2})">${PTS_LABEL}</text>`);
 
     if (groupSpans.length > 1) {
       groupSpans.forEach(g => {
-        parts.push(`<text x="${(g.startX + g.endX) / 2}" y="${MARGIN.top - 16}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="13" font-weight="800" letter-spacing="1" fill="${g.conf === 'AFC' ? AFC_COLOR : NFC_COLOR}">${g.conf}</text>`);
+        parts.push(`<text x="${(g.startX + g.endX) / 2}" y="${MARGIN.top - 40}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="13" font-weight="800" letter-spacing="1" fill="${exportConfColor(g.conf)}">${g.conf}</text>`);
       });
       const dividerX = groupSpans[0].endX + GROUP_GAP / 2;
       parts.push(`<line x1="${dividerX}" x2="${dividerX}" y1="${MARGIN.top - 8}" y2="${MARGIN.top + plotH}" stroke="${EXPORT.border}" stroke-width="1.5" stroke-dasharray="3 4"/>`);
@@ -250,11 +262,13 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
     bars.forEach(b => {
       const standingsY = yForStandings(b.totalPts || 0);
       const standingsHeight = MARGIN.top + plotH - standingsY;
-      const color = b.conf === "AFC" ? AFC_COLOR : b.conf === "NFC" ? NFC_COLOR : EXPORT.text;
+      const color = exportConfColor(b.conf);
       const barWidth = b.barWidth;
       const barX = b.x;
       const cx = barX + barWidth / 2;
-      parts.push(`<rect x="${barX}" y="${standingsY}" width="${barWidth}" height="${standingsHeight}" rx="6" fill="${color}" fill-opacity="0.82" stroke="${color}" stroke-width="2"/>`);
+      const isWildcard = wildcardManagers.has(b.manager);
+      parts.push(`<rect x="${barX}" y="${standingsY}" width="${barWidth}" height="${standingsHeight}" rx="6" fill="${color}" fill-opacity="0.82" stroke="${isWildcard ? EXPORT.wildcard : color}" stroke-width="${isWildcard ? 3 : 2}"${isWildcard ? ' stroke-dasharray="6 4"' : ''}/>`);
+      if (isWildcard) parts.push(`<text x="${cx}" y="${standingsY - 36}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="10" font-weight="900" letter-spacing="0.6" fill="${EXPORT.wildcard}">WILD CARD</text>`);
       const logoUrl = logoData[b.manager];
       const logoSize = logoSizeFor(barWidth, standingsHeight);
       if (logoUrl && standingsHeight >= logoSize + 32) {
@@ -264,7 +278,8 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
         parts.push(`<image href="${logoUrl}" x="${cx - logoSize / 2}" y="${logoCy - logoSize / 2}" width="${logoSize}" height="${logoSize}" clip-path="url(#${clipId})" preserveAspectRatio="xMidYMid slice"/>`);
         parts.push(`<circle cx="${cx}" cy="${logoCy}" r="${logoSize / 2}" fill="none" stroke="${EXPORT.bg}" stroke-width="2"/>`);
       }
-      parts.push(`<text x="${cx}" y="${standingsY - 6}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="12" font-weight="800" fill="${EXPORT.text}">PF ${b.pfAvg.toFixed(1)}</text>`);
+      parts.push(`<text x="${cx}" y="${standingsY - 20}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="12" font-weight="800" fill="${EXPORT.text}">${formatTick(b.totalPts || 0)} ${b.totalPts === 1 ? 'pt' : 'pts'}</text>`);
+      parts.push(`<text x="${cx}" y="${standingsY - 6}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="11" font-weight="700" fill="${EXPORT.muted}">PF ${b.pfAvg.toFixed(1)}</text>`);
       const labelY = labelStartY;
       const visibleName = displayName(b.manager, b.conf);
       const secondaryName = nameMode === 'teams' ? managerName(b.manager, b.conf) : null;
@@ -277,10 +292,10 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
     parts.push(`</g>`);
 
     let ly = titleH + HEIGHT + 28;
-    const legendItems = [{ color: AFC_COLOR, label: 'AFC' }, { color: NFC_COLOR, label: 'NFC' }];
-    let lx = exportW / 2 - 190;
+    const legendItems = [{ color: EXPORT.afc, label: 'AFC' }, { color: EXPORT.nfc, label: 'NFC' }];
+    let lx = exportW / 2 - 260;
     parts.push(`<rect x="${lx}" y="${ly - 11}" width="14" height="14" rx="3" fill="${EXPORT.text}"/>`);
-    parts.push(`<text x="${lx + 20}" y="${ly}" font-family="${EXPORT_SANS}" font-size="14" font-weight="600" fill="${EXPORT.text}">Height: Standings Pts</text>`);
+    parts.push(`<text x="${lx + 20}" y="${ly}" font-family="${EXPORT_SANS}" font-size="14" font-weight="600" fill="${EXPORT.text}">Height: ${PTS_LABEL}</text>`);
     lx += 160;
     parts.push(`<rect x="${lx}" y="${ly - 8}" width="24" height="8" rx="3" fill="${EXPORT.text}"/>`);
     parts.push(`<text x="${lx + 30}" y="${ly}" font-family="${EXPORT_SANS}" font-size="14" font-weight="600" fill="${EXPORT.text}">Width + top label: PF Avg</text>`);
@@ -293,6 +308,11 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
     if (playoffCutoffs.length) {
       parts.push(`<line x1="${lx}" x2="${lx + 18}" y1="${ly - 5}" y2="${ly - 5}" stroke="${EXPORT.muted}" stroke-width="2" stroke-dasharray="5 4"/>`);
       parts.push(`<text x="${lx + 24}" y="${ly}" font-family="${EXPORT_SANS}" font-size="14" font-weight="600" fill="${EXPORT.text}">Top 5 guaranteed</text>`);
+      lx += 150;
+    }
+    if (wildcardManagers.size) {
+      parts.push(`<rect x="${lx}" y="${ly - 11}" width="14" height="14" rx="3" fill="none" stroke="${EXPORT.wildcard}" stroke-width="2.5" stroke-dasharray="4 3"/>`);
+      parts.push(`<text x="${lx + 20}" y="${ly}" font-family="${EXPORT_SANS}" font-size="14" font-weight="600" fill="${EXPORT.text}">Wild card (6th seed: best PF outside top 5)</text>`);
     }
 
     parts.push(`</svg>`);
@@ -383,30 +403,7 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
         <p className="tracking-wide text-base text-[var(--text)]" style={{ fontFamily: SERIF_FONT, fontWeight: 700 }}>
           {chartTitle}
         </p>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-0.5 mr-1 border-r border-[var(--border)]/60 pr-2">
-            <button
-              type="button" onClick={() => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))}
-              disabled={zoom <= ZOOM_MIN} title="Zoom out" aria-label="Zoom out"
-              className="p-1 rounded-md text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface2)] disabled:opacity-30 disabled:hover:bg-transparent transition-colors duration-150"
-            >
-              <ZoomOut className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button" onClick={() => setZoom(1)} disabled={zoom === 1}
-              title="Reset zoom" aria-label="Reset zoom"
-              className="w-11 text-center text-[10px] font-semibold tabular-nums text-[var(--muted)] hover:text-[var(--text)] disabled:hover:text-[var(--muted)] transition-colors duration-150"
-            >
-              {zoom === 1 ? <RotateCcw className="w-3 h-3 mx-auto opacity-40" /> : `${Math.round(zoom * 100)}%`}
-            </button>
-            <button
-              type="button" onClick={() => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))}
-              disabled={zoom >= ZOOM_MAX} title="Zoom in" aria-label="Zoom in"
-              className="p-1 rounded-md text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface2)] disabled:opacity-30 disabled:hover:bg-transparent transition-colors duration-150"
-            >
-              <ZoomIn className="w-3.5 h-3.5" />
-            </button>
-          </div>
+        <div className="flex flex-wrap items-center gap-2">
           <ExportControls
             theme={exportTheme}
             onThemeChange={setExportTheme}
@@ -418,32 +415,35 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
           />
           <button
             type="button" onClick={copyLink} title="Copy a link straight to the Standings tab" aria-label="Copy link to Standings"
-            className="flex items-center gap-1 text-[10px] font-semibold text-[var(--muted)] hover:text-[var(--text)] px-2 py-1 rounded-md hover:bg-[var(--surface2)] transition-colors duration-150"
+            className="flex items-center gap-1 text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)] px-2.5 py-2 rounded-lg hover:bg-[var(--surface2)] transition-colors duration-150"
           >
             {linkCopyState === "copied" ? <Check className="w-3.5 h-3.5 text-[var(--pos)]" /> : linkCopyState === "error" ? <XIcon className="w-3.5 h-3.5 text-[var(--neg)]" /> : <LinkIcon className="w-3.5 h-3.5" />}
             {linkCopyState === "copied" ? "Link Copied!" : linkCopyState === "error" ? "Couldn't copy" : "Copy Link"}
           </button>
         </div>
       </div>
+      <p className="text-xs text-[var(--muted)] -mt-1 mb-3">
+        Bar height = {PTS_LABEL} (2 per in-conference win, 1 per cross-conference win). Bar width = points scored per game (PF). Tap a team for its roster.
+      </p>
       <div className="overflow-x-auto scroll-thin">
         <svg
-          viewBox={`0 0 ${width} ${HEIGHT}`} role="img" aria-label="Standings ranked by points, with bar height showing standings points and bar width showing PF average"
-          style={{ width: width * zoom, height: HEIGHT * zoom, fontFamily: DATA_FONT, transition: 'width 0.2s ease, height 0.2s ease' }}
+          viewBox={`0 0 ${width} ${HEIGHT}`} role="img" aria-label={`Standings ranked by ${PTS_LABEL}, with bar width showing PF average`}
+          style={{ width, height: HEIGHT, fontFamily: DATA_FONT }}
         >
           {standingsTicks.map((t, i) => (
             <g key={`standings-${i}`}>
-              <line x1={MARGIN.left} x2={width - MARGIN.right} y1={yForStandings(t)} y2={yForStandings(t)} stroke="var(--border)" strokeOpacity={0.35} strokeWidth={1} />
-              <line x1={MARGIN.left - 5} x2={MARGIN.left} y1={yForStandings(t)} y2={yForStandings(t)} stroke="var(--border)" strokeOpacity={0.7} strokeWidth={1} />
-              <text x={MARGIN.left - 10} y={yForStandings(t)} textAnchor="end" dominantBaseline="middle" fontSize={11} fill="var(--muted)">
-                {t.toFixed(1)}
+              <line x1={MARGIN.left} x2={width - MARGIN.right} y1={yForStandings(t)} y2={yForStandings(t)} stroke="var(--border)" strokeOpacity={0.5} strokeWidth={1} />
+              <line x1={MARGIN.left - 5} x2={MARGIN.left} y1={yForStandings(t)} y2={yForStandings(t)} stroke="var(--border2)" strokeWidth={1} />
+              <text x={MARGIN.left - 10} y={yForStandings(t)} textAnchor="end" dominantBaseline="middle" fontSize={12} fill="var(--muted)">
+                {formatTick(t)}
               </text>
             </g>
           ))}
           <text
-            x={150} y={MARGIN.top + plotH / 2} textAnchor="middle" fontSize={11} fontWeight={700} fill="var(--muted)"
+            x={150} y={MARGIN.top + plotH / 2} textAnchor="middle" fontSize={12} fontWeight={700} fill="var(--muted)"
             transform={`rotate(-90 150 ${MARGIN.top + plotH / 2})`}
           >
-            Standings Pts
+            {PTS_LABEL}
           </text>
 
           {/* Conference labels + a divider, only when both are showing at once (segregated ALL
@@ -451,7 +451,7 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
               title above, so labeling here too would just be redundant. */}
           {groupSpans.length > 1 && groupSpans.map(g => (
             <text
-              key={g.conf} x={(g.startX + g.endX) / 2} y={MARGIN.top - 16} textAnchor="middle"
+              key={g.conf} x={(g.startX + g.endX) / 2} y={MARGIN.top - 40} textAnchor="middle"
               fontSize={13} fontWeight={800} letterSpacing={1} fill={g.conf === "AFC" ? AFC_COLOR : NFC_COLOR}
             >
               {g.conf}
@@ -503,6 +503,7 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
             const clipId = `sbc-logo-${mode}-${b.conf}-${b.manager.replace(/[^a-zA-Z0-9]/g, '')}`;
             const visibleName = displayName(b.manager, b.conf);
             const secondaryName = nameMode === 'teams' ? managerName(b.manager, b.conf) : null;
+            const isWildcard = wildcardManagers.has(b.manager);
             return (
               <g
                 key={`${b.conf}-${b.manager}`}
@@ -518,7 +519,10 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
                   transition: 'filter 0.2s ease, transform 0.2s ease, opacity 0.2s ease'
                 }}
               >
-                <rect x={barX} y={standingsY} width={barWidth} height={standingsHeight} rx={6} fill={color} fillOpacity={isHovered ? 0.95 : 0.8} stroke={color} strokeWidth={2} />
+                <rect
+                  x={barX} y={standingsY} width={barWidth} height={standingsHeight} rx={6} fill={color} fillOpacity={isHovered ? 0.95 : 0.8}
+                  stroke={isWildcard ? WILDCARD_COLOR : color} strokeWidth={isWildcard ? 3 : 2} strokeDasharray={isWildcard ? "6 4" : undefined}
+                />
                 <rect x={barX} y={standingsY} width={barWidth} height={standingsHeight} rx={6} fill="url(#sbc-bar-sheen)" pointerEvents="none" />
                 {showLogo && (
                   <>
@@ -532,7 +536,15 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
                     <circle cx={cx} cy={logoCy} r={logoSize / 2} fill="none" stroke="var(--surface)" strokeWidth={2} />
                   </>
                 )}
-                <text x={cx} y={standingsY - 6} textAnchor="middle" fontSize={12} fontWeight={800} fill="var(--text)">
+                {isWildcard && (
+                  <text x={cx} y={standingsY - 36} textAnchor="middle" fontSize={10} fontWeight={900} letterSpacing="0.05em" fill={WILDCARD_COLOR}>
+                    WILD CARD
+                  </text>
+                )}
+                <text x={cx} y={standingsY - 20} textAnchor="middle" fontSize={12} fontWeight={800} fill="var(--text)">
+                  {formatTick(b.totalPts || 0)} {b.totalPts === 1 ? 'pt' : 'pts'}
+                </text>
+                <text x={cx} y={standingsY - 6} textAnchor="middle" fontSize={11} fontWeight={700} fill="var(--muted)">
                   PF {(b.pfAvg || 0).toFixed(1)}
                 </text>
                 <text
@@ -548,7 +560,7 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
                   <tspan x={cx} fontSize={14} fontWeight={600} fill="var(--text2)">{visibleName}</tspan>
                   {secondaryName && <tspan x={cx} dy="14" fontSize={11} fontWeight={600} fill="var(--muted)">({secondaryName})</tspan>}
                 </text>
-                <title>#{b.rank} {graphName(b.manager, b.conf)}{b.conf ? ` (${b.conf})` : ''} -- {b.totalPts.toFixed(2)} standings pts, {(b.pfAvg || 0).toFixed(2)} PF/game</title>
+                <title>#{b.rank} {graphName(b.manager, b.conf)}{b.conf ? ` (${b.conf})` : ''} -- {formatTick(b.totalPts || 0)} {PTS_LABEL}, {(b.pfAvg || 0).toFixed(2)} PF/game{isWildcard ? ' -- wild card' : ''}</title>
               </g>
             );
           })}
@@ -556,11 +568,14 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
         </svg>
       </div>
       <div className="flex items-center flex-wrap gap-4 mt-3 text-xs font-semibold">
-        <span className="flex items-center gap-1.5"><span className="w-3 h-4 rounded-sm bg-[var(--text)]" /> Height: Standings Pts</span>
-        <span className="flex items-center gap-1.5"><span className="w-5 h-2 rounded-sm bg-[var(--text)]" /> Width + top label: PF Avg</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: AFC_COLOR }} /> AFC</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: NFC_COLOR }} /> NFC</span>
-        {playoffCutoffs.length > 0 && <span className="flex items-center gap-1.5"><span className="w-4 border-t-2 border-dashed border-[var(--muted)]" /> Top 5 guaranteed playoff spots</span>}
+        {playoffCutoffs.length > 0 && <span className="flex items-center gap-1.5"><span className="w-4 border-t-2 border-dashed border-[var(--muted)]" /> Top 5 make the playoffs</span>}
+        {wildcardManagers.size > 0 && (
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-sm border-2 border-dashed" style={{ borderColor: WILDCARD_COLOR }} /> Wild card: 6th seed goes to the best PF outside the top 5
+          </span>
+        )}
       </div>
     </div>
   );

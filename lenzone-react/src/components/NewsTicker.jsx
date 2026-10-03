@@ -1,31 +1,11 @@
-import React, { useMemo } from 'react';
-import { Radio, Siren } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Siren, X } from 'lucide-react';
 import { playerLabel } from '../lib/players';
 import lenzoneLogoRing from '../assets/lenzone-logo-ring.png';
 import lenzoneLogoBall from '../assets/lenzone-logo-ball.png';
 
-// A newscast-style scrolling crawl along the very bottom of the screen -- real ESPN/RotoWire
-// items only (your own players' notes/headlines first, since those are the most relevant; the
-// general league headlines fill in behind them), never invented text or a fabricated link. Purely
-// ambient, so it silently renders nothing rather than showing a placeholder when there's no real
-// data yet.
-function buildCrawlItems(myPlayerNotes, myPlayerHeadlines, nflHeadlines) {
-  const items = [];
-  const seen = new Set();
-  const push = (text, link, timestamp) => {
-    if (!text || seen.has(text)) return;
-    seen.add(text);
-    items.push({ text, link: link || null, timestamp: timestamp || null });
-  };
-  (myPlayerNotes || []).forEach(n => {
-    const tag = n.nflTeam && n.position ? ` (${n.nflTeam}${n.number ? ` #${n.number}` : ''} ${n.position})` : '';
-    push(`${n.player}${tag}: ${n.headline}`, n.link, n.date);
-  });
-  (myPlayerHeadlines || []).forEach(h => push(h.headline, h.link, h.published));
-  (nflHeadlines || []).forEach(h => push(h.headline, h.link, h.published));
-  return items.slice(0, 20);
-}
-
+// A newscast-style scrolling crawl of real Sleeper league activity along the bottom of the
+// screen. Renders nothing when there's no activity yet.
 function timestampDate(value) {
   if (!value) return '';
   const raw = typeof value === 'number' && value < 1e12 ? value * 1000 : value;
@@ -173,44 +153,47 @@ function ScrollingItems({ items, onItemClick }) {
   );
 }
 
+// Dismissal lasts for this browser session only -- the crawl comes back on the next visit.
+const DISMISS_KEY = 'lenzone_ticker_dismissed';
+function readDismissed() {
+  try { return sessionStorage.getItem(DISMISS_KEY) === 'true'; } catch { return false; }
+}
+
+// One slim league-activity crawl (trades, waiver claims, adds). Personal player news lives on My
+// Week instead of a second banner.
 export default function NewsTicker({
-  myPlayerNotes, myPlayerHeadlines, nflHeadlines,
   afcTransactions, nfcTransactions, afcRosterIdMap, nfcRosterIdMap, playersDB,
   onOpenActivity
 }) {
-  const playerNewsItems = useMemo(
-    () => buildCrawlItems(myPlayerNotes, myPlayerHeadlines, nflHeadlines),
-    [myPlayerNotes, myPlayerHeadlines, nflHeadlines]
-  );
+  const [dismissed, setDismissed] = useState(readDismissed);
   const leagueItems = useMemo(
     () => buildLeagueActivityItems(afcTransactions, nfcTransactions, afcRosterIdMap, nfcRosterIdMap, playersDB),
     [afcTransactions, nfcTransactions, afcRosterIdMap, nfcRosterIdMap, playersDB]
   );
   const hasTrade = leagueItems.some(item => item.type === 'trade');
-  if (playerNewsItems.length === 0 && leagueItems.length === 0) return null;
+  if (dismissed || leagueItems.length === 0) return null;
+
+  const dismiss = () => {
+    setDismissed(true);
+    try { sessionStorage.setItem(DISMISS_KEY, 'true'); } catch {}
+  };
 
   return (
     <div data-bottom-chrome className="news-ticker-stack fixed left-0 right-0 bottom-[calc(52px+env(safe-area-inset-bottom))] md:bottom-0 z-40">
-      {leagueItems.length > 0 && (
-        <div className={`news-ticker-banner league-news-banner material-banner backdrop-blur-md border-t overflow-hidden group ${hasTrade ? 'has-trade' : ''}`}>
-          <div className="flex items-center min-w-0">
-            <button type="button" className="news-ticker-label league-news-label" onClick={onOpenActivity} title="LENzone league activity" aria-label="Open LENzone league activity">
-              <LogoMark />
-            </button>
-            <ScrollingItems items={leagueItems} onItemClick={onOpenActivity} />
-          </div>
+      <div className={`news-ticker-banner league-news-banner backdrop-blur-md border-t overflow-hidden group ${hasTrade ? 'has-trade' : ''}`}>
+        <div className="flex items-center min-w-0">
+          <button type="button" className="news-ticker-label league-news-label" onClick={onOpenActivity} title="League activity" aria-label="Open league activity">
+            <LogoMark />
+          </button>
+          <ScrollingItems items={leagueItems} onItemClick={onOpenActivity} />
+          <button
+            type="button" onClick={dismiss} title="Hide for now" aria-label="Hide league activity banner"
+            className="shrink-0 p-2.5 text-[var(--muted)] hover:text-[var(--text)]"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
-      )}
-      {playerNewsItems.length > 0 && (
-        <div className="news-ticker-banner personal-news-banner material-banner backdrop-blur-md border-t overflow-hidden group">
-          <div className="flex items-center">
-            <div className="news-ticker-label personal-news-label" title="Your player news" aria-label="Your player news">
-              <Radio className="w-3.5 h-3.5" />
-            </div>
-            <ScrollingItems items={playerNewsItems} />
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }

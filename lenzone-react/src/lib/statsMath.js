@@ -467,6 +467,9 @@ export function buildConferenceList(managers, confData, crossRecordByManager, po
       manager: mgr,
       inConfRecord: `${inConf.wins}-${inConf.losses}-${inConf.ties}`,
       interConfRecord: `${cross.wins}-${cross.losses}-${cross.ties}`,
+      // Overall = in-conference + cross-conference games combined.
+      overallRecord: `${inConf.wins + cross.wins}-${inConf.losses + cross.losses}-${inConf.ties + cross.ties}`,
+      overallWins: inConf.wins + cross.wins,
       totalPts: inConfPts + cross.pts,
       pf: inConf.pf,
       pa,

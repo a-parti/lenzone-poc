@@ -7,7 +7,7 @@ import { useTeamColor } from '../context/TeamColorContext';
 import { playerLabel } from '../lib/players';
 import { CONF_STYLES } from '../lib/theme';
 
-function DraftPickCard({ p, conf, rosterIdMap, playersDB }) {
+function DraftPickCard({ p, conf, rosterIdMap, playersDB, teamsPerRound }) {
   const manager = rosterIdMap[p.roster_id] || `Roster ${p.roster_id}`;
   const color = useTeamColor(manager);
   const playerName = `${p.metadata?.first_name || ''} ${p.metadata?.last_name || ''}`.trim();
@@ -22,7 +22,7 @@ function DraftPickCard({ p, conf, rosterIdMap, playersDB }) {
           <PlayerNameButton playerId={p.player_id} name={playerName} position={p.metadata?.position} className="font-bold text-[var(--text)] text-base leading-tight truncate" />
         </div>
         <span className="text-xs font-extrabold text-[var(--text)] bg-[var(--surface2)] px-2 py-0.5 rounded shrink-0">
-          #{p.pick_no} ({p.round}.{p.pick_no - (p.round - 1) * 12})
+          #{p.pick_no} ({p.round}.{p.pick_no - (p.round - 1) * teamsPerRound})
         </span>
       </div>
       <div className="flex items-center gap-2 mb-1.5">
@@ -35,8 +35,9 @@ function DraftPickCard({ p, conf, rosterIdMap, playersDB }) {
   );
 }
 
-export default function DraftBoardTab({ afcDraft, nfcDraft, afcRosterIdMap, nfcRosterIdMap, loading, playersDB }) {
-  const [conf, setConf] = useState('AFC');
+export default function DraftBoardTab({ afcDraft, nfcDraft, afcRosterIdMap, nfcRosterIdMap, loading, playersDB, focusConf }) {
+  // Opens on the viewer's own conference when they've picked a team.
+  const [conf, setConf] = useState(focusConf || 'AFC');
 
   const draft = conf === 'NFC' ? nfcDraft : afcDraft;
   const rosterIdMap = conf === 'NFC' ? nfcRosterIdMap : afcRosterIdMap;
@@ -48,6 +49,8 @@ export default function DraftBoardTab({ afcDraft, nfcDraft, afcRosterIdMap, nfcR
   });
   Object.values(picksByRound).forEach(list => list.sort((a, b) => a.pick_no - b.pick_no));
   const rounds = Object.keys(picksByRound).sort((a, b) => Number(a) - Number(b));
+  // Picks per round from the draft itself rather than assuming 12 teams.
+  const teamsPerRound = picksByRound[rounds[0]]?.length || 12;
 
   return (
     <div className="space-y-6">
@@ -58,8 +61,10 @@ export default function DraftBoardTab({ afcDraft, nfcDraft, afcRosterIdMap, nfcR
             <button
               key={c}
               onClick={() => setConf(c)}
-              className={`px-3 py-1 rounded-md text-xs font-bold transition-all duration-200 ${
-                conf === c ? `${CONF_STYLES[c].button} text-white` : "text-[var(--text2)] hover:text-white"
+              type="button"
+              aria-pressed={conf === c}
+              className={`px-3.5 py-2 rounded-md text-xs font-bold transition-all duration-200 ${
+                conf === c ? `${CONF_STYLES[c].button} text-white` : "text-[var(--text2)] hover:text-[var(--text)]"
               }`}
             >
               {c}
@@ -79,7 +84,7 @@ export default function DraftBoardTab({ afcDraft, nfcDraft, afcRosterIdMap, nfcR
             <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)] mb-2">Round {round}</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {picksByRound[round].map(p => (
-                <DraftPickCard key={p.pick_no} p={p} conf={conf} rosterIdMap={rosterIdMap} playersDB={playersDB} />
+                <DraftPickCard key={p.pick_no} p={p} conf={conf} rosterIdMap={rosterIdMap} playersDB={playersDB} teamsPerRound={teamsPerRound} />
               ))}
             </div>
           </div>

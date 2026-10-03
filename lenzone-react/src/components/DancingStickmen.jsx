@@ -1,11 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { gagState } from '../lib/gagState';
 
-const IDLE_MS = 8000 + Math.random() * 6000;
+// Short idle window so the stickmen show up often -- they're the main ambient gag now.
+const IDLE_MS = 4000 + Math.random() * 3000;
 const MAX_GAG_MS = 16000;
 const NUDGE_INTERVAL_MS = 500;
 const COUNT = 3;
-const COLORS = ['#f87171', '#4ade80', '#60a5fa', '#facc15', '#a78bfa'];
+const COLORS = ['#0E8A95', '#E8715A', '#D99A2B', '#3B7BC4', '#2F9E6B'];
 
 // Builds one ragdoll stickman: head + torso + two arms + two legs as separate rigid bodies held
 // together with loose constraints, plus a single stiff-but-swingy constraint from a fixed point

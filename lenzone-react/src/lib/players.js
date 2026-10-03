@@ -480,6 +480,16 @@ function computeLineupEntries(afcData, nfcData, afcSeason, nfcSeason, week, play
   return entries;
 }
 
+// { manager: best-possible lineup points } for the weekly scores chart's "Max" bar. Same caveat as
+// Lineup IQ: the bench comes from each manager's current roster, so a player traded away since
+// that week isn't counted.
+export function computeMaxScoresByManager(afcData, nfcData, afcSeason, nfcSeason, week, playersDB) {
+  const byManager = {};
+  computeLineupEntries(afcData, nfcData, afcSeason, nfcSeason, week, playersDB)
+    .forEach(e => { byManager[e.manager] = Math.max(e.optimal, e.actual); });
+  return byManager;
+}
+
 export function computeLineupAccuracy(afcData, nfcData, afcSeason, nfcSeason, week, playersDB) {
   const entries = computeLineupEntries(afcData, nfcData, afcSeason, nfcSeason, week, playersDB);
   if (entries.length === 0) return null;

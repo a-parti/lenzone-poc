@@ -1,9 +1,9 @@
 import React, { useMemo } from 'react';
-import { Trophy, Award, TrendingDown, Zap, Flame, Frown, Crosshair, ThumbsDown, Snowflake } from 'lucide-react';
+import { Trophy, Award, TrendingDown, Zap, Flame, ThumbsDown } from 'lucide-react';
 import { useTeamColor } from '../context/TeamColorContext';
 import { useTeamLogo } from '../context/TeamLogoContext';
 import { useMatchupPreview } from '../context/MatchupPreviewContext';
-import { computeLineupAccuracy, computeWorstLineupDecision } from '../lib/players';
+import { computeWorstLineupDecision } from '../lib/players';
 import { useNameDisplay } from '../context/NameDisplayContext';
 
 // nameManager is the one real manager this card is "about" for logo purposes -- for the two-team
@@ -75,35 +75,25 @@ function MatchupHighlightCard({ icon: Icon, label, teamA, teamB, teamALabel = te
 // real Trophy icon and the actual final numbers. Clicking a card pops up that manager's matchup
 // as a card (the same global preview the season Grid uses) rather than filtering/navigating away --
 // you stay right where you were, with a straightforward way to go see the full matchup if you want it.
+// Higher score first, so "A vs B" always reads winner-first.
+function winnerFirst(game) {
+  if (!game) return game;
+  return game.sb > game.sa ? { ...game, a: game.b, b: game.a, sa: game.sb, sb: game.sa } : game;
+}
+
+// Five cards: High, Low, Closest, Blowout, and the biggest lineup miss (points left on the table
+// vs. the best lineup that roster could have started). Streaks live in the standings table.
 export default function WeeklyHighlights({
-  awards, benchPointsAward, week, isWeekFinal,
-  afcData, nfcData, afcSeason, nfcSeason, playersDB, managerStreaks
+  awards, week, isWeekFinal,
+  afcData, nfcData, afcSeason, nfcSeason, playersDB
 }) {
   const { openPreview } = useMatchupPreview();
   const { displayName } = useNameDisplay();
   const confFor = (manager) => (afcData?.rosters?.some(r => r.manager === manager) ? "AFC" : "NFC");
   const visibleName = (manager) => displayName(manager, confFor(manager));
   const showMatchup = (manager) => openPreview(manager, confFor(manager), week);
-  // Longest active real streak league-wide (2+ games, either direction) -- ties broken by
-  // whichever manager sorts first, since there's no principled real tiebreaker for "equally hot".
-  const longestStreak = useMemo(() => {
-    if (!managerStreaks) return null;
-    let best = null;
-    Object.entries(managerStreaks).forEach(([manager, streak]) => {
-      if (streak && (!best || streak.count > best.streak.count)) best = { manager, streak };
-    });
-    return best;
-  }, [managerStreaks]);
-  // "Lineup IQ" needs the same roster snapshot data as Bench Points -- only computed once the
-  // week is actually final (a live/in-progress optimal-lineup comparison would flip around as
-  // scores keep coming in, unlike the other awards which have a live/projected fallback instead).
-  const lineupAccuracy = useMemo(
-    () => (isWeekFinal && afcData && nfcData ? computeLineupAccuracy(afcData, nfcData, afcSeason, nfcSeason, week, playersDB) : null),
-    [isWeekFinal, afcData, nfcData, afcSeason, nfcSeason, week, playersDB]
-  );
-  // The inverse of Lineup IQ: same optimal-lineup math, but the biggest miss in real POINTS
-  // ("what your total would've been if you'd started your higher-scoring bench options") rather
-  // than the best decision by percentage.
+  // Only once the week is final -- a live optimal-lineup comparison would flip around as scores
+  // keep coming in.
   const worstLineupDecision = useMemo(
     () => (isWeekFinal && afcData && nfcData ? computeWorstLineupDecision(afcData, nfcData, afcSeason, nfcSeason, week, playersDB) : null),
     [isWeekFinal, afcData, nfcData, afcSeason, nfcSeason, week, playersDB]
@@ -121,63 +111,39 @@ export default function WeeklyHighlights({
   // margin. Swap the whole record together, never just the number.
   const high = isWeekFinal ? awards.highScore : (awards.projectedHighScore || awards.highScore);
   const low = isWeekFinal ? awards.lowScore : (awards.projectedLowScore || awards.lowScore);
-  const closest = isWeekFinal ? awards.closest : (awards.projectedClosest || awards.closest);
-  const blowout = isWeekFinal ? awards.blowout : (awards.projectedBlowout || awards.blowout);
+  const closest = winnerFirst(isWeekFinal ? awards.closest : (awards.projectedClosest || awards.closest));
+  const blowout = winnerFirst(isWeekFinal ? awards.blowout : (awards.projectedBlowout || awards.blowout));
   const prefix = isWeekFinal ? "" : "Projected ";
   const icon = isWeekFinal ? Trophy : Award;
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
       <HighlightCard
-        icon={icon} label={`${prefix}High Score`} name={visibleName(high.manager)} nameManager={high.manager} value={`${high.points.toFixed(2)} pts`} accent="text-amber-400"
+        icon={icon} label={`${prefix}High Score`} name={visibleName(high.manager)} nameManager={high.manager} value={`${high.points.toFixed(2)} pts`} accent="text-[var(--live)]"
         onClick={() => showMatchup(high.manager)}
       />
       <HighlightCard
-        icon={TrendingDown} label={`${prefix}Low Score`} name={visibleName(low.manager)} nameManager={low.manager} value={`${low.points.toFixed(2)} pts`} accent="text-rose-400"
+        icon={TrendingDown} label={`${prefix}Low Score`} name={visibleName(low.manager)} nameManager={low.manager} value={`${low.points.toFixed(2)} pts`} accent="text-[var(--neg)]"
         onClick={() => showMatchup(low.manager)}
       />
       {closest && (
         <MatchupHighlightCard
           icon={Zap} label={`${prefix}Closest Game`} teamA={closest.a} teamB={closest.b} teamALabel={visibleName(closest.a)} teamBLabel={visibleName(closest.b)}
           scoreA={closest.sa} scoreB={closest.sb} marginLabel={`${closest.margin.toFixed(2)} pt margin`}
-          accent="text-blue-400" onClick={() => showMatchup(closest.a)}
+          accent="text-[var(--proj)]" onClick={() => showMatchup(closest.a)}
         />
       )}
       {blowout && (
         <MatchupHighlightCard
           icon={Flame} label={`${prefix}Biggest Blowout`} teamA={blowout.a} teamB={blowout.b} teamALabel={visibleName(blowout.a)} teamBLabel={visibleName(blowout.b)}
           scoreA={blowout.sa} scoreB={blowout.sb} marginLabel={`${blowout.margin.toFixed(2)} pt margin`}
-          accent="text-orange-400" onClick={() => showMatchup(blowout.a)}
-        />
-      )}
-      {benchPointsAward && (
-        <HighlightCard
-          icon={Frown} label="Most Points Left on Bench" name={visibleName(benchPointsAward.manager)} nameManager={benchPointsAward.manager}
-          value={`${benchPointsAward.points.toFixed(2)} pts benched`} accent="text-violet-400"
-          onClick={() => showMatchup(benchPointsAward.manager)}
-        />
-      )}
-      {lineupAccuracy && (
-        <HighlightCard
-          icon={Crosshair} label="Lineup IQ" name={visibleName(lineupAccuracy.manager)} nameManager={lineupAccuracy.manager}
-          value={`${lineupAccuracy.pct.toFixed(0)}% of optimal (${lineupAccuracy.actual.toFixed(2)}/${lineupAccuracy.optimal.toFixed(2)})`}
-          accent="text-cyan-400" onClick={() => showMatchup(lineupAccuracy.manager)}
+          accent="text-[var(--coral)]" onClick={() => showMatchup(blowout.a)}
         />
       )}
       {worstLineupDecision && (
         <HighlightCard
           icon={ThumbsDown} label="Left the Most on the Table" name={visibleName(worstLineupDecision.manager)} nameManager={worstLineupDecision.manager}
-          value={`Scored ${worstLineupDecision.actual.toFixed(2)}, could've had ${worstLineupDecision.optimal.toFixed(2)} (-${worstLineupDecision.deficit.toFixed(2)})`}
-          accent="text-red-400" onClick={() => showMatchup(worstLineupDecision.manager)}
-        />
-      )}
-      {longestStreak && (
-        <HighlightCard
-          icon={longestStreak.streak.type === 'W' ? Flame : Snowflake}
-          label={longestStreak.streak.type === 'W' ? "Hot Streak" : "Cold Streak"}
-          name={visibleName(longestStreak.manager)} nameManager={longestStreak.manager}
-          value={`${longestStreak.streak.count} straight ${longestStreak.streak.type === 'W' ? "wins" : "losses"}`}
-          accent={longestStreak.streak.type === 'W' ? "text-orange-400" : "text-sky-300"}
-          onClick={() => showMatchup(longestStreak.manager)}
+          value={`Scored ${worstLineupDecision.actual.toFixed(2)}, best possible ${worstLineupDecision.optimal.toFixed(2)} (-${worstLineupDecision.deficit.toFixed(2)})`}
+          accent="text-[var(--neg)]" onClick={() => showMatchup(worstLineupDecision.manager)}
         />
       )}
     </div>

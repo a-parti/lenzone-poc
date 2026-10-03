@@ -5,105 +5,56 @@ import useElementPngExport from '../hooks/useElementPngExport';
 
 const WIDTH = 900;
 const HEIGHT = 320;
-const MAX_LOGO_SIZE = 18;
-const MIN_LOGO_SIZE = 9;
-// Right margin sized for the LARGEST possible logo -- the actual per-chart logo size (below) only
-// ever shrinks from this, so reserving space for the max keeps the plot area's own width constant
-// across charts with different team counts.
-const MARGIN = { top: 16, right: 16 + MAX_LOGO_SIZE + 10, bottom: 28, left: 40 };
+const MARGIN = { top: 20, right: 20, bottom: 28, left: 44 };
 const PLOT_W = WIDTH - MARGIN.left - MARGIN.right;
 const PLOT_H = HEIGHT - MARGIN.top - MARGIN.bottom;
+const FALLBACK_COLOR = "#8FA3AD";
 
 function niceTicks(min, max, count = 5) {
   if (min === max) return [min];
-  const span = max - min;
-  const step = span / count;
-  const ticks = [];
-  for (let i = 0; i <= count; i++) ticks.push(min + step * i);
-  return ticks;
+  const step = (max - min) / count;
+  return Array.from({ length: count + 1 }, (_, i) => min + step * i);
 }
 
-// How big can each end-of-line logo be and still let `count` of them fit, spaced at least their
-// own diameter apart, inside the available plot height? Shrinks automatically as more teams share
-// one chart (e.g. "ALL" conferences = ~24 lines) instead of a fixed size that would force
-// overlap or run off the chart entirely once there isn't room for everyone at full size.
-function logoSizeFor(count, availableHeight) {
-  if (count <= 1) return MAX_LOGO_SIZE;
-  const bySpace = availableHeight / count;
-  return Math.max(MIN_LOGO_SIZE, Math.min(MAX_LOGO_SIZE, Math.floor(bySpace)));
-}
-
-// Vertical de-clutter for end-of-line logos: given their natural y positions (sorted), space any
-// that are closer than `minGap` apart. If there are more items than can possibly fit spaced that
-// far apart within [min, max] (more teams than room even at the smallest logo size), falls back to
-// evenly distributing all of them across the full available range instead of a greedy push that
-// can silently shove the first few items past `min` and off the top of the chart.
-function declutter(items, minGap, min, max) {
-  const n = items.length;
-  if (n === 0) return [];
-  const available = max - min;
-  if ((n - 1) * minGap > available) {
-    return items.map((it, i) => ({ ...it, y: n === 1 ? (min + max) / 2 : min + (available * i) / (n - 1) }));
-  }
-  const arr = items.map(it => ({ ...it }));
-  for (let i = 1; i < n; i++) {
-    if (arr[i].y < arr[i - 1].y + minGap) arr[i].y = arr[i - 1].y + minGap;
-  }
-  if (arr[n - 1].y > max) {
-    arr[n - 1].y = max;
-    for (let i = n - 2; i >= 0; i--) {
-      const desired = arr[i + 1].y - minGap;
-      if (arr[i].y > desired) arr[i].y = desired;
-    }
-  }
-  return arr;
-}
-
-// One hand-built SVG line chart per metric -- no charting library in this project, and a single
-// small responsive SVG is simpler than pulling one in for three line charts. `invertY` flips the
-// y-axis (used for Rank, where #1 should plot at the TOP). `logoMap`/`chartId` are for the
-// end-of-line team logo (chartId keeps each chart's SVG clipPath ids unique on a page with three
-// of these charts at once).
-function LineChart({ title, series, weeks, yMin, yMax, invertY, formatY, logoMap, chartId }) {
-  const [hovered, setHovered] = useState(null);
+// One hand-built SVG line chart per metric. No end-of-line logos (too crowded with 12-24 lines):
+// hovering a line, a dot, or a legend entry highlights that team and shows its name and value.
+function LineChart({ title, series, weeks, yMin, yMax, formatY, chartId }) {
+  const [hover, setHover] = useState(null); // { manager, week? }
   const exportRef = useRef(null);
   const imageExport = useElementPngExport(exportRef, `lenzone-${chartId}-trend`, { minWidth: 960 });
   const { mode: nameMode, displayName, managerName } = useNameDisplay();
-  const graphName = (manager, conf) => {
-    const primary = displayName(manager, conf);
-    const secondary = nameMode === 'teams' ? managerName(manager, conf) : null;
+  const graphName = (s) => {
+    if (s.isReference) return s.manager;
+    const primary = displayName(s.manager, s.conf);
+    const secondary = nameMode === 'teams' ? managerName(s.manager, s.conf) : null;
     return secondary ? `${primary} (${secondary})` : primary;
   };
   const xMin = weeks[0];
   const xSpan = (weeks[weeks.length - 1] - xMin) || 1;
   const xFor = (w) => MARGIN.left + (weeks.length > 1 ? ((w - xMin) / xSpan) * PLOT_W : 0);
-  const yFor = (v) => {
-    const t = (v - yMin) / ((yMax - yMin) || 1);
-    return invertY ? MARGIN.top + t * PLOT_H : MARGIN.top + (1 - t) * PLOT_H;
-  };
+  const yFor = (v) => MARGIN.top + (1 - (v - yMin) / ((yMax - yMin) || 1)) * PLOT_H;
   const ticks = niceTicks(yMin, yMax, 4);
+  const fmt = (v) => (formatY ? formatY(v) : Math.round(v));
 
-  // Each series' natural end-of-line y, de-cluttered so close/tied teams don't stack their
-  // logos/labels on top of each other. Reference lines (isReference, e.g. a conference median)
-  // get a short text label here instead of a team logo -- there's no team to show a crest for.
-  // Logo size shrinks automatically as more lines share this chart (see logoSizeFor) so a full
-  // "ALL" conference view (~24 lines) doesn't cram/overlap or spill outside the plot area.
-  const withPositions = series.filter(s => s.points.length > 0).length;
-  const logoSize = useMemo(() => logoSizeFor(withPositions, PLOT_H), [withPositions]);
-  const endX = MARGIN.left + PLOT_W + 6;
-  const logoPositions = useMemo(() => {
-    const natural = series
-      .filter(s => s.points.length > 0)
-      .map(s => ({ manager: s.manager, conf: s.conf, color: s.color, isReference: !!s.isReference, y: yFor(s.points[s.points.length - 1].value) }))
-      .sort((a, b) => a.y - b.y);
-    return declutter(natural, logoSize + 2, MARGIN.top, MARGIN.top + PLOT_H);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [series, yMin, yMax, invertY, logoSize]);
+  const hoveredSeries = hover ? series.find(s => s.manager === hover.manager) : null;
+  const hoveredPoint = hoveredSeries
+    ? (hover.week != null ? hoveredSeries.points.find(p => p.week === hover.week) : hoveredSeries.points.at(-1))
+    : null;
+  // Floating label next to the hovered point; flips to the left side near the right edge.
+  const label = hoveredSeries && hoveredPoint ? (() => {
+    const text = `${graphName(hoveredSeries)} · Wk ${hoveredPoint.week}: ${fmt(hoveredPoint.value)}`;
+    const w = Math.min(380, text.length * 6.6 + 16);
+    const px = xFor(hoveredPoint.week);
+    const py = yFor(hoveredPoint.value);
+    const x = px + 10 + w > WIDTH - 4 ? px - 10 - w : px + 10;
+    const y = Math.max(4, Math.min(HEIGHT - 26, py - 11));
+    return { text, w, x, y, color: hoveredSeries.color };
+  })() : null;
 
   return (
-    <div ref={exportRef} data-mode={imageExport.exportTheme} data-scheme={imageExport.scheme} className="bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-4">
+    <div ref={exportRef} data-mode={imageExport.exportTheme} data-scheme={imageExport.scheme} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
       <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-        <p className="tracking-wider text-[10px] uppercase font-semibold text-[var(--muted)]">{title}</p>
+        <p className="tracking-wider text-xs uppercase font-semibold text-[var(--muted)]">{title}</p>
         <div data-export-ignore="true">
           <ExportControls
             theme={imageExport.exportTheme}
@@ -116,111 +67,63 @@ function LineChart({ title, series, weeks, yMin, yMax, invertY, formatY, logoMap
           />
         </div>
       </div>
-      <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="w-full h-auto" role="img" aria-label={title}>
-        {/* Gridlines + y-axis labels */}
+      <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="w-full h-auto" role="img" aria-label={title} onMouseLeave={() => setHover(null)}>
         {ticks.map((t, i) => (
           <g key={i}>
-            <line x1={MARGIN.left} x2={WIDTH - MARGIN.right} y1={yFor(t)} y2={yFor(t)} stroke="var(--border)" strokeOpacity={0.4} strokeWidth={1} />
-            <text x={MARGIN.left - 8} y={yFor(t)} textAnchor="end" dominantBaseline="middle" fontSize={10} fill="var(--muted)">
-              {formatY ? formatY(t) : Math.round(t)}
-            </text>
+            <line x1={MARGIN.left} x2={WIDTH - MARGIN.right} y1={yFor(t)} y2={yFor(t)} stroke="var(--border)" strokeOpacity={0.6} strokeWidth={1} />
+            <text x={MARGIN.left - 8} y={yFor(t)} textAnchor="end" dominantBaseline="middle" fontSize={11} fill="var(--muted)">{fmt(t)}</text>
           </g>
         ))}
-        {/* x-axis week labels */}
         {weeks.map(w => (
-          <text key={w} x={xFor(w)} y={HEIGHT - 8} textAnchor="middle" fontSize={10} fill="var(--muted)">{w}</text>
+          <text key={w} x={xFor(w)} y={HEIGHT - 8} textAnchor="middle" fontSize={11} fill="var(--muted)">{w}</text>
         ))}
-        {/* One polyline per manager */}
         {series.map(s => {
-          const isHovered = hovered === s.manager;
-          const isDimmed = hovered && !isHovered;
+          const isHovered = hover?.manager === s.manager;
+          const isDimmed = hover && !isHovered;
           const points = s.points.map(p => `${xFor(p.week)},${yFor(p.value)}`).join(' ');
           return (
-            <g key={s.manager} opacity={isDimmed ? 0.15 : 1}>
+            <g key={s.manager} opacity={isDimmed ? 0.12 : 1}>
               <polyline
-                points={points} fill="none" stroke={s.color} strokeWidth={isHovered ? 3 : 1.75}
-                strokeLinejoin="round" strokeLinecap="round"
-                strokeDasharray={s.dashed ? "5 4" : undefined}
+                points={points} fill="none" stroke={s.color} strokeWidth={isHovered ? 3.5 : 1.75}
+                strokeLinejoin="round" strokeLinecap="round" strokeDasharray={s.dashed ? "5 4" : undefined}
+              />
+              {/* Wide invisible stroke so the line itself is easy to hover, not just its dots. */}
+              <polyline
+                points={points} fill="none" stroke="transparent" strokeWidth={12}
+                onMouseEnter={() => setHover({ manager: s.manager })}
+                style={{ cursor: 'pointer' }}
               />
               {s.points.map(p => (
                 <circle
-                  key={p.week} cx={xFor(p.week)} cy={yFor(p.value)} r={isHovered ? 3.5 : 2.5} fill={s.color}
-                  onMouseEnter={() => setHovered(s.manager)} onMouseLeave={() => setHovered(null)}
+                  key={p.week} cx={xFor(p.week)} cy={yFor(p.value)} r={isHovered ? 4 : 2.5} fill={s.color}
+                  onMouseEnter={() => setHover({ manager: s.manager, week: p.week })}
                   style={{ cursor: 'pointer' }}
-                >
-                  <title>{`${s.isReference ? s.manager : graphName(s.manager, s.conf)} — Wk ${p.week}: ${formatY ? formatY(p.value) : p.value}`}</title>
-                </circle>
+                />
               ))}
             </g>
           );
         })}
-        {/* End-of-line team logo -- a small circular clip per manager so each line ends on a
-            recognizable team mark instead of just trailing off at the right edge. Reference lines
-            (e.g. a conference median) get a short text label instead -- there's no team crest for
-            "AFC Median" to show. */}
-        <defs>
-          {logoMap && logoPositions.filter(p => !p.isReference).map(p => logoMap[p.manager] && (
-            <clipPath key={p.manager} id={`trend-logo-${chartId}-${p.manager.replace(/[^a-zA-Z0-9]/g, '')}`}>
-              <circle cx={endX + logoSize / 2} cy={p.y} r={logoSize / 2} />
-            </clipPath>
-          ))}
-        </defs>
-        {logoPositions.map(p => {
-          const isHovered = hovered === p.manager;
-          const isDimmed = hovered && !isHovered;
-          if (p.isReference) {
-            return (
-              <text
-                key={p.manager} x={endX} y={p.y} dominantBaseline="middle" fontSize={10} fontWeight={700}
-                fill={p.color} opacity={isDimmed ? 0.25 : 1}
-                onMouseEnter={() => setHovered(p.manager)} onMouseLeave={() => setHovered(null)}
-                style={{ cursor: 'pointer' }}
-              >
-                {p.manager}
-              </text>
-            );
-          }
-          const logoUrl = logoMap?.[p.manager];
-          const clipId = `trend-logo-${chartId}-${p.manager.replace(/[^a-zA-Z0-9]/g, '')}`;
-          return (
-            <g
-              key={p.manager}
-              opacity={isDimmed ? 0.25 : 1}
-              onMouseEnter={() => setHovered(p.manager)}
-              onMouseLeave={() => setHovered(null)}
-              style={{ cursor: 'pointer' }}
-            >
-              {logoUrl ? (
-                <image
-                  href={logoUrl} x={endX} y={p.y - logoSize / 2} width={logoSize} height={logoSize}
-                  clipPath={`url(#${clipId})`} preserveAspectRatio="xMidYMid slice"
-                />
-              ) : (
-                <circle cx={endX + logoSize / 2} cy={p.y} r={logoSize / 2} fill={p.color} />
-              )}
-              <circle cx={endX + logoSize / 2} cy={p.y} r={logoSize / 2} fill="none" stroke={p.color} strokeWidth={isHovered ? 2 : 1} />
-              <title>{graphName(p.manager, p.conf)}</title>
-            </g>
-          );
-        })}
+        {label && (
+          <g pointerEvents="none">
+            <rect x={label.x} y={label.y} width={label.w} height={22} rx={6} fill="var(--surface)" stroke={label.color} strokeWidth={1.5} />
+            <text x={label.x + 8} y={label.y + 15} fontSize={12} fontWeight={700} fill="var(--text)">{label.text}</text>
+          </g>
+        )}
       </svg>
-      {/* Legend -- also hoverable, so you can find a line by name instead of only by hovering a dot */}
       <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
         {series.map(s => (
           <button
             key={s.manager}
             type="button"
-            onMouseEnter={() => setHovered(s.manager)}
-            onMouseLeave={() => setHovered(null)}
-            className="text-[10px] font-semibold flex items-center gap-1"
-            style={{ opacity: hovered && hovered !== s.manager ? 0.35 : 1 }}
+            onMouseEnter={() => setHover({ manager: s.manager })}
+            onMouseLeave={() => setHover(null)}
+            onFocus={() => setHover({ manager: s.manager })}
+            onBlur={() => setHover(null)}
+            className="text-xs font-semibold flex items-center gap-1.5 py-0.5"
+            style={{ opacity: hover && hover.manager !== s.manager ? 0.35 : 1 }}
           >
-            {logoMap?.[s.manager] ? (
-              <img src={logoMap[s.manager]} alt="" className="w-4 h-4 rounded-full object-cover shrink-0" style={{ border: `1px solid ${s.color}` }} />
-            ) : (
-              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
-            )}
-            <span className="truncate max-w-[12rem]" style={{ color: s.color }}>{s.isReference ? s.manager : graphName(s.manager, s.conf)}</span>
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+            <span className="truncate max-w-[12rem] text-[var(--text2)]">{graphName(s)}</span>
           </button>
         ))}
       </div>
@@ -233,11 +136,9 @@ function LineChart({ title, series, weeks, yMin, yMax, invertY, formatY, logoMap
 // weeklyHistory: { afc: {manager: [{week,pf,paIntra,paCross}]}, nfc: {...} } from
 // buildWeeklyPfPaHistory (week 1 through latestCompletedWeek, per-week NOT cumulative).
 // weeklyMedians: { afc: [{week,value}], nfc: [...] } from computeWeeklyConferenceMedian.
-// hexColorMap: { manager: '#rrggbb' } (see teamColors.js buildConferenceHexColorMap) -- SVG can't
-// consume the Tailwind text-color classes the rest of the app uses for team color.
-// logoMap: { manager: url } (App.jsx's existing teamLogoMap) -- for the end-of-line and legend logos.
+// hexColorMap: { manager: '#rrggbb' } (see teamColors.js buildConferenceHexColorMap).
 export default function StandingsTrendChart({
-  history, weeklyHistory, weeklyMedians, afcManagers, nfcManagers, hexColorMap, logoMap, confFilter, latestCompletedWeek
+  history, weeklyHistory, weeklyMedians, afcManagers, nfcManagers, hexColorMap, confFilter, latestCompletedWeek
 }) {
   const [view, setView] = useState("cumulative");
   const weeks = useMemo(() => Array.from({ length: latestCompletedWeek + 1 }, (_, i) => i), [latestCompletedWeek]);
@@ -248,75 +149,79 @@ export default function StandingsTrendChart({
   const buildSeries = (metric) => managers.map(m => {
     const isAfc = afcManagers.includes(m);
     const rows = (isAfc ? history.afc[m] : history.nfc[m]) || [];
-    return { manager: m, conf: isAfc ? 'AFC' : 'NFC', color: hexColorMap[m] || "#94a3b8", points: rows.map(r => ({ week: r.week, value: r[metric] })) };
+    return { manager: m, conf: isAfc ? 'AFC' : 'NFC', color: hexColorMap[m] || FALLBACK_COLOR, points: rows.map(r => ({ week: r.week, value: r[metric] })) };
   });
-  const buildWeeklySeries = (metric) => managers.map(m => {
+  // Weekly points against, averaged over that week's games (in-conference + cross-conference).
+  const buildWeeklyPaSeries = () => managers.map(m => {
     const isAfc = afcManagers.includes(m);
     const rows = (isAfc ? weeklyHistory.afc[m] : weeklyHistory.nfc[m]) || [];
     return {
-      manager: m, conf: isAfc ? 'AFC' : 'NFC', color: hexColorMap[m] || "#94a3b8",
-      points: rows.filter(r => r[metric] != null).map(r => ({ week: r.week, value: r[metric] }))
+      manager: m, conf: isAfc ? 'AFC' : 'NFC', color: hexColorMap[m] || FALLBACK_COLOR,
+      points: rows
+        .map(r => ({ week: r.week, values: [r.paIntra, r.paCross].filter(v => v != null) }))
+        .filter(r => r.values.length > 0)
+        .map(r => ({ week: r.week, value: r.values.reduce((a, b) => a + b, 0) / r.values.length }))
+    };
+  });
+  const buildWeeklyPfSeries = () => managers.map(m => {
+    const isAfc = afcManagers.includes(m);
+    const rows = (isAfc ? weeklyHistory.afc[m] : weeklyHistory.nfc[m]) || [];
+    return {
+      manager: m, conf: isAfc ? 'AFC' : 'NFC', color: hexColorMap[m] || FALLBACK_COLOR,
+      points: rows.filter(r => r.pf != null).map(r => ({ week: r.week, value: r.pf }))
     };
   });
 
   const ptsSeries = useMemo(() => buildSeries('pts'), [history, managers, hexColorMap]);
   const pfSeries = useMemo(() => buildSeries('pf'), [history, managers, hexColorMap]);
-  const rankSeries = useMemo(() => buildSeries('rank'), [history, managers, hexColorMap]);
-
-  const weeklyPfSeries = useMemo(() => buildWeeklySeries('pf'), [weeklyHistory, managers, hexColorMap]);
-  const weeklyPaCrossSeries = useMemo(() => buildWeeklySeries('paCross'), [weeklyHistory, managers, hexColorMap]);
-  const weeklyPaIntraSeries = useMemo(() => buildWeeklySeries('paIntra'), [weeklyHistory, managers, hexColorMap]);
-
-  // Weekly PF alongside both conferences' weekly median as flat dashed reference lines -- lets a
-  // single team be read against "a typical AFC score" and "a typical NFC score" at a glance,
-  // regardless of which conference's teams are currently shown.
+  const weeklyPaSeries = useMemo(() => buildWeeklyPaSeries(), [weeklyHistory, managers, hexColorMap]);
+  // Weekly PF alongside both conferences' weekly median as dashed reference lines.
   const pfVsMedianSeries = useMemo(() => [
-    ...weeklyPfSeries,
-    { manager: "AFC Median", color: "#64748b", dashed: true, isReference: true, points: (weeklyMedians?.afc || []) },
-    { manager: "NFC Median", color: "#334155", dashed: true, isReference: true, points: (weeklyMedians?.nfc || []) }
-  ], [weeklyPfSeries, weeklyMedians]);
+    ...buildWeeklyPfSeries(),
+    { manager: "AFC Median", color: "var(--afc)", dashed: true, isReference: true, points: (weeklyMedians?.afc || []) },
+    { manager: "NFC Median", color: "var(--nfc)", dashed: true, isReference: true, points: (weeklyMedians?.nfc || []) }
+  ], [weeklyHistory, managers, hexColorMap, weeklyMedians]);
 
   const maxOf = (series) => Math.max(1, ...series.flatMap(s => s.points.map(p => p.value)));
-  const maxRank = confFilter === "ALL" || !confFilter ? Math.max(afcManagers.length, nfcManagers.length) : managers.length;
 
   if (latestCompletedWeek < 1) {
     return (
-      <div className="bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-4 text-sm text-[var(--muted)] italic">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 text-sm text-[var(--muted)] italic">
         Trends need at least one completed week -- check back after Week 1 wraps up.
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="inline-flex rounded-full bg-[var(--surface2)] border border-[var(--border)] p-1 gap-1">
-        {[["cumulative", "Cumulative"], ["weekly", "Weekly"]].map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setView(id)}
-            className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all duration-200 ${
-              view === id ? "bg-[var(--accent)] text-[var(--accent-text)]" : "text-[var(--text2)] hover:text-[var(--text)]"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-xl font-bold text-[var(--text)]">Trends</h2>
+        <div className="inline-flex rounded-full bg-[var(--surface2)] border border-[var(--border)] p-1 gap-1" role="group" aria-label="Trend view">
+          {[["cumulative", "Season so far"], ["weekly", "Week by week"]].map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setView(id)}
+              aria-pressed={view === id}
+              className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all duration-200 ${
+                view === id ? "bg-[var(--accent)] text-[var(--accent-text)]" : "text-[var(--text2)] hover:text-[var(--text)]"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {view === "cumulative" && (
         <>
           <LineChart
-            chartId="pts" title="Cumulative Standings Pts" series={ptsSeries} weeks={weeks}
-            yMin={0} yMax={maxOf(ptsSeries)} formatY={(v) => v.toFixed(1)} logoMap={logoMap}
+            chartId="pts" title="League Pts" series={ptsSeries} weeks={weeks}
+            yMin={0} yMax={maxOf(ptsSeries)} formatY={(v) => (Number.isInteger(v) ? v : v.toFixed(1))}
           />
           <LineChart
-            chartId="pf" title="Cumulative PF" series={pfSeries} weeks={weeks}
-            yMin={0} yMax={maxOf(pfSeries)} formatY={(v) => Math.round(v)} logoMap={logoMap}
-          />
-          <LineChart
-            chartId="rank" title="Conference Rank" series={rankSeries} weeks={weeks} yMin={1} yMax={maxRank} invertY
-            formatY={(v) => `#${Math.round(v)}`} logoMap={logoMap}
+            chartId="pf" title="Total Points Scored (PF)" series={pfSeries} weeks={weeks}
+            yMin={0} yMax={maxOf(pfSeries)} formatY={(v) => Math.round(v)}
           />
         </>
       )}
@@ -324,23 +229,15 @@ export default function StandingsTrendChart({
       {view === "weekly" && (
         <>
           <LineChart
-            chartId="wk-pf-median" title="Weekly PF vs. AFC/NFC Median" series={pfVsMedianSeries} weeks={weeklyWeeks}
-            yMin={0} yMax={maxOf(pfVsMedianSeries)} formatY={(v) => Math.round(v)} logoMap={logoMap}
+            chartId="wk-pf-median" title="Points Scored Each Week vs. AFC/NFC Median" series={pfVsMedianSeries} weeks={weeklyWeeks}
+            yMin={0} yMax={maxOf(pfVsMedianSeries)} formatY={(v) => Math.round(v)}
           />
           <LineChart
-            chartId="wk-pf" title="Weekly PF" series={weeklyPfSeries} weeks={weeklyWeeks}
-            yMin={0} yMax={maxOf(weeklyPfSeries)} formatY={(v) => Math.round(v)} logoMap={logoMap}
-          />
-          <LineChart
-            chartId="wk-pa-cross" title="Weekly PA (Cross-Conference)" series={weeklyPaCrossSeries} weeks={weeklyWeeks}
-            yMin={0} yMax={maxOf(weeklyPaCrossSeries)} formatY={(v) => Math.round(v)} logoMap={logoMap}
-          />
-          <LineChart
-            chartId="wk-pa-intra" title="Weekly PA (In-Conference)" series={weeklyPaIntraSeries} weeks={weeklyWeeks}
-            yMin={0} yMax={maxOf(weeklyPaIntraSeries)} formatY={(v) => Math.round(v)} logoMap={logoMap}
+            chartId="wk-pa" title="Points Against Each Week (avg of both games)" series={weeklyPaSeries} weeks={weeklyWeeks}
+            yMin={0} yMax={maxOf(weeklyPaSeries)} formatY={(v) => Math.round(v)}
           />
         </>
       )}
-    </div>
+    </section>
   );
 }

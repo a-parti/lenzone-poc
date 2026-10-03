@@ -1,7 +1,8 @@
-import React, { useRef, useState } from 'react';
-import { Check, X as XIcon, Link as LinkIcon, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import React, { useMemo, useRef, useState } from 'react';
+import { Check, X as XIcon, Link as LinkIcon } from 'lucide-react';
 import { useMatchupPreview } from '../context/MatchupPreviewContext';
 import { HIGH_SCORE_PRIZES } from '../lib/highScorePrizes';
+import { computeMaxScoresByManager } from '../lib/players';
 import { useNameDisplay } from '../context/NameDisplayContext';
 import lenzoneLogoRing from '../assets/lenzone-logo-ring.png';
 import lenzoneLogoBall from '../assets/lenzone-logo-ball.png';
@@ -25,8 +26,8 @@ const MIN_BAR_W = 100;
 const SERIES_GAP = 6;
 const BAR_GAP = 20;
 const GROUP_GAP = 48;
-const AFC_COLOR = "#f87171"; // tailwind red-400, matches CONF_STYLES.AFC.text
-const NFC_COLOR = "#60a5fa"; // tailwind blue-400, matches CONF_STYLES.NFC.text
+const AFC_COLOR = "var(--afc)";
+const NFC_COLOR = "var(--nfc)";
 // Split typographic role: title + team names are a serif (Playfair Display -- already loaded and
 // already the app's own editorial voice, used for the Home page nav titles), while every number
 // on the chart (axis ticks, score values, median labels) is a bold geometric sans (DM Sans at a
@@ -45,10 +46,10 @@ const SERIF_FONT = "'Lora', Georgia, serif";
 // hues (not a same-family intensity gradient, which read as too subtle/hard to tell apart at a
 // glance) -- green stays reserved for the unambiguous best outcome (both), violet and amber mark
 // the two different single-win types, red for no wins at all.
-const BOTH_WIN_COLOR = "var(--pos)"; // the app's established "good" green
-const INCONF_WIN_COLOR = "#8b5cf6"; // violet-500
-const CROSS_WIN_COLOR = "#eab308"; // amber-500
-const NO_WIN_COLOR = "var(--neg)"; // the app's established red -- no wins at all this week
+const BOTH_WIN_COLOR = "var(--pos)";
+const INCONF_WIN_COLOR = "var(--proj)";
+const CROSS_WIN_COLOR = "var(--live)";
+const NO_WIN_COLOR = "var(--neg)";
 
 // Focus mode's two real opponents get the app's actual green/red (win/loss is a real result).
 // Everyone else is a THEORETICAL comparison against the chosen team's own score -- deliberately a
@@ -56,8 +57,8 @@ const NO_WIN_COLOR = "var(--neg)"; // the app's established red -- no wins at al
 // "theoretical" never get mistaken for shades of the same thing at a glance. No further split by
 // conference here -- that made this specific chart too busy; same/cross-conference win breakdown
 // stays a thing only the "All Teams" chart does.
-const THEO_POS = "#3b82f6"; // blue-500 -- would lose to you
-const THEO_NEG = "#f97316"; // orange-500 -- would beat you
+const THEO_POS = "var(--proj)"; // would lose to you
+const THEO_NEG = "var(--live)"; // would beat you
 
 function median(arr) {
   if (!arr.length) return null;
@@ -116,7 +117,7 @@ const CLUSTER_LOGO_SIZE = 20;
 const EXPORT_VALUE_LABEL_HEADROOM = 64;
 const EXPORT_VALUE_LABEL_LANE = { actual: 12, live: 34, pregame: 56 };
 
-export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeason, nfcSeason, schedule, week, focusManager, focusOpponents, logoMap, hexColorMap, projectedScores = {}, pregameScores = {}, isWeekFinal = false }) {
+export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeason, nfcSeason, afcData, nfcData, playersDB, schedule, week, focusManager, focusOpponents, logoMap, projectedScores = {}, pregameScores = {}, isWeekFinal = false }) {
   const [hovered, setHovered] = useState(null);
   const { mode: nameMode, displayName, managerName } = useNameDisplay();
   const graphName = (manager, conf) => {
@@ -124,30 +125,16 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
     const secondary = nameMode === 'teams' ? managerName(manager, conf) : null;
     return secondary ? `${primary} (${secondary})` : primary;
   };
-  // Ctrl/Cmd/Shift-click toggles a team into this multi-select set instead of opening its matchup
-  // preview (a plain click still does that, unchanged). "Filter to Selection" then narrows the
-  // whole chart down to just these bars; "Clear Selection" resets both.
-  const [selected, setSelected] = useState(() => new Set());
-  const [filterActive, setFilterActive] = useState(false);
-  const toggleSelected = (manager) => setSelected(prev => {
-    const next = new Set(prev);
-    if (next.has(manager)) next.delete(manager); else next.add(manager);
-    return next;
-  });
-  const clearSelection = () => { setSelected(new Set()); setFilterActive(false); };
-  // Click (not hover) pulls a team's two real opponents into the slots next to it -- click the
-  // same bar again, or a different one, to release/switch. Hover alone used to drive this, but a
-  // bar sliding out from under (or into) a stationary cursor mid-transition fired spurious
-  // enter/leave events against a pointer that never actually moved, which read as the hover state
-  // randomly flickering. A click is a discrete, deliberate action with none of that ambiguity.
-  const [pinned, setPinned] = useState(null);
   // Focused charts start with the whole league for useful context, but the user can collapse
   // them to just their two real matchups. Because export renders from this same `bars` list, the
   // PNG and clipboard image always mirror the live view exactly.
   const [showEveryoneElse, setShowEveryoneElse] = useState(true);
-  // A week/mode change invalidates whatever was selected/pinned before (different real bars
-  // entirely).
-  React.useEffect(() => { clearSelection(); setPinned(null); }, [week, focusManager]);
+  // "Max" = the best lineup each team could have started from its own roster. Only meaningful
+  // once the week is final.
+  const maxScores = useMemo(
+    () => (isWeekFinal && afcData && nfcData ? computeMaxScoresByManager(afcData, nfcData, afcSeason, nfcSeason, week, playersDB) : {}),
+    [isWeekFinal, afcData, nfcData, afcSeason, nfcSeason, week, playersDB]
+  );
   const svgRef = useRef(null);
   const { openPreview } = useMatchupPreview();
   const [exporting, setExporting] = useState(false);
@@ -157,12 +144,6 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
   const [downloadState, setDownloadState] = useState("idle"); // idle | error
   const { theme: exportTheme, setTheme: setExportTheme, scheme: exportScheme } = useModuleExportTheme();
   const [linkCopyState, setLinkCopyState] = useState("idle");
-  // Zoom scales the SVG's rendered CSS size while its viewBox stays fixed -- the browser scales
-  // every coordinate, line and font in the drawing proportionally (real vector zoom, not a blurry
-  // raster stretch), and the existing horizontal-scroll wrapper below already handles whatever
-  // doesn't fit at zoom > 100%.
-  const [zoom, setZoom] = useState(1);
-  const ZOOM_MIN = 0.5, ZOOM_MAX = 2, ZOOM_STEP = 0.25;
 
   // Cross-conference opponent/result for one manager this week -- `schedule` is the same
   // {week, afcTeam, nfcTeam} pairing list used throughout the app (App.jsx's cross-conference
@@ -210,7 +191,8 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
         const oppScore = opp ? displayedScoreFor(opp, season).score : null;
         const result = oppScore != null ? (score > oppScore ? "W" : score < oppScore ? "L" : "T") : null;
         const cross = crossResultFor(m, conf === "AFC", score);
-        return { manager: m, conf, score, actualScore, projectedScore, pregameScore, scoreType, opponent: opp, result, crossResult: cross.result, crossOpponent: cross.opponent };
+        const maxScore = isWeekFinal && actualScore != null && Number.isFinite(maxScores[m]) ? maxScores[m] : null;
+        return { manager: m, conf, score, actualScore, projectedScore, pregameScore, maxScore, scoreType, opponent: opp, result, crossResult: cross.result, crossOpponent: cross.opponent };
       })
       .filter(Boolean);
   };
@@ -233,11 +215,12 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
   const hasProjectedBars = allBars.some(b => b.scoreType === "Proj");
   const hasActualBars = allBars.some(b => b.actualScore != null);
   const hasPregameBars = allBars.some(b => b.pregameScore != null);
+  const hasMaxBars = allBars.some(b => b.maxScore != null);
   const scoreTypeLabel = hasActualBars && hasProjectedBars && hasPregameBars
     ? "Actual / Live Proj / Pregame Proj"
     : hasActualBars && hasPregameBars
-      ? "Actual / Pregame Proj"
-      : hasProjectedBars ? "Proj" : "Actual";
+      ? `Actual / Pregame Proj${hasMaxBars ? " / Max" : ""}`
+      : hasProjectedBars ? "Proj" : `Actual${hasMaxBars ? " / Max" : ""}`;
   const referenceTypeLabel = hasProjectedBars ? "Proj" : "Actual";
   let bars;
   if (focusManager) {
@@ -256,12 +239,6 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
     // every real score this week, not grouped/gapped by conference.
     bars = [...allBars].sort((a, b) => b.score - a.score).map(b => ({ ...b, group: "all" }));
   }
-  // "Filter to Selection" narrows the bars actually drawn down to just the ctrl/shift-clicked
-  // teams -- medians/high-score flourish below are still computed from the FULL real dataset
-  // (allBars), not this filtered view, so they stay a meaningful reference point either way.
-  if (filterActive && selected.size > 0) {
-    bars = bars.filter(b => selected.has(b.manager));
-  }
 
   // The single highest real score across everyone this week (not per-category -- just the actual
   // league-wide high score) gets a little "cha-ching" flourish above its bar.
@@ -269,7 +246,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
 
   const rawMaxScore = Math.max(
     1,
-    ...allBars.flatMap(b => [b.actualScore, b.projectedScore, b.pregameScore, b.score].filter(Number.isFinite)),
+    ...allBars.flatMap(b => [b.actualScore, b.projectedScore, b.pregameScore, b.maxScore, b.score].filter(Number.isFinite)),
     afcMedian || 0, nfcMedian || 0
   );
   const numGroupGaps = bars.filter((b, i) => i > 0 && b.group !== bars[i - 1].group).length;
@@ -307,7 +284,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
     // look regardless of which team colors happen to be in play this week. A mid-tone slate
     // (not a pale near-white silver) so it reads with real contrast against both a light and a
     // dark chart background, not just one of them.
-    you: "#94a3b8", tie: "var(--muted)",
+    you: "var(--text2)", tie: "var(--muted)",
     "actual-ahead": "var(--neg)", "actual-behind": "var(--pos)",
     "theo-neg": THEO_NEG, "theo-pos": THEO_POS,
     both: BOTH_WIN_COLOR, inconf: INCONF_WIN_COLOR, cross: CROSS_WIN_COLOR, none: NO_WIN_COLOR
@@ -339,64 +316,6 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
   // `hovered` also doubles as the key for the AFC/NFC median-line hover dimming ("AFC-median" /
   // "NFC-median"), which aren't real bars -- only look up an actual bar for the hover-reference line.
   const hoveredBarForLine = hovered ? bars.find(b => b.manager === hovered) : null;
-
-  // Clicking a bar pulls that team's two real opponents into the slots right after it, sliding
-  // every other bar out of the way -- a new group, the same way the focus-mode "you" group already
-  // sits first. In focus mode your own group stays anchored first no matter who else gets clicked
-  // (it's the chart's fixed reference point); the clicked team's own cluster becomes a second group
-  // right after it. Clicking yourself is a no-op for layout -- your own two opponents are already
-  // grouped next to you by the default focus-mode sort. Only reorders LAYOUT (x position via a
-  // transform below); the actual `bars` array/DOM order never changes, so sorting, grouping and
-  // selection are untouched.
-  const pinnedBar = pinned ? bars.find(b => b.manager === pinned) : null;
-  // Clicking yourself, or a team that's already one of your own two real opponents, is a no-op
-  // for layout -- they're already grouped right next to you, so there's nothing left to pull
-  // together. Without this check, that team would try to form a SECOND group whose own "real
-  // opponents" list includes you, fighting the "you" segment over where you actually belong.
-  const alreadyInFocusGroup = !!focusManager && pinnedBar &&
-    (pinnedBar.manager === focusManager || (focusOpponents || []).includes(pinnedBar.manager));
-  let pinXByManager = null;
-  if (pinnedBar && !alreadyInFocusGroup) {
-    const placedNames = new Set();
-    // Three distinct, clearly separated clusters -- "you and your matchups" (focus mode only),
-    // "your selection and their matchups" (whoever got clicked, plus their real opponents), then
-    // everyone else -- with a full GROUP_GAP between each, same visual language the base layout
-    // already uses to separate the focus group from the rest.
-    const focusSegment = [];
-    if (focusManager) {
-      const focusBar = bars.find(b => b.manager === focusManager);
-      if (focusBar) {
-        focusSegment.push(focusBar);
-        placedNames.add(focusManager);
-        // Your own two real opponents stay grouped with you -- they're the default focus-mode
-        // grouping already, and clicking a different team shouldn't break that up.
-        (focusOpponents || []).forEach(name => {
-          if (name && !placedNames.has(name) && bars.some(b => b.manager === name)) {
-            focusSegment.push(positioned.find(b => b.manager === name));
-            placedNames.add(name);
-          }
-        });
-      }
-    }
-    const pinnedSegment = [pinnedBar];
-    placedNames.add(pinnedBar.manager);
-    [pinnedBar.opponent, pinnedBar.crossOpponent].forEach(name => {
-      if (name && !placedNames.has(name) && bars.some(b => b.manager === name)) {
-        pinnedSegment.push(positioned.find(b => b.manager === name));
-        placedNames.add(name);
-      }
-    });
-    const restSegment = positioned.filter(b => !placedNames.has(b.manager));
-    pinXByManager = {};
-    let px = MARGIN.left;
-    [focusSegment, pinnedSegment, restSegment].filter(seg => seg.length > 0).forEach((segment, si) => {
-      if (si > 0) px += GROUP_GAP;
-      segment.forEach(b => {
-        pinXByManager[b.manager] = px;
-        px += MIN_BAR_W + BAR_GAP;
-      });
-    });
-  }
 
   // Shared between the live HTML legend below and the export image, so the two never drift apart.
   const legendItems = focusManager
@@ -441,6 +360,10 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
     if (b.pregameScore != null) {
       values.push({ kind: 'pregame', label: 'Pre', value: b.pregameScore, opacity: hovered ? 0.32 : 0.19, dash: '2 2' });
     }
+    if (b.maxScore != null) {
+      // Outline-only: the ceiling that roster could have hit with perfect sit/start calls.
+      values.push({ kind: 'max', label: 'Max', value: b.maxScore, opacity: hovered ? 0.14 : 0.06, dash: '6 3' });
+    }
     if (values.length === 0 && b.score != null) {
       values.push({ kind: b.scoreType === 'Proj' ? 'live' : 'actual', label: b.scoreType, value: b.score, opacity: hovered ? 0.96 : 0.82, dash: null });
     }
@@ -459,8 +382,8 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
   // meaningful in a static export anyway). It also includes the legend and title, which the old
   // "just serialize the live <svg>" approach silently left out.
   const EXPORT = exportTheme === 'dark'
-    ? { bg: "#0f172a", bgFrom: "#1b2338", bgTo: "#080a12", text: "#f8fafc", muted: "#aeb9c8", border: "#526178" }
-    : { bg: "#f5f1e8", bgFrom: "#fffaf1", bgTo: "#e8edf0", text: "#172033", muted: "#526073", border: "#9ba8b8" };
+    ? { bg: "#0B1F2A", bgFrom: "#12303B", bgTo: "#071820", text: "#EAF4F4", muted: "#93AEB5", border: "#34606F" }
+    : { bg: "#FAF7F2", bgFrom: "#FFFFFF", bgTo: "#F0ECE4", text: "#12303B", muted: "#5F7680", border: "#CFC7B9" };
   const EXPORT_SANS = "Arial, Helvetica, sans-serif";
   const EXPORT_SERIF = "Georgia, 'Times New Roman', serif";
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -471,8 +394,8 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
   // dark-mode values (index.css), so the export doesn't depend on the exporting viewer's own
   // light/dark mode or color scheme either.
   const EXPORT_VAR_RESOLVE = exportTheme === 'dark'
-    ? { "var(--pos)": "#34d399", "var(--neg)": "#fb7185", "var(--muted)": EXPORT.muted, "var(--accent)": "#f08a6d" }
-    : { "var(--pos)": "#047857", "var(--neg)": "#be123c", "var(--muted)": EXPORT.muted, "var(--accent)": "#c45138" };
+    ? { "var(--pos)": "#5CD69B", "var(--neg)": "#FF7B72", "var(--proj)": "#7DB4F0", "var(--live)": "#F2C14E", "var(--muted)": EXPORT.muted, "var(--accent)": "#4FD1C5", "var(--afc)": "#FF8A73", "var(--nfc)": "#4FD1C5", "var(--text2)": "#C2D6DA" }
+    : { "var(--pos)": "#23845A", "var(--neg)": "#C2413B", "var(--proj)": "#2F6DB5", "var(--live)": "#B87A12", "var(--muted)": EXPORT.muted, "var(--accent)": "#0E8A95", "var(--afc)": "#D9604A", "var(--nfc)": "#0E8A95", "var(--text2)": "#3B5560" };
   const resolveExportColor = (c) => EXPORT_VAR_RESOLVE[c] || c;
 
   // Best-effort: fetch a logo and convert it to a base64 data URI so it can be embedded directly
@@ -605,17 +528,17 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
 
     if (afcMedian != null) {
       const my = yFor(afcMedian);
-      parts.push(`<line x1="${MARGIN.left}" x2="${width - MARGIN.right}" y1="${my}" y2="${my}" stroke="${AFC_COLOR}" stroke-width="${focusManager ? 1.5 : 2.5}" stroke-dasharray="7 5" opacity="${focusManager ? 0.4 : 1}"/>`);
-      parts.push(`<text x="${width - MARGIN.right + 8}" y="${my}" dominant-baseline="middle" font-family="${EXPORT_SANS}" font-size="15" font-weight="700" fill="${AFC_COLOR}">AFC ${afcMedian.toFixed(1)} ${referenceTypeLabel}</text>`);
+      parts.push(`<line x1="${MARGIN.left}" x2="${width - MARGIN.right}" y1="${my}" y2="${my}" stroke="${resolveExportColor(AFC_COLOR)}" stroke-width="${focusManager ? 1.5 : 2.5}" stroke-dasharray="7 5" opacity="${focusManager ? 0.4 : 1}"/>`);
+      parts.push(`<text x="${width - MARGIN.right + 8}" y="${my}" dominant-baseline="middle" font-family="${EXPORT_SANS}" font-size="15" font-weight="700" fill="${resolveExportColor(AFC_COLOR)}">AFC ${afcMedian.toFixed(1)} ${referenceTypeLabel}</text>`);
     }
     if (nfcMedian != null) {
       const my = yFor(nfcMedian);
-      parts.push(`<line x1="${MARGIN.left}" x2="${width - MARGIN.right}" y1="${my}" y2="${my}" stroke="${NFC_COLOR}" stroke-width="${focusManager ? 1.5 : 2.5}" stroke-dasharray="7 5" opacity="${focusManager ? 0.4 : 1}"/>`);
-      parts.push(`<text x="${width - MARGIN.right + 8}" y="${my}" dominant-baseline="middle" font-family="${EXPORT_SANS}" font-size="15" font-weight="700" fill="${NFC_COLOR}">NFC ${nfcMedian.toFixed(1)} ${referenceTypeLabel}</text>`);
+      parts.push(`<line x1="${MARGIN.left}" x2="${width - MARGIN.right}" y1="${my}" y2="${my}" stroke="${resolveExportColor(NFC_COLOR)}" stroke-width="${focusManager ? 1.5 : 2.5}" stroke-dasharray="7 5" opacity="${focusManager ? 0.4 : 1}"/>`);
+      parts.push(`<text x="${width - MARGIN.right + 8}" y="${my}" dominant-baseline="middle" font-family="${EXPORT_SANS}" font-size="15" font-weight="700" fill="${resolveExportColor(NFC_COLOR)}">NFC ${nfcMedian.toFixed(1)} ${referenceTypeLabel}</text>`);
     }
     if (focusManager && focusScore != null) {
       const fy = yFor(focusScore);
-      const accentColor = (hexColorMap?.[focusManager]) || "#e76f51";
+      const accentColor = resolveExportColor("var(--accent)");
       parts.push(`<line x1="${MARGIN.left}" x2="${width - MARGIN.right}" y1="${fy}" y2="${fy}" stroke="${accentColor}" stroke-width="3" stroke-dasharray="9 5"/>`);
       parts.push(`<text x="${width - MARGIN.right + 8}" y="${fy}" dominant-baseline="middle" font-family="${EXPORT_SANS}" font-size="15" font-weight="800" fill="${accentColor}">You: ${focusScore.toFixed(2)} ${referenceTypeLabel}</text>`);
     }
@@ -631,7 +554,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
         parts.push(`<rect x="${s.x}" y="${sy}" width="${s.seriesWidth}" height="${sh}" rx="5" fill="${color}" fill-opacity="${s.opacity}" stroke="${color}" stroke-width="2"${s.dash ? ` stroke-dasharray="${s.dash}"` : ''}/>`);
         const labelY = sy - (hasProjectedBars ? EXPORT_VALUE_LABEL_LANE[s.kind] : 14);
         parts.push(`<text x="${scx}" y="${labelY}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="12" font-weight="800" fill="${EXPORT.text}">${s.value.toFixed(2)}</text>`);
-        parts.push(`<text x="${scx}" y="${labelY + 12}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="9" font-weight="800" fill="${s.kind === 'live' ? '#60a5fa' : EXPORT.muted}">${s.label}</text>`);
+        parts.push(`<text x="${scx}" y="${labelY + 12}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="9" font-weight="800" fill="${s.kind === 'live' ? resolveExportColor('var(--proj)') : EXPORT.muted}">${s.label}</text>`);
       });
       const logoUrl = logoData[b.manager];
       const clusterBarY = Math.min(...series.map(s => yFor(s.value)));
@@ -654,7 +577,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
       const labelY = MARGIN.top + plotH + 12;
       const visibleName = displayName(b.manager, b.conf);
       const secondaryName = nameMode === 'teams' ? managerName(b.manager, b.conf) : null;
-      const labelColor = b.conf === 'AFC' ? AFC_COLOR : NFC_COLOR;
+      const labelColor = resolveExportColor(b.conf === 'AFC' ? AFC_COLOR : NFC_COLOR);
       parts.push(`<text font-family="${EXPORT_SERIF}" font-weight="700" fill="${labelColor}" text-anchor="end" transform="rotate(-40 ${cx} ${labelY})">` +
         `<tspan x="${cx}" y="${labelY}" font-size="16">${esc(visibleName)}</tspan>` +
         (secondaryName ? `<tspan x="${cx}" y="${labelY + 18}" font-size="13" font-weight="600" fill="${EXPORT.muted}">(${esc(secondaryName)})</tspan>` : '') +
@@ -668,7 +591,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
       items.forEach((item, i) => {
         if (i > 0) ix += ITEM_GAP;
         if (item.dashed) {
-          parts.push(`<line x1="${ix}" x2="${ix + SWATCH}" y1="${ly - 5}" y2="${ly - 5}" stroke="${item.color}" stroke-width="2.5" stroke-dasharray="4 3"/>`);
+          parts.push(`<line x1="${ix}" x2="${ix + SWATCH}" y1="${ly - 5}" y2="${ly - 5}" stroke="${resolveExportColor(item.color)}" stroke-width="2.5" stroke-dasharray="4 3"/>`);
         } else {
           parts.push(`<rect x="${ix}" y="${ly - 11}" width="${SWATCH}" height="${SWATCH}" rx="3" fill="${resolveExportColor(item.color)}"/>`);
         }
@@ -784,56 +707,16 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
           <span className="ml-2 text-xs font-bold uppercase tracking-wide text-[var(--proj)]">{scoreTypeLabel}</span>
         </p>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
-          <div className="flex items-center gap-0.5 mr-1 border-r border-[var(--border)]/60 pr-2">
+          {focusManager && (
             <button
-              type="button" onClick={() => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))}
-              disabled={zoom <= ZOOM_MIN} title="Zoom out" aria-label="Zoom out"
-              className="p-1 rounded-md text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface2)] disabled:opacity-30 disabled:hover:bg-transparent transition-colors duration-150"
+              type="button"
+              onClick={() => setShowEveryoneElse(v => !v)}
+              aria-pressed={showEveryoneElse}
+              title="Include or hide the rest of the league in this chart and its exports"
+              className="text-xs font-semibold px-3 py-2 rounded-lg text-[var(--text2)] hover:text-[var(--text)] bg-[var(--surface2)] transition-colors duration-150"
             >
-              <ZoomOut className="w-3.5 h-3.5" />
+              {showEveryoneElse ? "Just my matchups" : "Show everyone"}
             </button>
-            <button
-              type="button" onClick={() => setZoom(1)} disabled={zoom === 1}
-              title="Reset zoom" aria-label="Reset zoom"
-              className="w-11 text-center text-[10px] font-semibold tabular-nums text-[var(--muted)] hover:text-[var(--text)] disabled:hover:text-[var(--muted)] transition-colors duration-150"
-            >
-              {zoom === 1 ? <RotateCcw className="w-3 h-3 mx-auto opacity-40" /> : `${Math.round(zoom * 100)}%`}
-            </button>
-            <button
-              type="button" onClick={() => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))}
-              disabled={zoom >= ZOOM_MAX} title="Zoom in" aria-label="Zoom in"
-              className="p-1 rounded-md text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface2)] disabled:opacity-30 disabled:hover:bg-transparent transition-colors duration-150"
-            >
-              <ZoomIn className="w-3.5 h-3.5" />
-            </button>
-          </div>
-          {pinned && (
-            <button
-              type="button" onClick={() => setPinned(null)}
-              title="Stop grouping this team's opponents next to it"
-              className="text-[10px] font-semibold text-[var(--muted)] hover:text-[var(--text)] px-2 py-1 rounded-md hover:bg-[var(--surface2)] transition-colors duration-150"
-            >
-              Clear Grouping
-            </button>
-          )}
-          {selected.size > 0 && (
-            <>
-              <button
-                type="button" onClick={() => setFilterActive(v => !v)}
-                title="Ctrl/Cmd/Shift-click bars to build a selection, then narrow the chart to just those teams"
-                className={`text-[10px] font-semibold px-2 py-1 rounded-md transition-colors duration-150 ${
-                  filterActive ? "bg-[var(--accent)] text-[var(--accent-text)]" : "text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface2)]"
-                }`}
-              >
-                {filterActive ? "Showing Selection" : `Filter to Selection (${selected.size})`}
-              </button>
-              <button
-                type="button" onClick={clearSelection}
-                className="text-[10px] font-semibold text-[var(--muted)] hover:text-[var(--text)] px-2 py-1 rounded-md hover:bg-[var(--surface2)] transition-colors duration-150"
-              >
-                Clear Selection
-              </button>
-            </>
           )}
           <ExportControls
             theme={exportTheme}
@@ -846,27 +729,24 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
           />
           <button
             type="button" onClick={copyLink} title="Copy a link straight to this week's chart" aria-label="Copy link to this chart"
-            className="flex items-center gap-1 text-[10px] font-semibold text-[var(--muted)] hover:text-[var(--text)] px-2 py-1 rounded-md hover:bg-[var(--surface2)] transition-colors duration-150"
+            className="flex items-center gap-1 text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)] px-2.5 py-2 rounded-lg hover:bg-[var(--surface2)] transition-colors duration-150"
           >
             {linkCopyState === "copied" ? <Check className="w-3.5 h-3.5 text-[var(--pos)]" /> : linkCopyState === "error" ? <XIcon className="w-3.5 h-3.5 text-[var(--neg)]" /> : <LinkIcon className="w-3.5 h-3.5" />}
             {linkCopyState === "copied" ? "Link Copied!" : linkCopyState === "error" ? "Couldn't copy" : "Copy Link"}
           </button>
         </div>
       </div>
-      <p className="text-[10px] text-[var(--muted)] -mt-2 mb-3">
-        {hasActualBars && <><span className="font-bold text-[var(--text2)]">Actual</span> = posted score{(hasProjectedBars || hasPregameBars) && <>&nbsp;&nbsp;&bull;&nbsp;&nbsp;</>}</>}
-        {hasProjectedBars && <><span className="font-bold text-[var(--proj)]">Live Proj</span> = Sleeper projected finish{hasPregameBars && <>&nbsp;&nbsp;&bull;&nbsp;&nbsp;</>}</>}
-        {hasPregameBars && <><span className="font-bold text-[var(--muted)]">Pregame Proj</span> = Sleeper baseline before scoring</>}
+      <p className="text-xs text-[var(--muted)] -mt-1 mb-3">
+        Tap a team to open its matchup.
+        {hasActualBars && <>&nbsp;&nbsp;&bull;&nbsp;&nbsp;<span className="font-bold text-[var(--text2)]">Actual</span> = posted score</>}
+        {hasProjectedBars && <>&nbsp;&nbsp;&bull;&nbsp;&nbsp;<span className="font-bold text-[var(--proj)]">Live Proj</span> = Sleeper projected finish</>}
+        {hasPregameBars && <>&nbsp;&nbsp;&bull;&nbsp;&nbsp;<span className="font-bold text-[var(--muted)]">Pre</span> = Sleeper projection before kickoff</>}
+        {hasMaxBars && <>&nbsp;&nbsp;&bull;&nbsp;&nbsp;<span className="font-bold text-[var(--text2)]">Max</span> = best lineup that roster could have started</>}
       </p>
-      {selected.size > 0 && !filterActive && (
-        <p className="text-[10px] text-[var(--muted)] -mt-2 mb-2">
-          {selected.size} team{selected.size > 1 ? 's' : ''} selected -- Ctrl/Cmd/Shift-click more, or hit "Filter to Selection" above.
-        </p>
-      )}
       <div className="overflow-x-auto scroll-thin">
         <svg
           ref={svgRef} viewBox={`0 0 ${width} ${HEIGHT}`} role="img" aria-label={`Week ${week} scores by team`}
-          style={{ width: width * zoom, height: HEIGHT * zoom, fontFamily: DATA_FONT, transition: 'width 0.2s ease, height 0.2s ease' }}
+          style={{ width, height: HEIGHT, fontFamily: DATA_FONT }}
         >
           <text
             x={84} y={MARGIN.top + plotH / 2} textAnchor="middle" fontSize={12} fontWeight={700}
@@ -897,23 +777,6 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
                 EVERYONE ELSE
               </text>
             </g>
-          )}
-          {focusManager && (
-            <button
-              type="button"
-              onClick={() => {
-                setShowEveryoneElse(v => !v);
-                clearSelection();
-                setPinned(null);
-              }}
-              aria-pressed={showEveryoneElse}
-              title="Include or hide the rest of the league in this chart and its exports"
-              className={`text-[10px] font-semibold px-2 py-1 rounded-md transition-colors duration-150 ${
-                showEveryoneElse ? "bg-[var(--surface2)] text-[var(--text2)]" : "text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface2)]"
-              }`}
-            >
-              {showEveryoneElse ? "Hide Everyone Else" : "Show Everyone Else"}
-            </button>
           )}
 
           {/* AFC/NFC median reference lines for this specific week -- in focus mode these are just
@@ -983,11 +846,10 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
             // right when it's most useful to keep an eye on. A ctrl/shift-selected bar is a
             // deliberate, persistent choice too -- it shouldn't fade out (dashed ring and all)
             // just because you're now hovering a different bar to compare against.
-            const isDimmed = hovered && !isHovered && !isOpponentOfHovered && b.manager !== focusManager && !selected.has(b.manager);
+            const isDimmed = hovered && !isHovered && !isOpponentOfHovered && b.manager !== focusManager;
             const color = colorFor(b);
             const series = seriesFor(b, isHovered);
             const barY = Math.min(...series.map(s => yFor(s.value)));
-            const barHeight = MARGIN.top + plotH - barY;
             const logoUrl = logoMap?.[b.manager];
             const clipId = `wsbc-logo-${week}-${(focusManager || 'all').replace(/[^a-zA-Z0-9]/g, '')}-${b.manager.replace(/[^a-zA-Z0-9]/g, '')}`;
             // In a live cluster, the logo belongs in the Live Proj bar—the current best read on
@@ -999,29 +861,19 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
             const logoCx = logoSeries.x + logoSeries.seriesWidth / 2;
             const logoCy = logoSeriesY + logoSize / 2 + 8;
             const showLogo = logoUrl && logoSeriesHeight >= logoSize + 14;
-            const isSelected = selected.has(b.manager);
             const visibleName = displayName(b.manager, b.conf);
             const secondaryName = nameMode === 'teams' ? managerName(b.manager, b.conf) : null;
-            // The actual "move out of the way / slide in next to" animation: dx shifts this bar
-            // from its normal sorted position to its slot in the click-pinned reflow (0 when
-            // nothing's pinned, or when this bar isn't affected by the current pin), and the
-            // transform transition below is what makes that shift slide instead of jump.
-            const dx = pinXByManager ? (pinXByManager[b.manager] - b.x) : 0;
-            const isPinned = pinned === b.manager;
             return (
               <g
                 key={b.manager}
                 opacity={isDimmed ? 0.35 : 1}
                 onMouseEnter={() => setHovered(b.manager)}
                 onMouseLeave={() => setHovered(null)}
-                onClick={(e) => {
-                  if (e.ctrlKey || e.metaKey || e.shiftKey) { toggleSelected(b.manager); return; }
-                  setPinned(prev => (prev === b.manager ? null : b.manager));
-                }}
+                onClick={() => openPreview(b.manager, b.conf, week)}
                 style={{
                   cursor: 'pointer',
                   filter: isHovered ? `drop-shadow(0 0 10px ${color})` : `drop-shadow(0 2px 3px rgba(0,0,0,0.25))`,
-                  transform: `translate(${dx}px, ${isHovered ? -4 : 0}px)`,
+                  transform: `translate(0px, ${isHovered ? -4 : 0}px)`,
                   transformBox: 'fill-box', transformOrigin: 'bottom center',
                   transition: 'filter 0.2s ease, transform 0.45s cubic-bezier(.22,1,.36,1)'
                 }}
@@ -1050,22 +902,6 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
                     </React.Fragment>
                   );
                 })}
-                {/* Ctrl/Cmd/Shift-click selection ring -- a persistent outline (not just on hover)
-                    so it's obvious which bars are picked for "Filter to Selection" below. */}
-                {isSelected && (
-                  <rect
-                    x={b.x - 3} y={barY - 3} width={MIN_BAR_W + 6} height={barHeight + 3} rx={7}
-                    fill="none" stroke="var(--text)" strokeWidth={2} strokeDasharray="5 3" pointerEvents="none"
-                  />
-                )}
-                {/* Pinned (grouped-with-opponents) ring -- solid, not dashed, so it reads as a
-                    different state from the selection ring above rather than a duplicate of it. */}
-                {isPinned && (
-                  <rect
-                    x={b.x - 4} y={barY - 4} width={MIN_BAR_W + 8} height={barHeight + 4} rx={8}
-                    fill="none" stroke={color} strokeWidth={2.5} pointerEvents="none"
-                  />
-                )}
                 {showLogo && (
                   <>
                     <defs>
@@ -1111,6 +947,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
                   {b.actualScore != null ? ` ${b.actualScore.toFixed(2)} Actual` : ''}
                   {b.projectedScore != null ? `; ${b.projectedScore.toFixed(2)} Live Proj` : ''}
                   {b.pregameScore != null ? `; ${b.pregameScore.toFixed(2)} Pregame Proj` : ''}
+                  {b.maxScore != null ? `; ${b.maxScore.toFixed(2)} Max possible` : ''}
                   {b.projectedScore == null && b.actualScore == null ? ` ${b.score.toFixed(2)} ${b.scoreType}` : ''}
                   {b.opponent ? ` vs ${graphName(b.opponent, b.conf)}${b.result ? ` (${b.result})` : ''}` : ''}
                 </title>

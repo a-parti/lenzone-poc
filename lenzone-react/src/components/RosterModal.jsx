@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { useRosterModal } from '../context/RosterModalContext';
 import { useTeamLogo } from '../context/TeamLogoContext';
@@ -9,10 +9,9 @@ import { scoringFieldFor } from '../lib/players';
 import { useEscapeKey } from './shared';
 import { nextModalZ } from '../lib/modalStack';
 import { getRealName } from '../lib/realNames';
-import { pickSpeechBubbleLine, findRankAndConf } from '../lib/speechBubble';
 import { useNameDisplay } from '../context/NameDisplayContext';
 
-export default function RosterModal({ afcData, nfcData, afcSeason, nfcSeason, playersDB, weekProjections, selectedWeek, byTeamWeek, trophyLinesByManager, afcStandings, nfcStandings, weekResultByManager, managerStreaks, revengeGameByManager }) {
+export default function RosterModal({ afcData, nfcData, afcSeason, nfcSeason, playersDB, weekProjections, selectedWeek, byTeamWeek }) {
   const { target, closeRoster } = useRosterModal();
   const { mode: nameDisplayMode, displayName } = useNameDisplay();
   useEscapeKey(closeRoster);
@@ -26,21 +25,8 @@ export default function RosterModal({ afcData, nfcData, afcSeason, nfcSeason, pl
   // many hooks this component calls from one render to the next, which breaks React's hook order
   // and throws in dev. Passing it undefined when there's no target yet is harmless.
   const logoUrl = useTeamLogo(target?.manager);
-  // realName/bubbleText must also be computed unconditionally (same reasoning as useTeamLogo
-  // above) -- getRealName/pickSpeechBubbleLine are cheap pure functions, safe to call with a null
-  // target. Memoized so the random pick doesn't flicker between lines on unrelated re-renders
-  // while the same roster stays open.
-  const realName = target ? getRealName(afcData, nfcData, target.manager, target.conf) : null;
-  const bubbleText = useMemo(() => {
-    if (!target || !realName) return null;
-    const { rank, conf } = findRankAndConf(target.manager, afcStandings, nfcStandings);
-    return pickSpeechBubbleLine(realName, target.manager, {
-      trophyLines: trophyLinesByManager?.[target.manager], rank, conf,
-      weekResult: weekResultByManager?.[target.manager], streak: managerStreaks?.[target.manager],
-      revengeGame: revengeGameByManager?.[target.manager]
-    });
-  }, [target, realName, trophyLinesByManager, afcStandings, nfcStandings, weekResultByManager, managerStreaks, revengeGameByManager]);
   if (!target) return null;
+  const realName = getRealName(afcData, nfcData, target.manager, target.conf);
 
   const confData = target.conf === 'AFC' ? afcData : nfcData;
   const season = target.conf === 'AFC' ? afcSeason : nfcSeason;
@@ -59,25 +45,13 @@ export default function RosterModal({ afcData, nfcData, afcSeason, nfcSeason, pl
         aria-modal="true"
         aria-label={`${primaryName} roster`}
       >
-        <button onClick={closeRoster} aria-label="Close" className="absolute top-3 right-3 text-[var(--muted)] hover:text-[var(--text)]">
-          <X className="w-4 h-4" />
+        <button onClick={closeRoster} aria-label="Close" className="absolute top-2 right-2 p-2 rounded-lg text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface2)]">
+          <X className="w-5 h-5" />
         </button>
-        <div className="flex items-center gap-3 mb-4">
-          <div className="relative shrink-0">
-            {logoUrl && (
-              <Zoomable src={logoUrl} alt={target.manager} className="w-16 h-16 rounded-full object-cover border-2 border-[var(--border)]" />
-            )}
-            {/* A little speech bubble pointing at the logo, not just plain caption text underneath
-                -- "who's actually behind this team" reads more like an introduction that way. */}
-            {bubbleText && (
-              <div className="absolute -top-2 left-[85%] z-10 w-44 pointer-events-none">
-                <div className="relative bg-[var(--surface)] border border-[var(--border)] rounded-xl px-2.5 py-1 shadow-md">
-                  <span className="text-xs font-semibold text-[var(--text)] leading-snug">{bubbleText}</span>
-                  <div className="absolute top-1/2 -left-[5px] -translate-y-1/2 w-2.5 h-2.5 bg-[var(--surface)] border-l border-b border-[var(--border)] rotate-45" />
-                </div>
-              </div>
-            )}
-          </div>
+        <div className="flex items-center gap-3 mb-4 pr-8">
+          {logoUrl && (
+            <Zoomable src={logoUrl} alt={target.manager} className="w-16 h-16 shrink-0 rounded-full object-cover border-2 border-[var(--border)]" />
+          )}
           <div className="min-w-0">
             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${CONF_STYLES[target.conf].badge}`}>{target.conf}</span>
             <h2 className="font-display text-xl font-bold text-[var(--text)] truncate">{primaryName}</h2>

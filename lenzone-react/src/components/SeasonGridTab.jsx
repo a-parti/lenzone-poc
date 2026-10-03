@@ -9,7 +9,8 @@ import lenzoneLogoBall from '../assets/lenzone-logo-ball.png';
 import ExportControls from './ExportControls';
 import useModuleExportTheme from '../hooks/useModuleExportTheme';
 
-const TEAM_COL_WIDTH = 232; // px -- fixed so the sticky team column has a stable width
+// Fixed width so the sticky team column is stable; narrower on phones so the weeks get room.
+const TEAM_COL_CLASS = 'w-[120px] min-w-[120px] max-w-[120px] sm:w-[232px] sm:min-w-[232px] sm:max-w-[232px]';
 const EXPORT_SERIF = "'Lora', Georgia, serif";
 const EXPORT_SANS = "'DM Sans', Arial, sans-serif";
 
@@ -95,7 +96,7 @@ function gridCellData({ manager, conf, season, oppSeason, crossSchedule, week, l
 // -- just the team column, though; the current week is only called out with color/tint, not
 // frozen in place, so scrolling right doesn't leave two separate frozen columns competing for
 // attention.
-export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afcManagers, nfcManagers, seasonWeeks, currentWeek, latestCompletedWeek, logoMap = {} }) {
+export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afcManagers, nfcManagers, seasonWeeks, currentWeek, latestCompletedWeek, logoMap = {}, conference = null }) {
   // Clicking a week's own header toggles highlighting it -- click the same week again (or a
   // different one) to change/clear it, no separate dropdown control needed.
   const [highlightWeek, setHighlightWeek] = useState(null);
@@ -105,32 +106,36 @@ export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afc
   const { theme: exportTheme, setTheme: setExportTheme, scheme: exportScheme } = useModuleExportTheme();
   const toggleHighlight = (w) => setHighlightWeek(prev => (prev === w ? null : w));
   const weeks = Array.from({ length: seasonWeeks }, (_, i) => i + 1);
+  // With a conference prop the grid shows just that conference (Matchups renders one per side);
+  // without it, every manager with an AFC/NFC divider.
   const rows = [
-    ...afcManagers.map(m => ({ manager: m, conf: 'AFC' })),
-    ...nfcManagers.map(m => ({ manager: m, conf: 'NFC' }))
+    ...(conference !== 'NFC' ? afcManagers.map(m => ({ manager: m, conf: 'AFC' })) : []),
+    ...(conference !== 'AFC' ? nfcManagers.map(m => ({ manager: m, conf: 'NFC' })) : [])
   ];
+  const hasDivider = !conference;
   const { mode: nameMode, displayName } = useNameDisplay();
 
   const buildExportSvg = async (includeLogos = true) => {
     const dark = exportTheme === 'dark';
+    // Coastal palette (matches index.css tokens), fixed hex because the PNG is a static image.
     const COLORS = dark ? {
-      bg: '#080a0d', titleFrom: '#0d1014', titleMid: '#302c27', titleTo: '#11181a',
-      rowA: '#13171c', rowA2: '#0d1014', rowB: '#2c3239', rowB2: '#232930',
-      headerFrom: '#505761', headerTo: '#30363e', ruleBg: '#171b20', ruleBg2: '#352b1f',
-      text: '#fffdf7', text2: '#ffffff', muted: '#d0d6dd', border: '#89949f', texture: '#ffffff',
-      afc: '#ff7087', nfc: '#42d8cc', win: '#4ee0b2', loss: '#ff7b91', tie: '#e7ebef',
-      current: '#80601b', current2: '#513d12', currentText: '#fff0b5',
-      highlight: '#74598a', highlight2: '#49385b', highlightText: '#fff6ff',
-      winBg: '#175346', winBg2: '#10382f', lossBg: '#642c3d', lossBg2: '#42202c', accent: '#f2c568'
+      bg: '#0B1F2A', titleFrom: '#12303B', titleMid: '#0B1F2A', titleTo: '#12303B',
+      rowA: '#12303B', rowA2: '#102A34', rowB: '#1A3C49', rowB2: '#173643',
+      headerFrom: '#24495A', headerTo: '#1A3C49', ruleBg: '#12303B', ruleBg2: '#1A3C49',
+      text: '#EAF4F4', text2: '#EAF4F4', muted: '#93AEB5', border: '#34606F', texture: '#ffffff',
+      afc: '#FF8A73', nfc: '#4FD1C5', win: '#5CD69B', loss: '#FF7B72', tie: '#C2D6DA',
+      current: '#5A4A1C', current2: '#463914', currentText: '#F2C14E',
+      highlight: '#5A3A33', highlight2: '#46302A', highlightText: '#FFD9D0',
+      winBg: '#1B4A3A', winBg2: '#163E31', lossBg: '#4E2A2B', lossBg2: '#412324', accent: '#4FD1C5'
     } : {
-      bg: '#f3f0e9', titleFrom: '#f9efe5', titleMid: '#f1eee7', titleTo: '#e6f1ee',
-      rowA: '#fffdf8', rowA2: '#f7f4ed', rowB: '#eceff1', rowB2: '#e3e7e9',
-      headerFrom: '#42474e', headerTo: '#2b3036', ruleBg: '#f5eee2', ruleBg2: '#ebe3d6',
-      text: '#1b2228', text2: '#fffdf8', muted: '#53606b', border: '#929da6', texture: '#111827',
-      afc: '#e7435d', nfc: '#087f7c', win: '#087f5b', loss: '#c92f4c', tie: '#52606b',
-      current: '#f6d879', current2: '#edc65a', currentText: '#4b3508',
-      highlight: '#ded5ee', highlight2: '#cfc2e4', highlightText: '#3f2a55',
-      winBg: '#ccecdf', winBg2: '#b7e1d1', lossBg: '#f7d6dc', lossBg2: '#efc2cb', accent: '#bd6537'
+      bg: '#FAF7F2', titleFrom: '#FFFFFF', titleMid: '#FAF7F2', titleTo: '#F0ECE4',
+      rowA: '#FFFFFF', rowA2: '#FBF9F5', rowB: '#F4F0E9', rowB2: '#EFEAE2',
+      headerFrom: '#12303B', headerTo: '#1D3F4B', ruleBg: '#F4F0E9', ruleBg2: '#EAE4DA',
+      text: '#12303B', text2: '#FFFFFF', muted: '#5F7680', border: '#CFC7B9', texture: '#12303B',
+      afc: '#D9604A', nfc: '#0E8A95', win: '#23845A', loss: '#C2413B', tie: '#5F7680',
+      current: '#F6E3B4', current2: '#F0D58F', currentText: '#5A3D05',
+      highlight: '#F8D9D1', highlight2: '#F2C8BC', highlightText: '#6B2A1C',
+      winBg: '#D6EDE0', winBg2: '#C5E5D3', lossBg: '#F6D8D5', lossBg2: '#EFC6C2', accent: '#0E8A95'
     };
     const esc = (value) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const LABEL_W = 430;
@@ -141,8 +146,9 @@ export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afc
     const CONF_DIVIDER_H = 24;
     const FOOTER_H = 178;
     const exportW = LABEL_W + weeks.length * WEEK_W + 2;
-    const exportH = TITLE_H + HEADER_H + rows.length * ROW_H + CONF_DIVIDER_H + FOOTER_H + 2;
-    const rowY = (rowIndex) => TITLE_H + HEADER_H + rowIndex * ROW_H + (rowIndex >= afcManagers.length ? CONF_DIVIDER_H : 0);
+    const dividerH = hasDivider ? CONF_DIVIDER_H : 0;
+    const exportH = TITLE_H + HEADER_H + rows.length * ROW_H + dividerH + FOOTER_H + 2;
+    const rowY = (rowIndex) => TITLE_H + HEADER_H + rowIndex * ROW_H + (hasDivider && rowIndex >= afcManagers.length ? CONF_DIVIDER_H : 0);
     const measureCtx = document.createElement('canvas').getContext('2d');
     const truncate = (value, maxWidth, font = `700 20px ${EXPORT_SANS}`) => {
       const full = String(value || '--');
@@ -159,7 +165,7 @@ export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afc
       logoData = Object.fromEntries(logoEntries.filter(([, dataUrl]) => dataUrl));
     }
     const [brandRing, brandBall] = await Promise.all([imageDataUrl(lenzoneLogoRing), imageDataUrl(lenzoneLogoBall)]);
-    const title = 'LENZONE 2026 Schedule';
+    const title = conference ? `LENZONE 2026 ${conference} Schedule` : 'LENZONE 2026 Schedule';
     measureCtx.font = `700 50px ${EXPORT_SERIF}`;
     const titleWidth = measureCtx.measureText(title).width;
     const logoSize = brandRing && brandBall ? 66 : 0;
@@ -257,12 +263,14 @@ export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afc
       const rowBottom = rowY(rowIndex) + ROW_H;
       parts.push(`<line x1="0" x2="${exportW}" y1="${rowBottom}" y2="${rowBottom}" stroke="${COLORS.border}" stroke-width="4"/>`);
     });
-    parts.push(`<rect x="0" y="${conferenceDividerY}" width="${exportW}" height="${CONF_DIVIDER_H}" fill="url(#schedule-accent)"/>`);
-    parts.push(`<rect x="0" y="${conferenceDividerY}" width="${exportW}" height="${CONF_DIVIDER_H}" fill="url(#material-texture)"/>`);
-    parts.push(`<line x1="0" x2="${exportW}" y1="${conferenceDividerY}" y2="${conferenceDividerY}" stroke="${COLORS.text}" stroke-opacity="0.55" stroke-width="3"/>`);
-    parts.push(`<line x1="0" x2="${exportW}" y1="${conferenceDividerY + CONF_DIVIDER_H}" y2="${conferenceDividerY + CONF_DIVIDER_H}" stroke="${COLORS.text}" stroke-opacity="0.55" stroke-width="3"/>`);
+    if (hasDivider) {
+      parts.push(`<rect x="0" y="${conferenceDividerY}" width="${exportW}" height="${CONF_DIVIDER_H}" fill="url(#schedule-accent)"/>`);
+      parts.push(`<rect x="0" y="${conferenceDividerY}" width="${exportW}" height="${CONF_DIVIDER_H}" fill="url(#material-texture)"/>`);
+      parts.push(`<line x1="0" x2="${exportW}" y1="${conferenceDividerY}" y2="${conferenceDividerY}" stroke="${COLORS.text}" stroke-opacity="0.55" stroke-width="3"/>`);
+      parts.push(`<line x1="0" x2="${exportW}" y1="${conferenceDividerY + CONF_DIVIDER_H}" y2="${conferenceDividerY + CONF_DIVIDER_H}" stroke="${COLORS.text}" stroke-opacity="0.55" stroke-width="3"/>`);
+    }
 
-    const gridBottom = TITLE_H + HEADER_H + rows.length * ROW_H + CONF_DIVIDER_H;
+    const gridBottom = TITLE_H + HEADER_H + rows.length * ROW_H + dividerH;
     const notesY = gridBottom + 14;
     parts.push(`<rect x="22" y="${notesY}" width="${exportW - 44}" height="102" rx="16" fill="url(#notes-bg)" stroke="${COLORS.accent}" stroke-width="1.5"/>`);
     parts.push(`<rect x="22" y="${notesY}" width="${exportW - 44}" height="102" rx="16" fill="url(#material-texture)"/>`);
@@ -317,7 +325,7 @@ export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afc
     try {
       const canvas = await renderExportCanvas();
       const link = document.createElement('a');
-      link.download = `lenzone-2026-schedule-${nameMode === 'managers' ? 'managers' : 'teams'}-${exportTheme}.png`;
+      link.download = `lenzone-2026-${conference ? `${conference.toLowerCase()}-` : ''}schedule-${nameMode === 'managers' ? 'managers' : 'teams'}-${exportTheme}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
     } catch (error) {
@@ -350,7 +358,12 @@ export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afc
   return (
     <div data-mode={exportTheme} data-scheme={exportScheme} className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-[var(--muted)]">Click a week's header to highlight it{highlightWeek != null ? ` -- Week ${highlightWeek} highlighted` : ""}.</p>
+        <div className="flex items-baseline gap-3 flex-wrap">
+          {conference && (
+            <h3 className={`font-display text-lg font-bold ${CONF_STYLES[conference].text}`}>{conference} Schedule</h3>
+          )}
+          <p className="text-xs text-[var(--muted)]">Tap a cell for that matchup. Tap a week to highlight it.</p>
+        </div>
         <ExportControls
           theme={exportTheme}
           onThemeChange={setExportTheme}
@@ -367,8 +380,7 @@ export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afc
           <thead>
             <tr>
               <th
-                style={{ width: TEAM_COL_WIDTH, maxWidth: TEAM_COL_WIDTH }}
-                className="schedule-grid-header sticky top-0 left-0 z-30 bg-[var(--surface)] border-b border-r border-[var(--border)]/80 px-3 py-2 text-left tracking-wider uppercase font-semibold text-[var(--muted)] overflow-hidden"
+                className={`schedule-grid-header ${TEAM_COL_CLASS} sticky top-0 left-0 z-30 bg-[var(--surface)] border-b border-r border-[var(--border)]/80 px-2 sm:px-3 py-2 text-left tracking-wider uppercase font-semibold text-[var(--muted)] overflow-hidden`}
               >
                 {nameMode === 'managers' ? 'Manager' : 'Team'}
               </th>
@@ -380,7 +392,7 @@ export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afc
                     key={w}
                     onClick={() => toggleHighlight(w)}
                     className={`schedule-grid-header sticky top-0 bg-[var(--surface)] border-b border-[var(--border)]/80 px-2 py-2 font-semibold whitespace-nowrap cursor-pointer hover:text-[var(--text)] select-none ${
-                      isCurrent ? "text-[var(--accent)]" : isHighlighted ? "text-violet-400" : "text-[var(--muted)]"
+                      isCurrent ? "text-[var(--accent)]" : isHighlighted ? "text-[var(--coral)]" : "text-[var(--muted)]"
                     }`}
                     title={`Click to ${isHighlighted ? "clear" : "highlight"} Week ${w}`}
                   >
@@ -401,7 +413,8 @@ export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afc
                   crossSchedule={crossSchedule} currentWeek={currentWeek} highlightWeek={highlightWeek}
                   latestCompletedWeek={latestCompletedWeek}
                   displayName={displayName}
-                  isConferenceStart={rowIndex === afcManagers.length}
+                  isConferenceStart={hasDivider && rowIndex === afcManagers.length}
+                  showConfBadge={hasDivider}
                 />
               );
             })}
@@ -434,7 +447,7 @@ function resultFor(myScore, oppScore) {
 const RESULT_TEXT = { W: 'text-[var(--pos)]', L: 'text-[var(--neg)]', T: 'text-[var(--muted)]' };
 const RESULT_BG = { W: 'bg-[var(--pos)]/10', L: 'bg-[var(--neg)]/10', T: '' };
 
-function GridRow({ manager, conf, season, oppSeason, weeks, crossSchedule, currentWeek, highlightWeek, latestCompletedWeek, displayName, isConferenceStart }) {
+function GridRow({ manager, conf, season, oppSeason, weeks, crossSchedule, currentWeek, highlightWeek, latestCompletedWeek, displayName, isConferenceStart, showConfBadge }) {
   const isMe = useIsMyTeam(manager);
   const { openPreview } = useMatchupPreview();
   return (
@@ -443,11 +456,11 @@ function GridRow({ manager, conf, season, oppSeason, weeks, crossSchedule, curre
           is only a hint in the browser's auto table-layout; a long team name would otherwise grow
           this column past TEAM_COL_WIDTH. */}
       <td
-        style={{ width: TEAM_COL_WIDTH, maxWidth: TEAM_COL_WIDTH, ...opaqueTint(isMe ? 15 : 0) }}
-        className="schedule-grid-cell schedule-grid-manager-cell sticky left-0 z-10 border-r border-b border-[var(--border)]/60 px-3 py-1.5 overflow-hidden"
+        style={opaqueTint(isMe ? 15 : 0)}
+        className={`schedule-grid-cell schedule-grid-manager-cell ${TEAM_COL_CLASS} sticky left-0 z-10 border-r border-b border-[var(--border)]/60 px-2 sm:px-3 py-1.5 overflow-hidden`}
       >
         <div className="flex items-center gap-1 min-w-0">
-          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${CONF_STYLES[conf].badge}`}>{conf}</span>
+          {showConfBadge && <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${CONF_STYLES[conf].badge}`}>{conf}</span>}
           <TeamName manager={manager} conf={conf} className="font-semibold min-w-0" />
         </div>
       </td>
@@ -464,7 +477,7 @@ function GridRow({ manager, conf, season, oppSeason, weeks, crossSchedule, curre
         // translucent tint, since nothing scrolls underneath a non-sticky cell).
         const resultBg = !isHighlighted && intraResult ? RESULT_BG[intraResult] : "";
         const currentBg = isCurrent && !isHighlighted && !resultBg ? "bg-[var(--accent)]/10" : "";
-        const bgClass = `${isHighlighted ? "bg-violet-400/15" : ""} ${currentBg} ${resultBg}`;
+        const bgClass = `${isHighlighted ? "bg-[var(--coral)]/15" : ""} ${currentBg} ${resultBg}`;
         return (
           <td
             key={w}

@@ -62,6 +62,18 @@ function TypeFilterToggle({ value, onChange }) {
   );
 }
 
+// "2h ago" for recent moves, "Tue, Oct 1" after a week.
+function relativeTime(ms) {
+  const mins = Math.floor((Date.now() - ms) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(ms).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
 export default function ActivityTab({ afcTransactions, nfcTransactions, afcRosterIdMap, nfcRosterIdMap, playersDB, loading, focusConf }) {
   const [conf, setConf] = useState(focusConf || 'ALL');
   const [typeFilter, setTypeFilter] = useState('ALL');
@@ -98,7 +110,7 @@ export default function ActivityTab({ afcTransactions, nfcTransactions, afcRoste
               </span>
               {t.created && (
                 <span className="text-xs text-[var(--muted)] ml-auto">
-                  {new Date(t.created).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} &middot; {new Date(t.created).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                  {relativeTime(t.created)}
                 </span>
               )}
             </div>
@@ -108,11 +120,9 @@ export default function ActivityTab({ afcTransactions, nfcTransactions, afcRoste
                 <div key={team.manager} className="bg-[var(--bg)]/60 border border-[var(--border)]/60 rounded-lg p-3">
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <TeamName manager={team.manager} conf={t.conf} className="font-bold text-sm" />
-                    {team.faab != null && (
-                      <span className={`text-[10px] font-bold font-mono px-1.5 py-0.5 rounded shrink-0 ${
-                        team.faab > 0 ? "bg-amber-400/15 text-amber-400" : "bg-[var(--surface2)] text-[var(--muted)]"
-                      }`}>
-                        {team.faab > 0 ? `$${team.faab} FAAB` : "$0"}
+                    {team.faab > 0 && (
+                      <span className="text-[11px] font-bold font-mono px-1.5 py-0.5 rounded shrink-0 bg-[var(--live)]/15 text-[var(--live)]">
+                        ${team.faab} FAAB
                       </span>
                     )}
                   </div>
@@ -122,8 +132,8 @@ export default function ActivityTab({ afcTransactions, nfcTransactions, afcRoste
                       return (
                         <div key={`add-${playerId}`} className="flex items-center gap-2 text-sm">
                           <PlayerAvatar playerId={playerId} position={position} className="w-12 h-12" />
-                          <span className="text-emerald-400 font-semibold shrink-0">+</span>
-                          <PlayerNameButton playerId={playerId} name={name} position={position} className="text-emerald-400 font-bold truncate min-w-0" />
+                          <span className="text-[var(--pos)] font-semibold shrink-0">+</span>
+                          <PlayerNameButton playerId={playerId} name={name} position={position} className="text-[var(--pos)] font-bold truncate min-w-0" />
                           <div className="flex items-center gap-1.5 shrink-0">
                             <PositionBadge position={position} />
                             <NflTeamTag team={nflTeam} number={number} />
@@ -137,8 +147,8 @@ export default function ActivityTab({ afcTransactions, nfcTransactions, afcRoste
                       return (
                         <div key={`drop-${playerId}`} className="flex items-center gap-2 text-sm">
                           <PlayerAvatar playerId={playerId} position={position} className="w-12 h-12" />
-                          <span className="text-rose-400 font-semibold shrink-0">-</span>
-                          <PlayerNameButton playerId={playerId} name={name} position={position} className="text-rose-400 font-bold truncate min-w-0" />
+                          <span className="text-[var(--neg)] font-semibold shrink-0">-</span>
+                          <PlayerNameButton playerId={playerId} name={name} position={position} className="text-[var(--neg)] font-bold truncate min-w-0" />
                           <div className="flex items-center gap-1.5 shrink-0">
                             <PositionBadge position={position} />
                             <NflTeamTag team={nflTeam} number={number} />

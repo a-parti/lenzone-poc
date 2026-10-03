@@ -24,10 +24,15 @@ function sourceLabel(source, date) {
 // ESPN itself tagged as being about that specific player. Nothing here is guessed -- if a
 // roster's players don't show up in either real feed right now, this renders nothing rather than
 // a placeholder, same as the other "bonus" cards in this app.
+// Capped at a handful of items so it reads as a quick glance, not a feed.
+const MAX_ITEMS = 5;
+
 export default function YourPlayerNews({ manager, notes, headlines, onRefresh }) {
   const [refreshing, setRefreshing] = useState(false);
   if (!manager) return null;
   if ((!notes || notes.length === 0) && (!headlines || headlines.length === 0)) return null;
+  const shownNotes = (notes || []).slice(0, MAX_ITEMS);
+  const shownHeadlines = (headlines || []).slice(0, Math.max(0, MAX_ITEMS - shownNotes.length));
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -39,21 +44,19 @@ export default function YourPlayerNews({ manager, notes, headlines, onRefresh })
     <div className="bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl px-4 py-3">
       <div className="flex items-center gap-2 mb-2">
         <UserRoundSearch className="w-4 h-4 text-[var(--accent)] shrink-0" />
-        {/* Wraps to two short lines instead of one wide one -- frees up horizontal room in this
-            row (icon + label + refresh button) rather than pushing everything else out. */}
-        <span className="tracking-wider text-[9px] leading-tight uppercase font-semibold text-[var(--muted)] max-w-[64px]">(Your News)</span>
+        <span className="tracking-wider text-xs uppercase font-semibold text-[var(--muted)]">Your player news</span>
         <button
           type="button"
           onClick={handleRefresh}
           title="Refresh player news"
           aria-label="Refresh your player news"
-          className="ml-auto shrink-0 p-1 rounded-full text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface2)] transition-colors duration-200"
+          className="ml-auto shrink-0 p-2 rounded-full text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface2)] transition-colors duration-200"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
+          <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
         </button>
       </div>
-      <div className="space-y-1.5 max-h-[28rem] overflow-y-auto scroll-thin pr-1">
-        {(notes || []).slice(0, 20).map((n, i) => {
+      <div className="space-y-2">
+        {shownNotes.map((n, i) => {
           const label = sourceLabel(n.source, n.date);
           const tag = n.nflTeam && n.position ? `${n.nflTeam}${n.number ? ` #${n.number}` : ''} ${n.position}` : null;
           const content = (
@@ -78,7 +81,7 @@ export default function YourPlayerNews({ manager, notes, headlines, onRefresh })
             <p key={`note-${i}`} className="text-xs text-[var(--text2)] leading-snug">{content}</p>
           );
         })}
-        {(headlines || []).slice(0, 10).map((h, i) => (
+        {shownHeadlines.map((h, i) => (
           <a
             key={`headline-${i}`}
             href={h.link}

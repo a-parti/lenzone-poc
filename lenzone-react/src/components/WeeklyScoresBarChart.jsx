@@ -361,7 +361,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
   const medianLegendItems = [
     ...(reportCard ? [
       { color: "var(--text)", label: "Pregame projection", tick: true },
-      { color: "var(--muted)", label: "Faded cap = max possible (best lineup)", dashed: true }
+      { color: "var(--muted)", label: "Max possible", dashed: true }
     ] : []),
     { color: "var(--muted)", label: "League median", dashed: true }
   ];
@@ -773,13 +773,6 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
           </button>
         </div>
       </div>
-      <p className="text-xs text-[var(--muted)] -mt-1 mb-3">
-        Tap a team to open its matchup.
-        {hasActualBars && <>&nbsp;&nbsp;&bull;&nbsp;&nbsp;<span className="font-bold text-[var(--text2)]">Actual</span> = posted score</>}
-        {hasProjectedBars && <>&nbsp;&nbsp;&bull;&nbsp;&nbsp;<span className="font-bold text-[var(--proj)]">Live Proj</span> = Sleeper projected finish</>}
-        {hasPregameBars && <>&nbsp;&nbsp;&bull;&nbsp;&nbsp;<span className="font-bold text-[var(--muted)]">Pre</span> = Sleeper projection before kickoff</>}
-        {hasMaxBars && <>&nbsp;&nbsp;&bull;&nbsp;&nbsp;<span className="font-bold text-[var(--text2)]">Max</span> = best lineup that roster could have started</>}
-      </p>
       <div className="overflow-x-auto scroll-thin">
         <svg
           ref={svgRef} viewBox={`0 0 ${width} ${HEIGHT}`} role="img" aria-label={`Week ${week} scores by team`}

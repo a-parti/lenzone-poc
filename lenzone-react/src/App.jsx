@@ -236,7 +236,7 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek }) {
           <span className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)]">Conference Standings</span>
         </div>
         <span className="text-xs font-semibold text-[var(--muted)]">
-          {latestCompletedWeek >= 14 ? 'Final regular season' : `Through Week ${latestCompletedWeek}`} · Playoff odds update after each completed week
+          {latestCompletedWeek >= 14 ? 'Final regular season' : `Through Week ${latestCompletedWeek}`}
         </span>
       </div>
 

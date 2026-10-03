@@ -428,7 +428,7 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
         </div>
       </div>
       <p className="text-xs text-[var(--muted)] -mt-1 mb-3">
-        Bar height = {PTS_LABEL} (2 per in-conference win, 1 per cross-conference win). Bar width = points scored per game (PF). Tap a team for its roster.
+        Height = {PTS_LABEL} · Width = points per game
       </p>
       <div className="overflow-x-auto scroll-thin">
         <svg
@@ -578,7 +578,7 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
         {playoffCutoffs.length > 0 && <span className="flex items-center gap-1.5"><span className="w-4 border-t-2 border-dashed border-[var(--muted)]" /> Top 5 make the playoffs</span>}
         {wildcardManagers.size > 0 && (
           <span className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-sm border-2 border-dashed" style={{ borderColor: WILDCARD_COLOR }} /> Wild card: 6th seed goes to the best PF outside the top 5
+            <span className="w-3 h-3 rounded-sm border-2 border-dashed" style={{ borderColor: WILDCARD_COLOR }} /> Wild card (best PF outside top 5)
           </span>
         )}
       </div>

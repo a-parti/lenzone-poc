@@ -387,7 +387,6 @@ export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afc
           {conference && (
             <h3 className={`font-display text-lg font-bold ${CONF_STYLES[conference].text}`}>{conference} Schedule</h3>
           )}
-          <p className="text-xs text-[var(--muted)]">Tap a cell for that matchup. Tap a week to highlight it.</p>
         </div>
         <ExportControls
           theme={exportTheme}

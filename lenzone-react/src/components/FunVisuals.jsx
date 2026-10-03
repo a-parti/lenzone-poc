@@ -111,7 +111,7 @@ export function LuckOfTheWeek({ week, rows, logoMap }) {
     <FunCard
       chartId={`luck-week-${week}`}
       title={`Luck of the Week -- Week ${week}`}
-      subtitle="Your score vs. what your opponents scored (average of both games). Ring color matches the weekly scores chart."
+      subtitle="Your score vs. your opponents' average"
     >
       <svg viewBox={`0 0 ${SW} ${SH}`} className="w-full h-auto" role="img" aria-label={`Week ${week} luck chart`}>
         {/* quadrant glows, each fading in from its corner */}
@@ -223,7 +223,7 @@ export function BoomOrBust({ week, rows, pregameScores }) {
     <FunCard
       chartId={`boom-bust-week-${week}`}
       title={`Boom or Bust -- Week ${week}`}
-      subtitle="Hollow dot = pregame projection, solid dot = actual score. Teal = beat the projection, coral = missed it. Sorted from biggest boom to biggest bust."
+      subtitle="○ projected · ● actual"
     >
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8">
         <div>{items.slice(0, half).map((i, k) => <Row key={i.manager} i={i} rank={k + 1} />)}</div>
@@ -273,7 +273,7 @@ export function LuckMeter({ luck }) {
     <FunCard
       chartId="luck-meter"
       title="Luck Meter"
-      subtitle="Actual wins minus all-play wins (your record if you played everyone every week). Right = lucky, left = robbed."
+      subtitle="Actual wins vs. wins if you played everyone each week"
     >
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-4">
         <Panel conf="AFC" />
@@ -347,7 +347,6 @@ export function SeasonHeatMap({ heat, weeks }) {
     <FunCard
       chartId="season-heat-map"
       title="Season Heat Map"
-      subtitle="Every team, every week. Hot = one of the league's top scores that week, cold = one of the bottom. Sorted by average heat."
     >
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-x-8 gap-y-6">
         <Panel conf="AFC" />

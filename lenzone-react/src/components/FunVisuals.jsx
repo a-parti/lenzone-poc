@@ -196,7 +196,8 @@ export function BoomOrBust({ week, rows, pregameScores }) {
   const half = Math.ceil(items.length / 2);
   const Row = ({ i, rank }) => {
     const boom = i.delta >= 0;
-    const color = resultColor(i);
+    // Boom/bust only (not win/loss): sea teal for beating the projection, sunset coral for missing it.
+    const color = boom ? 'var(--accent)' : 'var(--coral)';
     const left = Math.min(i.pre, i.score), right = Math.max(i.pre, i.score);
     return (
       <button type="button" onClick={() => openPreview(i.manager, i.conf, week)}
@@ -214,7 +215,7 @@ export function BoomOrBust({ week, rows, pregameScores }) {
           <span className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full border-2 border-[var(--text2)] bg-[var(--surface)]" style={{ left: pos(i.pre) }} />
           <span className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full" style={{ left: pos(i.score), backgroundColor: color, boxShadow: `0 0 8px ${color}` }} />
         </span>
-        <span className="text-xs font-black text-right text-[var(--text)]">{signed(i.delta)}</span>
+        <span className={`text-xs font-black text-right ${boom ? 'text-[var(--accent)]' : 'text-[var(--coral)]'}`}>{signed(i.delta)}</span>
       </button>
     );
   };
@@ -222,13 +223,12 @@ export function BoomOrBust({ week, rows, pregameScores }) {
     <FunCard
       chartId={`boom-bust-week-${week}`}
       title={`Boom or Bust -- Week ${week}`}
-      subtitle="Hollow dot = pregame projection, solid dot = actual score (colored by matchup result). Sorted from biggest boom to biggest bust."
+      subtitle="Hollow dot = pregame projection, solid dot = actual score. Teal = beat the projection, coral = missed it. Sorted from biggest boom to biggest bust."
     >
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8">
         <div>{items.slice(0, half).map((i, k) => <Row key={i.manager} i={i} rank={k + 1} />)}</div>
         <div>{items.slice(half).map((i, k) => <Row key={i.manager} i={i} rank={half + k + 1} />)}</div>
       </div>
-      <ResultLegend />
     </FunCard>
   );
 }

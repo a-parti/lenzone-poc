@@ -31,6 +31,7 @@ import CommandPalette from './components/CommandPalette';
 import GrabbableFootball from './components/GrabbableFootball';
 import DancingStickmen from './components/DancingStickmen';
 import SettingsMenu, { ModeToggle } from './components/SettingsMenu';
+import TeamMiniLogo from './components/TeamMiniLogo';
 import { RosterModalProvider } from './context/RosterModalContext';
 import { MatchupPreviewProvider } from './context/MatchupPreviewContext';
 import MatchupPreviewModal from './components/MatchupPreviewModal';
@@ -1467,6 +1468,7 @@ export default function App() {
             {/* Header is just: logo, "I am" picker, search, settings. Everything else lives in the
                 settings menu so this stays one row on a phone. */}
             <div className="flex items-center gap-2 ml-auto min-w-0">
+              {resolvedMyTeamManager && <TeamMiniLogo manager={resolvedMyTeamManager} size={36} ringColor="var(--accent)" className="hidden sm:inline-block" />}
               <div className="hidden sm:block min-w-0">
                 <TeamPicker afcManagers={afcManagers} nfcManagers={nfcManagers} value={myTeamManager} onChange={chooseMyTeam} />
               </div>
@@ -1689,7 +1691,7 @@ export default function App() {
                 afcManagers={afcManagers} nfcManagers={nfcManagers}
                 seasonWeeks={SEASON_WEEKS} currentWeek={nflState.week}
                 latestCompletedWeek={latestCompletedWeek}
-                logoMap={teamLogoMap} weekDateLabels={weekDateLabels}
+                logoMap={teamLogoMap} weekDateLabels={weekDateLabels} focusWeek={selectedWeek}
               />
             ))}
           </div>

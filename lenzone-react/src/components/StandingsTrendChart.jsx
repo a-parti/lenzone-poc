@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useNameDisplay } from '../context/NameDisplayContext';
 import ExportControls from './ExportControls';
+import TeamMiniLogo from './TeamMiniLogo';
 import useElementPngExport from '../hooks/useElementPngExport';
 
 const WIDTH = 600;
@@ -126,7 +127,7 @@ function ChartPanel({ conf, title, series, weeks, yMin, yMax, formatY }) {
                 style={{ opacity: hover && hover.manager !== s.manager ? 0.35 : 1 }}
               >
                 <span className="w-4 text-right font-bold text-[var(--muted)] shrink-0">{i + 1}</span>
-                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                <TeamMiniLogo manager={s.manager} size={18} ringColor={s.color} />
                 <span className="truncate flex-1 font-semibold text-[var(--text2)]">{graphName(s)}</span>
                 <span className="font-bold text-[var(--text)] shrink-0">{s.points.length ? fmt(s.points.at(-1).value) : '—'}</span>
               </button>

@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Siren, X } from 'lucide-react';
 import { playerLabel } from '../lib/players';
+import TeamMiniLogo from './TeamMiniLogo';
 import lenzoneLogoRing from '../assets/lenzone-logo-ring.png';
 import lenzoneLogoBall from '../assets/lenzone-logo-ball.png';
 
@@ -69,6 +70,7 @@ function buildLeagueActivityItems(afcTransactions, nfcTransactions, afcRosterIdM
       return {
         id: `${conf}-${transaction.transaction_id}`,
         type: transaction.type,
+        managers: teams.map(team => team.manager),
         text: `${conf} · ${detail}`,
         created: transaction.created || 0,
         timestamp: transaction.created || null
@@ -100,6 +102,11 @@ function CrawlLine({ items, onItemClick }) {
           <span className="trade-alert-label">
             <Siren className="w-3.5 h-3.5" />
             Trade Alert
+          </span>
+        )}
+        {item.managers?.length > 0 && (
+          <span className="inline-flex items-center -space-x-1 mr-1.5 align-middle">
+            {item.managers.slice(0, 3).map(m => <TeamMiniLogo key={m} manager={m} size={18} ringColor="var(--surface)" />)}
           </span>
         )}
         <span>{item.text}</span>

@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { CONF_STYLES } from '../lib/theme';
 import { useIsMyTeam } from '../context/MyTeamContext';
 import { useMatchupPreview } from '../context/MatchupPreviewContext';
 import { useNameDisplay } from '../context/NameDisplayContext';
 import TeamName from './TeamName';
+import TeamMiniLogo from './TeamMiniLogo';
 import lenzoneLogoRing from '../assets/lenzone-logo-ring.png';
 import lenzoneLogoBall from '../assets/lenzone-logo-ball.png';
 import ExportControls from './ExportControls';
@@ -97,10 +98,26 @@ function gridCellData({ manager, conf, season, oppSeason, crossSchedule, week, l
 // -- just the team column, though; the current week is only called out with color/tint, not
 // frozen in place, so scrolling right doesn't leave two separate frozen columns competing for
 // attention.
-export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afcManagers, nfcManagers, seasonWeeks, currentWeek, latestCompletedWeek, logoMap = {}, conference = null, weekDateLabels = {} }) {
+export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afcManagers, nfcManagers, seasonWeeks, currentWeek, latestCompletedWeek, logoMap = {}, conference = null, weekDateLabels = {}, focusWeek = null }) {
   // Clicking a week's own header toggles highlighting it -- click the same week again (or a
   // different one) to change/clear it, no separate dropdown control needed.
   const [highlightWeek, setHighlightWeek] = useState(null);
+  const scrollRef = useRef(null);
+  // Center the grid on the week picked at the top of the page (the current week by default), and
+  // highlight it when it isn't the current week (which already has its own styling).
+  const targetWeek = focusWeek ?? currentWeek;
+  useEffect(() => {
+    setHighlightWeek(focusWeek != null && focusWeek !== currentWeek ? focusWeek : null);
+  }, [focusWeek, currentWeek]);
+  useEffect(() => {
+    const container = scrollRef.current;
+    const th = container?.querySelector(`[data-week="${targetWeek}"]`);
+    const teamCol = container?.querySelector('th');
+    if (!container || !th) return;
+    const visibleWidth = container.clientWidth - (teamCol?.offsetWidth || 0);
+    const left = th.offsetLeft - (teamCol?.offsetWidth || 0) - (visibleWidth - th.offsetWidth) / 2;
+    container.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
+  }, [targetWeek, seasonWeeks]);
   const [exporting, setExporting] = useState(false);
   const [copyState, setCopyState] = useState('idle');
   const [downloadState, setDownloadState] = useState('idle');
@@ -380,7 +397,7 @@ export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afc
         />
       </div>
 
-      <div className="schedule-grid-shell material-surface bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl overflow-auto scroll-thin max-h-[75vh] flex items-start">
+      <div ref={scrollRef} className="schedule-grid-shell material-surface bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl overflow-auto scroll-thin max-h-[75vh] flex items-start">
         <table className="schedule-grid-table border-collapse text-xs">
           <thead>
             <tr>
@@ -395,6 +412,7 @@ export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afc
                 return (
                   <th
                     key={w}
+                    data-week={w}
                     onClick={() => toggleHighlight(w)}
                     className={`schedule-grid-header sticky top-0 border-b px-2 py-2 font-bold whitespace-nowrap cursor-pointer select-none ${
                       isCurrent
@@ -499,10 +517,12 @@ function GridRow({ manager, conf, season, oppSeason, weeks, crossSchedule, curre
           >
             <div className="truncate max-w-[7rem] font-semibold flex items-center justify-center gap-1">
               {intraResult && <span className={`text-xs font-black ${RESULT_TEXT[intraResult]}`}>{intraResult}</span>}
+              <TeamMiniLogo manager={intraOpponent} size={16} />
               <span className="truncate">{displayName(intraOpponent, conf)}</span>
             </div>
             <div className="truncate max-w-[7rem] text-[var(--muted)] flex items-center justify-center gap-1">
               {interResult && <span className={`text-xs font-black ${RESULT_TEXT[interResult]}`}>{interResult}</span>}
+              <TeamMiniLogo manager={interOpponent} size={14} className="opacity-80" />
               <span className="truncate">{displayName(interOpponent, interConf)}</span>
             </div>
           </td>

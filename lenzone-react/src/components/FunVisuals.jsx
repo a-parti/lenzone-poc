@@ -324,6 +324,7 @@ export function SeasonHeatMap({ heat, weeks }) {
   const { displayName } = useNameDisplay();
   const { openRoster } = useRosterModal();
   const myTeam = useMyTeam();
+  const { openPreview } = useMatchupPreview();
   // Hover highlights a row (and its week column) so one team can be followed across the season.
   const [hover, setHover] = useState(null); // { manager, week? }
   const teams = useMemo(() => Object.values(heat)
@@ -378,9 +379,12 @@ export function SeasonHeatMap({ heat, weeks }) {
                   return (
                     <td key={w} className="px-[1.5px] py-[3px] border-b border-[var(--border)]/70" onMouseEnter={() => setHover({ manager: t.manager, week: w })}>
                       <div
-                        className={`h-8 min-w-[2.6rem] rounded-md grid place-items-center text-[11px] font-bold text-white transition-transform duration-150 ${isHover ? 'scale-[1.06]' : ''} ${isCell ? 'ring-2 ring-[var(--text)]' : ''}`}
+                        role={cell ? 'button' : undefined} tabIndex={cell ? 0 : undefined}
+                        onClick={cell ? () => openPreview(t.manager, t.conf, w) : undefined}
+                        onKeyDown={cell ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPreview(t.manager, t.conf, w); } } : undefined}
+                        className={`h-8 min-w-[2.6rem] rounded-md grid place-items-center text-[11px] font-bold text-white transition-transform duration-150 ${cell ? 'cursor-pointer' : ''} ${isHover ? 'scale-[1.06]' : ''} ${isCell ? 'ring-2 ring-[var(--text)]' : ''}`}
                         style={cell ? { backgroundColor: heatColor(cell.pct), backgroundImage: 'linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0) 55%)', boxShadow: cell.pct >= 0.85 ? `0 0 10px ${heatColor(cell.pct)}` : 'none', textShadow: '0 1px 2px rgba(0,0,0,0.45)' } : { backgroundColor: 'var(--surface2)' }}
-                        title={cell ? `${displayName(t.manager, t.conf)} -- Week ${w}: ${cell.score.toFixed(1)}` : 'No score'}
+                        title={cell ? `${displayName(t.manager, t.conf)} -- Week ${w}: ${cell.score.toFixed(1)} (click for matchups)` : 'No score'}
                       >
                         {cell ? Math.round(cell.score) : '–'}
                       </div>

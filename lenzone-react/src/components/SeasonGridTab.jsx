@@ -123,10 +123,10 @@ export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afc
       rowA: '#12303B', rowA2: '#102A34', rowB: '#1A3C49', rowB2: '#173643',
       headerFrom: '#24495A', headerTo: '#1A3C49', ruleBg: '#12303B', ruleBg2: '#1A3C49',
       text: '#EAF4F4', text2: '#EAF4F4', muted: '#93AEB5', border: '#34606F', texture: '#ffffff',
-      afc: '#FF8A73', nfc: '#4FD1C5', win: '#5CD69B', loss: '#FF7B72', tie: '#C2D6DA',
+      afc: '#FF5FA2', nfc: '#3EF0E0', win: '#5CD69B', loss: '#FF7B72', tie: '#C2D6DA',
       current: '#5A4A1C', current2: '#463914', currentText: '#F2C14E',
       highlight: '#5A3A33', highlight2: '#46302A', highlightText: '#FFD9D0',
-      winBg: '#1B4A3A', winBg2: '#163E31', lossBg: '#4E2A2B', lossBg2: '#412324', accent: '#4FD1C5'
+      winBg: '#1B4A3A', winBg2: '#163E31', lossBg: '#4E2A2B', lossBg2: '#412324', accent: '#3EF0E0'
     } : {
       bg: '#FAF7F2', titleFrom: '#FFFFFF', titleMid: '#FAF7F2', titleTo: '#F0ECE4',
       rowA: '#FFFFFF', rowA2: '#FBF9F5', rowB: '#F4F0E9', rowB2: '#EFEAE2',
@@ -391,12 +391,16 @@ export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afc
                   <th
                     key={w}
                     onClick={() => toggleHighlight(w)}
-                    className={`schedule-grid-header sticky top-0 bg-[var(--surface)] border-b border-[var(--border)]/80 px-2 py-2 font-semibold whitespace-nowrap cursor-pointer hover:text-[var(--text)] select-none ${
-                      isCurrent ? "text-[var(--accent)]" : isHighlighted ? "text-[var(--coral)]" : "text-[var(--muted)]"
+                    className={`schedule-grid-header sticky top-0 border-b px-2 py-2 font-bold whitespace-nowrap cursor-pointer select-none ${
+                      isCurrent
+                        ? "bg-[var(--accent)] text-[var(--accent-text)] border-[var(--accent)]"
+                        : isHighlighted
+                          ? "bg-[var(--surface)] text-[var(--coral)] border-[var(--border)]/80"
+                          : "bg-[var(--surface)] text-[var(--muted)] border-[var(--border)]/80 hover:text-[var(--text)]"
                     }`}
                     title={`Click to ${isHighlighted ? "clear" : "highlight"} Week ${w}`}
                   >
-                    Wk {w}{isCurrent ? " •" : ""}{isHighlighted ? " ●" : ""}
+                    Wk {w}{isCurrent ? " · This week" : ""}{isHighlighted ? " ●" : ""}
                   </th>
                 );
               })}
@@ -451,15 +455,16 @@ function GridRow({ manager, conf, season, oppSeason, weeks, crossSchedule, curre
   const isMe = useIsMyTeam(manager);
   const { openPreview } = useMatchupPreview();
   return (
-    <tr className={`schedule-grid-row ${isConferenceStart ? 'schedule-grid-conference-start' : ''} ${isMe ? "bg-[var(--accent)]/10" : "hover:bg-[var(--surface2)]/40"}`}>
+    <tr className={`schedule-grid-row ${isConferenceStart ? 'schedule-grid-conference-start' : ''} ${isMe ? "bg-[var(--accent)]/15 outline outline-2 -outline-offset-2 outline-[var(--accent)]" : "hover:bg-[var(--surface2)]/40"}`}>
       {/* width/maxWidth pinned via inline style AND overflow-hidden -- a plain `width` on a <td>
           is only a hint in the browser's auto table-layout; a long team name would otherwise grow
           this column past TEAM_COL_WIDTH. */}
       <td
-        style={opaqueTint(isMe ? 15 : 0)}
-        className={`schedule-grid-cell schedule-grid-manager-cell ${TEAM_COL_CLASS} sticky left-0 z-10 border-r border-b border-[var(--border)]/60 px-2 sm:px-3 py-1.5 overflow-hidden`}
+        style={opaqueTint(isMe ? 28 : 0)}
+        className={`schedule-grid-cell schedule-grid-manager-cell ${TEAM_COL_CLASS} sticky left-0 z-10 border-r border-b border-[var(--border)]/60 px-2 sm:px-3 py-1.5 overflow-hidden ${isMe ? "border-l-4 border-l-[var(--accent)]" : ""}`}
       >
         <div className="flex items-center gap-1 min-w-0">
+          {isMe && <span className="text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--accent)] text-[var(--accent-text)] shrink-0">You</span>}
           {showConfBadge && <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${CONF_STYLES[conf].badge}`}>{conf}</span>}
           <TeamName manager={manager} conf={conf} className="font-semibold min-w-0" />
         </div>
@@ -476,8 +481,9 @@ function GridRow({ manager, conf, season, oppSeason, weeks, crossSchedule, curre
         // current week gets a light accent tint of its own (not frozen/sticky -- just a normal
         // translucent tint, since nothing scrolls underneath a non-sticky cell).
         const resultBg = !isHighlighted && intraResult ? RESULT_BG[intraResult] : "";
-        const currentBg = isCurrent && !isHighlighted && !resultBg ? "bg-[var(--accent)]/10" : "";
-        const bgClass = `${isHighlighted ? "bg-[var(--coral)]/15" : ""} ${currentBg} ${resultBg}`;
+        // The current week is a solid accent-edged column so it reads at a glance.
+        const currentBg = isCurrent && !isHighlighted ? "bg-[var(--accent)]/20 border-x-2 border-x-[var(--accent)] font-bold" : "";
+        const bgClass = `${isHighlighted ? "bg-[var(--coral)]/15" : ""} ${currentBg} ${isCurrent ? "" : resultBg}`;
         return (
           <td
             key={w}

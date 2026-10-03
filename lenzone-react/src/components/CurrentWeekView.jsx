@@ -27,7 +27,7 @@ export default function CurrentWeekView({
   onGoToMatchup, selectedWeek, onSelectWeek, currentNflWeek, seasonWeeks, isWeekFinal, weeklyAwards, nflGames, myTeamNflTeams,
   myTeamManager, myTeamIntra, myTeamInter, myTeamConf, myTeamRoster, myTeamConfData, myTeamFallbackField, myTeamPlayersPoints,
   playersDB, weekProjections, byTeamWeek, afcSlots, nfcSlots, afcData, nfcData, afcSeason, nfcSeason,
-  afcManagers, nfcManagers, schedule, logoMap, hexColorMap,
+  afcManagers, nfcManagers, schedule, logoMap,
   projectedScoreByManager, pregameScoreByManager,
   weekBigPlays, waiverWireMvp, transactions,
   myPlayerNotes, myPlayerHeadlines, onRefreshPlayerNews
@@ -76,6 +76,18 @@ export default function CurrentWeekView({
           waiverWireMvp={waiverWireMvp} transactions={transactions}
         />
       </div>
+
+      {/* You vs. your two opponents (then everyone else) -- the first thing on My Week. */}
+      {myTeamManager && (
+        <WeeklyScoresBarChart
+          afcManagers={afcManagers} nfcManagers={nfcManagers} afcSeason={afcSeason} nfcSeason={nfcSeason}
+          schedule={schedule} week={selectedWeek} logoMap={logoMap}
+          afcData={afcData} nfcData={nfcData} playersDB={playersDB}
+          projectedScores={projectedScoreByManager} pregameScores={pregameScoreByManager} isWeekFinal={isWeekFinal}
+          focusManager={myTeamManager}
+          focusOpponents={[myTeamIntra?.opponent, myTeamInter?.opponent].filter(Boolean)}
+        />
+      )}
 
       {!myTeamManager && (
         <div className="bg-[var(--surface)]/60 border border-[var(--border)] rounded-xl p-4 text-sm text-[var(--text2)]">
@@ -158,14 +170,6 @@ export default function CurrentWeekView({
         />
       </section>
 
-      <WeeklyScoresBarChart
-        afcManagers={afcManagers} nfcManagers={nfcManagers} afcSeason={afcSeason} nfcSeason={nfcSeason}
-        schedule={schedule} week={selectedWeek} logoMap={logoMap} hexColorMap={hexColorMap}
-        afcData={afcData} nfcData={nfcData} playersDB={playersDB}
-        projectedScores={projectedScoreByManager} pregameScores={pregameScoreByManager} isWeekFinal={isWeekFinal}
-        focusManager={myTeamManager}
-        focusOpponents={[myTeamIntra?.opponent, myTeamInter?.opponent].filter(Boolean)}
-      />
 
       <NflGamesPanel
         games={nflGames} week={selectedWeek} myTeamNflTeams={myTeamNflTeams} myPlayersByNflTeam={myPlayersByNflTeam}

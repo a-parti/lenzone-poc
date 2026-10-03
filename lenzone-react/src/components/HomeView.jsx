@@ -3,6 +3,7 @@ import { TeamPicker } from './shared';
 import { useTeamLogo } from '../context/TeamLogoContext';
 import { Zoomable } from '../context/ImageLightboxContext';
 import AnimatedLogo from './AnimatedLogo';
+import { ModeToggle } from './SettingsMenu';
 
 // A short confetti burst when a team is picked. Pure CSS transforms/opacity (see the
 // .confetti-piece keyframes in index.css), cycling through the palette's accent colors.
@@ -115,7 +116,8 @@ export default function HomeView({
   return (
     <div className="relative min-h-[80vh] flex flex-col items-center gap-8 text-center">
       {/* The regular header is hidden on Home, so the same settings menu sits in the corner. */}
-      <div className="absolute top-2 right-0 sm:top-4">
+      <div className="absolute top-2 right-0 sm:top-4 flex items-center gap-2">
+        <ModeToggle />
         {settingsMenu}
       </div>
       <ConfettiBurst burst={teamBurst} />

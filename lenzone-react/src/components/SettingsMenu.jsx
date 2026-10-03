@@ -18,6 +18,23 @@ function Row({ icon: Icon, label, onClick, active, href }) {
   return <button type="button" onClick={onClick} className={className}>{body}</button>;
 }
 
+// One-tap light/dark switch, shown next to the settings gear.
+export function ModeToggle() {
+  const { mode, setMode } = useTheme();
+  const isDark = mode === 'dark';
+  return (
+    <button
+      type="button"
+      onClick={() => setMode(m => (m === 'dark' ? 'light' : 'dark'))}
+      aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+      title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+      className="grid place-items-center w-10 h-10 rounded-lg bg-[var(--surface2)] text-[var(--text2)] hover:text-[var(--text)] transition-colors duration-150 shrink-0"
+    >
+      {isDark ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+    </button>
+  );
+}
+
 // One gear button holding every viewing preference and secondary link, shared by the header and
 // Home, so the header itself stays: logo, "I am" picker, search, settings.
 export default function SettingsMenu({

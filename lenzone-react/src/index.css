@@ -12,56 +12,173 @@
 }
 
 /* ---------------------------------------------------------------------------
-   One palette: "San Diego coastal breeze" -- sand, deep ocean, sea teal and
-   sunset coral -- with a light and a dark variant. Every component reads
-   these tokens; nothing else should hardcode a hue (the 12-swatch per-manager
-   chart palette in lib/teamColors.js is the one deliberate exception).
+   One palette: "San Diego coastal" -- sand, deep ocean, sea teal and sunset
+   coral -- with a light (default) and a dark variant, tuned for strong
+   contrast. Every component reads these tokens; nothing else should hardcode
+   a hue (the 12-swatch per-manager chart palette in lib/teamColors.js is the
+   one deliberate exception).
 --------------------------------------------------------------------------- */
 :root, [data-mode="light"] {
-  --bg: #FAF7F2;          /* warm sand */
-  --surface: #FFFFFF;
-  --surface2: #F0ECE4;
-  --border: #E2DCD1;
-  --border2: #CFC7B9;
-  --text: #12303B;        /* deep ocean */
-  --text2: #3B5560;
-  --muted: #5F7680;
-  --accent: #0E8A95;      /* sea teal */
-  --accent-ink: #0A6B74;
+  --bg: #F3E7D3;          /* warm sand (base under the texture) */
+  --surface: #FFFDF9;
+  --surface2: #F1E8DA;
+  --border: #D9CCB7;
+  --border2: #BFAE94;
+  --text: #071E27;        /* deep ocean, near-black */
+  --text2: #24404B;
+  --muted: #4B626B;
+  --accent: #00727D;      /* sea teal */
+  --accent-ink: #00555D;
   --accent-text: #FFFFFF;
-  --coral: #D9604A;       /* sunset coral */
-  --pos: #23845A;
-  --neg: #C2413B;
-  --proj: #2F6DB5;
-  --live: #B87A12;
-  --afc: #D9604A;         /* conferences: coral vs teal */
-  --nfc: #0E8A95;
+  --coral: #C2452E;       /* sunset coral */
+  --pos: #12703F;
+  --neg: #B3261E;
+  --proj: #1F5FA8;
+  --live: #9A6200;
+  --afc: #C2452E;         /* conferences: coral vs teal */
+  --nfc: #00727D;
   --playoff-afc: var(--afc);
   --playoff-nfc: var(--nfc);
+  /* Sand texture: fine grain (SVG fractal noise), faint wind ripples, and soft dune shading. */
+  --sand-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.42  0 0 0 0 0.30  0 0 0 0 0.15  0 0 0 0.30 -0.04'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  --sand-ripples: repeating-linear-gradient(172deg, rgba(150, 110, 60, 0.045) 0px, rgba(150, 110, 60, 0.045) 2px, transparent 2px, transparent 15px);
+  --sand-dunes:
+    radial-gradient(140% 70% at 15% 115%, rgba(214, 186, 140, 0.75) 0%, transparent 62%),
+    radial-gradient(110% 60% at 95% -5%, rgba(255, 249, 236, 0.9) 0%, transparent 60%),
+    radial-gradient(80% 45% at 70% 70%, rgba(226, 202, 160, 0.45) 0%, transparent 70%),
+    linear-gradient(175deg, #F8EEDD 0%, #F1E2C8 55%, #E9D4B1 100%);
 }
+/* Dark mode: "Neon Pacific Beach" -- San Diego at night, synthwave-style. A magenta/orange
+   sunset glow off the horizon, a neon perspective grid rolling in like night waves, faint
+   scanlines, and neon teal (NFC) / neon pink (AFC) accents. */
 [data-mode="dark"] {
-  --bg: #0B1F2A;          /* night ocean */
-  --surface: #12303B;
-  --surface2: #1A3C49;
-  --border: #24495A;
-  --border2: #34606F;
-  --text: #EAF4F4;        /* sea foam */
-  --text2: #C2D6DA;
-  --muted: #93AEB5;
-  --accent: #4FD1C5;
-  --accent-ink: #3AB5AA;
-  --accent-text: #0B1F2A;
-  --coral: #FF8A73;
-  --pos: #5CD69B;
-  --neg: #FF7B72;
-  --proj: #7DB4F0;
-  --live: #F2C14E;
-  --afc: #FF8A73;
-  --nfc: #4FD1C5;
+  --bg: #070B1A;
+  --surface: #10152C;
+  --surface2: #191F3D;
+  --border: #2A3262;
+  --border2: #3F4A86;
+  --text: #F4F6FF;
+  --text2: #CDD3F0;
+  --muted: #9AA3CC;
+  --accent: #3EF0E0;      /* neon teal */
+  --accent-ink: #22D3C3;
+  --accent-text: #050816;
+  --coral: #FF5FA2;       /* neon pink */
+  --pos: #5CF2A6;
+  --neg: #FF6B81;
+  --proj: #7AB8FF;
+  --live: #FFC94D;
+  --afc: #FF5FA2;
+  --nfc: #3EF0E0;
   --playoff-afc: var(--afc);
   --playoff-nfc: var(--nfc);
+  --neon-teal-glow: rgba(62, 240, 224, 0.55);
+  --neon-pink-glow: rgba(255, 95, 162, 0.55);
+  --sand-grain: none;
+  --sand-ripples: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.022) 0px, rgba(255, 255, 255, 0.022) 1px, transparent 1px, transparent 3px);
+  /* Miami Vice sky: deep violet overhead melting into hot pink and orange at the horizon. */
+  --sand-dunes:
+    radial-gradient(60% 30% at 55% 100%, rgba(255, 140, 60, 0.35) 0%, transparent 70%),
+    radial-gradient(100% 50% at 50% 100%, rgba(255, 46, 136, 0.40) 0%, transparent 75%),
+    radial-gradient(70% 40% at 8% 0%, rgba(62, 240, 224, 0.12) 0%, transparent 70%),
+    linear-gradient(180deg, #0A0620 0%, #170A36 40%, #3A0F4E 72%, #6A1A5E 100%);
 }
 
+/* The page background. Light: textured sand -- fine grain, wind-sculpted ripple contours and
+   dune shading, plus a twinkling sun-glint sparkle (::before). Dark: neon sunset + scanlines
+   with a rolling perspective grid (::after). isolation keeps both layers behind the content. */
+.sand-bg {
+  position: relative;
+  isolation: isolate;
+  background-color: var(--bg);
+  background-image: var(--sand-grain), var(--sand-contours, none), var(--sand-ripples), var(--sand-dunes);
+  /* One size per layer: grain, contours, ripples, then the four dune/sunset gradients (both modes
+     define exactly four), which must stretch over the page rather than tile. */
+  background-size: 300px 300px, 520px 150px, auto, 100% 100%, 100% 100%, 100% 100%, 100% 100%;
+  background-repeat: repeat, repeat, repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+}
+:root, [data-mode="light"] {
+  --sand-contours: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='520' height='150'><g fill='none' stroke='rgb(140,98,48)' stroke-opacity='0.10' stroke-width='1.3'><path d='M0 20 C 90 2, 170 40, 260 22 S 430 4, 520 20'/><path d='M0 58 C 80 38, 180 80, 260 60 S 440 40, 520 58'/><path d='M0 96 C 100 74, 170 118, 260 98 S 420 76, 520 96'/><path d='M0 134 C 90 114, 180 152, 260 134 S 430 116, 520 134'/></g></svg>");
+}
+[data-mode="dark"] { --sand-contours: none; }
+
+.sand-bg::before,
+.sand-bg::after {
+  content: "";
+  position: fixed;
+  pointer-events: none;
+  z-index: -1;
+}
+/* Sun glints: tiny bright specks on offset tiles that fade in and out. */
+[data-mode="light"] .sand-bg::before,
+:root:not([data-mode="dark"]) .sand-bg::before {
+  inset: 0;
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.95) 0 1px, transparent 1.6px),
+    radial-gradient(circle, rgba(255, 246, 220, 0.9) 0 1.2px, transparent 1.8px),
+    radial-gradient(circle, rgba(255, 255, 255, 0.85) 0 0.9px, transparent 1.4px);
+  background-size: 137px 149px, 211px 193px, 89px 103px;
+  background-position: 0 0, 61px 37px, 23px 71px;
+  animation: sand-glint 5.5s ease-in-out infinite alternate;
+}
+@keyframes sand-glint {
+  0% { opacity: 0.15; }
+  50% { opacity: 0.75; }
+  100% { opacity: 0.3; }
+}
+/* Night skyline: San Diego bay and downtown silhouette (public/skyline-sd.svg) along the bottom. */
+[data-mode="dark"] .sand-bg::after {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: min(44vh, 400px);
+  background: url("/skyline-sd.svg") center bottom / cover no-repeat;
+  opacity: 0.9;
+}
+/* Stars over the city: tiny specks on offset tiles, gently twinkling. Upper sky only. */
+[data-mode="dark"] .sand-bg::before {
+  inset: 0 0 35vh 0;
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.9) 0 0.8px, transparent 1.3px),
+    radial-gradient(circle, rgba(180, 240, 255, 0.8) 0 1px, transparent 1.6px),
+    radial-gradient(circle, rgba(255, 200, 230, 0.7) 0 0.7px, transparent 1.2px);
+  background-size: 173px 151px, 251px 229px, 97px 113px;
+  background-position: 0 0, 83px 41px, 31px 67px;
+  -webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
+  animation: sand-glint 4s ease-in-out infinite alternate;
+}@media (prefers-reduced-motion: reduce) {
+  .sand-bg::before, .sand-bg::after { animation: none; }
+}
+
+/* Neon highlights (dark mode only): glowing card edges, accent glow on active tabs, accent text
+   and solid accent buttons, and a teal-to-pink glow under the header. */
+[data-mode="dark"] main .rounded-xl,
+[data-mode="dark"] main .rounded-2xl {
+  box-shadow: 0 0 0 1px rgba(62, 240, 224, 0.10), 0 0 28px -14px var(--neon-teal-glow);
+}
+[data-mode="dark"] header {
+  box-shadow: 0 1px 0 rgba(62, 240, 224, 0.35), 0 10px 40px -18px var(--neon-pink-glow), 0 0 30px -12px var(--neon-teal-glow);
+}
+[data-mode="dark"] .text-\[var\(--accent\)\] {
+  text-shadow: 0 0 10px var(--neon-teal-glow);
+}
+[data-mode="dark"] .text-\[var\(--afc\)\],
+[data-mode="dark"] .text-\[var\(--coral\)\] {
+  text-shadow: 0 0 10px var(--neon-pink-glow);
+}
+[data-mode="dark"] .text-\[var\(--nfc\)\] {
+  text-shadow: 0 0 10px var(--neon-teal-glow);
+}
+[data-mode="dark"] .bg-\[var\(--accent\)\] {
+  box-shadow: 0 0 16px -2px var(--neon-teal-glow);
+}
+[data-mode="dark"] .border-\[var\(--accent\)\] {
+  box-shadow: 0 6px 18px -10px var(--neon-teal-glow);
+}
+[data-mode="dark"] .lenzone-title {
+  filter: drop-shadow(0 0 6px rgba(62, 240, 224, 0.45)) drop-shadow(0 0 14px rgba(255, 95, 162, 0.25));
+}
 html {
   /* Bumps every rem-based Tailwind text size up uniformly (site-wide "bigger text" pass)
      without having to touch every text-* class individually. */
@@ -158,19 +275,33 @@ html {
    itself has no seam either. The extra stops (vs. the original 4) are what actually fixes the
    jittery/bandy look -- fewer, farther-apart stops made each color hold for a very visible beat
    before jumping to the next; more, closer stops reads as continuous motion at the same speed. */
+/* Brushed-silver wordmark: a fine horizontal "brushed metal" grain, a cool silver body with
+   darker bands for depth, and a bright highlight that sweeps across continuously. Layers, top to
+   bottom: moving shine, static grain, silver body. Only the shine layer's position animates. */
 .lenzone-title {
-  background-image: linear-gradient(
-    90deg, var(--accent), var(--proj), var(--coral), var(--live),
-    var(--accent), var(--proj), var(--coral), var(--live)
-  );
-  background-size: 200% 100%;
-  animation: title-shine 4s linear infinite;
-  animation-play-state: paused;
-  transition: filter 0.3s ease;
+  background-image:
+    linear-gradient(105deg, transparent 0%, transparent 40%, rgba(255, 255, 255, 0.95) 50%, transparent 60%, transparent 100%),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.10) 0px, rgba(255, 255, 255, 0.10) 1px, rgba(0, 0, 0, 0.08) 1px, rgba(0, 0, 0, 0.08) 2px),
+    linear-gradient(180deg, #f4f6f8 0%, #c9ced4 28%, #8e959d 50%, #d7dbe0 68%, #9aa1a9 100%);
+  background-size: 250% 100%, 100% 100%, 100% 100%;
+  background-repeat: no-repeat;
+  animation: title-silver-shine 3.2s ease-in-out infinite;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.35)) drop-shadow(0 0 1px rgba(255, 255, 255, 0.25));
 }
-.group:hover .lenzone-title {
-  animation-play-state: running;
-  filter: brightness(1.2) drop-shadow(0 0 10px color-mix(in srgb, var(--accent), transparent 45%));
+/* Light mode: a slightly deeper silver so it still reads against the sand background. */
+[data-mode="light"] .lenzone-title {
+  background-image:
+    linear-gradient(105deg, transparent 0%, transparent 40%, rgba(255, 255, 255, 0.95) 50%, transparent 60%, transparent 100%),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.12) 0px, rgba(255, 255, 255, 0.12) 1px, rgba(0, 0, 0, 0.10) 1px, rgba(0, 0, 0, 0.10) 2px),
+    linear-gradient(180deg, #b9c0c8 0%, #8a929b 30%, #4f5760 52%, #9aa2ab 70%, #5d656e 100%);
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.7));
+}
+@keyframes title-silver-shine {
+  0% { background-position: 120% 0, 0 0, 0 0; }
+  100% { background-position: -20% 0, 0 0, 0 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lenzone-title { animation: none; }
 }
 @keyframes title-shine {
   from { background-position: 0% 50%; }

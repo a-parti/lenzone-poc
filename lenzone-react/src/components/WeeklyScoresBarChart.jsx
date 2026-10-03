@@ -394,7 +394,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
   // dark-mode values (index.css), so the export doesn't depend on the exporting viewer's own
   // light/dark mode or color scheme either.
   const EXPORT_VAR_RESOLVE = exportTheme === 'dark'
-    ? { "var(--pos)": "#5CD69B", "var(--neg)": "#FF7B72", "var(--proj)": "#7DB4F0", "var(--live)": "#F2C14E", "var(--muted)": EXPORT.muted, "var(--accent)": "#4FD1C5", "var(--afc)": "#FF8A73", "var(--nfc)": "#4FD1C5", "var(--text2)": "#C2D6DA" }
+    ? { "var(--pos)": "#5CD69B", "var(--neg)": "#FF7B72", "var(--proj)": "#7DB4F0", "var(--live)": "#F2C14E", "var(--muted)": EXPORT.muted, "var(--accent)": "#3EF0E0", "var(--afc)": "#FF5FA2", "var(--nfc)": "#3EF0E0", "var(--text2)": "#C2D6DA" }
     : { "var(--pos)": "#23845A", "var(--neg)": "#C2413B", "var(--proj)": "#2F6DB5", "var(--live)": "#B87A12", "var(--muted)": EXPORT.muted, "var(--accent)": "#0E8A95", "var(--afc)": "#D9604A", "var(--nfc)": "#0E8A95", "var(--text2)": "#3B5560" };
   const resolveExportColor = (c) => EXPORT_VAR_RESOLVE[c] || c;
 

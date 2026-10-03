@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 360" preserveAspectRatio="xMidYMax slice">
+  <!-- "Miami Vice, San Diego edition": a striped retro sun setting behind downtown, the Coronado
+       Bridge in aqua neon, towers outlined in hot pink, glowing palms on both shores, and the bay
+       reflecting it all. Stylized and decorative, not to scale. -->
+  <defs>
+    <linearGradient id="sun" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFE45C"/>
+      <stop offset="0.45" stop-color="#FF8A3D"/>
+      <stop offset="1" stop-color="#FF2E88"/>
+    </linearGradient>
+    <!-- Retro sun stripes: horizontal gaps that widen toward the horizon. -->
+    <mask id="sunStripes">
+      <rect x="0" y="0" width="1600" height="360" fill="white"/>
+      <g fill="black">
+        <rect x="0" y="172" width="1600" height="3"/>
+        <rect x="0" y="188" width="1600" height="5"/>
+        <rect x="0" y="206" width="1600" height="7"/>
+        <rect x="0" y="226" width="1600" height="9"/>
+        <rect x="0" y="248" width="1600" height="11"/>
+        <rect x="0" y="272" width="1600" height="13"/>
+      </g>
+    </mask>
+    <pattern id="win" width="24" height="28" patternUnits="userSpaceOnUse">
+      <rect x="4" y="5" width="4" height="6" fill="#FFE07A" opacity="0.6"/>
+      <rect x="12" y="5" width="4" height="6" fill="#FF5FA2" opacity="0.25"/>
+      <rect x="4" y="18" width="4" height="6" fill="#3EF0E0" opacity="0.35"/>
+      <rect x="12" y="18" width="4" height="6" fill="#FFE07A" opacity="0.5"/>
+      <rect x="20" y="5" width="2" height="6" fill="#FFE07A" opacity="0.25"/>
+    </pattern>
+    <linearGradient id="bay" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2A0F45"/>
+      <stop offset="1" stop-color="#090520"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="2.4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="sunGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+    <g id="towers">
+      <rect x="400" y="230" width="50" height="70"/>
+      <rect x="455" y="200" width="48" height="100"/>
+      <rect x="508" y="165" width="42" height="135"/>
+      <polygon points="556,300 556,125 572,98 590,62 608,98 624,125 624,300"/>
+      <rect x="632" y="140" width="54" height="160"/>
+      <rect x="642" y="128" width="34" height="14"/>
+      <rect x="692" y="128" width="54" height="172"/>
+      <rect x="702" y="116" width="34" height="14"/>
+      <rect x="752" y="178" width="44" height="122"/>
+      <rect x="802" y="112" width="44" height="188"/>
+      <rect x="811" y="96" width="26" height="18"/>
+      <rect x="852" y="168" width="58" height="132"/>
+      <rect x="916" y="128" width="50" height="172"/>
+      <polygon points="928,130 941,104 954,130"/>
+      <rect x="972" y="188" width="40" height="112"/>
+      <rect x="1018" y="152" width="54" height="148"/>
+      <rect x="1078" y="202" width="44" height="98"/>
+      <rect x="1128" y="172" width="50" height="128"/>
+      <rect x="1184" y="212" width="58" height="88"/>
+      <rect x="1248" y="232" width="44" height="68"/>
+    </g>
+    <!-- One palm, drawn at the origin (base of trunk) and placed with transforms below. -->
+    <g id="palm">
+      <path d="M0 0 Q-10 -70 14 -130" fill="none" stroke-width="8" stroke-linecap="round"/>
+      <path d="M14 -130 q-34 -8 -60 16 q28 -28 60 -16 z M14 -130 q-16 -30 -52 -34 q38 2 52 34 z M14 -130 q12 -32 48 -38 q-34 12 -48 38 z M14 -130 q34 -2 58 22 q-28 -20 -58 -22 z M14 -130 q6 22 -8 46 q18 -24 8 -46 z M14 -130 q-28 8 -40 34 q14 -30 40 -34 z"/>
+    </g>
+  </defs>
+
+  <!-- Sun: soft halo, then the striped disc, half-set behind the skyline. -->
+  <circle cx="820" cy="215" r="165" fill="#FF4FA0" opacity="0.35" filter="url(#sunGlow)"/>
+  <circle cx="820" cy="215" r="150" fill="url(#sun)" mask="url(#sunStripes)"/>
+
+  <!-- Coronado Bridge in aqua neon -->
+  <g stroke="#3EF0E0" fill="none" filter="url(#glow)">
+    <path d="M-10 272 Q 190 206 395 272" stroke-width="3" stroke-opacity="0.9"/>
+    <g stroke-width="2" stroke-opacity="0.5">
+      <line x1="40" y1="256" x2="40" y2="302"/>
+      <line x1="95" y1="240" x2="95" y2="302"/>
+      <line x1="150" y1="229" x2="150" y2="302"/>
+      <line x1="205" y1="226" x2="205" y2="302"/>
+      <line x1="260" y1="232" x2="260" y2="302"/>
+      <line x1="315" y1="246" x2="315" y2="302"/>
+      <line x1="365" y1="262" x2="365" y2="302"/>
+    </g>
+  </g>
+
+  <!-- Downtown: dark silhouette in front of the sun, lit windows, hot-pink neon edges -->
+  <use href="#towers" fill="#120A2E"/>
+  <use href="#towers" fill="url(#win)"/>
+  <use href="#towers" fill="none" stroke="#FF5FA2" stroke-opacity="0.75" stroke-width="1.3" filter="url(#glow)"/>
+  <line x1="590" y1="62" x2="590" y2="40" stroke="#3EF0E0" stroke-width="1.6"/>
+  <circle cx="590" cy="38" r="3" fill="#3EF0E0" filter="url(#glow)"/>
+
+  <!-- Neon palms: dark silhouettes with glowing outlines, on both shores -->
+  <g fill="#0A0620" stroke="#3EF0E0" stroke-width="1.6" filter="url(#glow)">
+    <use href="#palm" transform="translate(1335 302) scale(1.15)"/>
+    <use href="#palm" transform="translate(1530 302) scale(1.35) scale(-1 1)"/>
+  </g>
+  <g fill="#0A0620" stroke="#FF5FA2" stroke-width="1.6" filter="url(#glow)">
+    <use href="#palm" transform="translate(1440 302) scale(1.5)"/>
+    <use href="#palm" transform="translate(-10 302) scale(1.4) scale(-1 1)"/>
+  </g>
+  <g fill="#0A0620" stroke="#3EF0E0" stroke-width="1.6" filter="url(#glow)">
+    <use href="#palm" transform="translate(120 302) scale(1.05)"/>
+  </g>
+
+  <!-- Bay: dark water with the sun's reflection broken into streaks, plus city lights -->
+  <rect x="-10" y="300" width="1620" height="70" fill="url(#bay)"/>
+  <g stroke-linecap="round">
+    <line x1="700" y1="308" x2="940" y2="308" stroke="#FF8A3D" stroke-width="3" stroke-opacity="0.75"/>
+    <line x1="730" y1="318" x2="910" y2="318" stroke="#FF4FA0" stroke-width="3" stroke-opacity="0.65"/>
+    <line x1="760" y1="328" x2="880" y2="328" stroke="#FF4FA0" stroke-width="2.5" stroke-opacity="0.5"/>
+    <line x1="785" y1="338" x2="855" y2="338" stroke="#FF4FA0" stroke-width="2" stroke-opacity="0.4"/>
+    <line x1="470" y1="312" x2="530" y2="312" stroke="#FFE07A" stroke-width="2" stroke-opacity="0.4"/>
+    <line x1="1000" y1="314" x2="1080" y2="314" stroke="#FFE07A" stroke-width="2" stroke-opacity="0.35"/>
+    <line x1="1130" y1="326" x2="1200" y2="326" stroke="#FF5FA2" stroke-width="2" stroke-opacity="0.35"/>
+    <line x1="80" y1="316" x2="200" y2="316" stroke="#3EF0E0" stroke-width="2" stroke-opacity="0.45"/>
+    <line x1="240" y1="328" x2="330" y2="328" stroke="#3EF0E0" stroke-width="2" stroke-opacity="0.35"/>
+  </g>
+</svg>

@@ -11,7 +11,7 @@ import {
   computeStats, buildHistory, simulateCombinedPlayoffOdds, computeCrossRecords, computeCrossWeekRecord,
   computeWeeklyAwards, buildConferenceList, rankConference, winProbability, roughWinProbability, computePointsAgainst, computeInConfRecord,
   computeCrossPointsAgainst, computeIntraGamesPlayed, computeInterGamesPlayed, buildStandingsHistory,
-  buildWeeklyPfPaHistory, computeWeeklyConferenceMedian, computeManagerStreaks,
+  buildWeeklyPfPaHistory, computeWeeklyConferenceMedian,
   buildPostseasonSeeds
 } from './lib/statsMath';
 const RosterTab = lazy(() => import('./components/RosterTab'));
@@ -31,7 +31,7 @@ import CurrentWeekView from './components/CurrentWeekView';
 import CommandPalette from './components/CommandPalette';
 import GrabbableFootball from './components/GrabbableFootball';
 import DancingStickmen from './components/DancingStickmen';
-import SettingsMenu from './components/SettingsMenu';
+import SettingsMenu, { ModeToggle } from './components/SettingsMenu';
 import { RosterModalProvider } from './context/RosterModalContext';
 import { MatchupPreviewProvider } from './context/MatchupPreviewContext';
 import MatchupPreviewModal from './components/MatchupPreviewModal';
@@ -150,8 +150,6 @@ function playoffPulse(pct) {
   return { label: 'Needs Chaos', color: 'text-[var(--neg)]' };
 }
 
-const streakValue = (streak) => (streak ? (streak.type === 'W' ? streak.count : -streak.count) : 0);
-
 const STANDINGS_SORT_ACCESSORS = {
   rank: item => item.rank,
   manager: item => item.manager.toLowerCase(),
@@ -161,7 +159,6 @@ const STANDINGS_SORT_ACCESSORS = {
   interConfRecord: item => parseRecordWins(item.interConfRecord),
   pf: item => item.pfAvg,
   pa: item => item.paAvg,
-  streak: item => streakValue(item.streak),
   playoffPct: item => item.playoffPct ?? -1,
   faab: item => parseFaab(item.faab),
   moves: item => item.moves
@@ -170,12 +167,12 @@ const STANDINGS_SORT_ACCESSORS = {
 function SortHeader({ label, sortKey, activeKey, dir, onClick, title }) {
   const active = sortKey === activeKey;
   return (
-    <th className="py-3 px-2 whitespace-nowrap" aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : undefined}>
+    <th className="py-2 px-2 whitespace-nowrap" aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : undefined}>
       <button
         type="button"
         onClick={() => onClick(sortKey)}
         title={title}
-        className="inline-flex items-center gap-1 uppercase tracking-wider font-semibold hover:text-[var(--text)] transition-colors duration-150"
+        className="inline-flex items-center gap-1 whitespace-nowrap font-semibold hover:text-[var(--text)] transition-colors duration-150"
       >
         {label}
         <span className={`text-[10px] ${active ? "text-[var(--text2)]" : "text-[var(--muted)]"}`}>{active && dir === 'desc' ? "▼" : "▲"}</span>
@@ -204,22 +201,12 @@ function SeedPill({ postseason }) {
   );
 }
 
-function StreakText({ streak }) {
-  if (!streak) return <span className="text-[var(--muted)]">—</span>;
-  return (
-    <span className={`font-bold tabular-nums ${streak.type === 'W' ? 'text-[var(--pos)]' : 'text-[var(--neg)]'}`}>
-      {streak.type}{streak.count}
-    </span>
-  );
-}
-
-function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek, managerStreaks }) {
+function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek }) {
   const style = CONF_STYLES[conf];
   const { mode: nameDisplayMode } = useNameDisplay();
   const [sortKey, setSortKey] = useState('rank');
   const [sortDir, setSortDir] = useState('asc');
   const postseasonByManager = new Map(buildPostseasonSeeds(rows, conf).map(team => [team.manager, team]));
-  const rowsWithStreak = rows.map(row => ({ ...row, streak: managerStreaks?.[row.manager] || null }));
   const secondaryName = (manager) => (nameDisplayMode === 'teams' ? getRealName(afcData, nfcData, manager, conf) : manager);
 
   const handleSort = (key) => {
@@ -231,7 +218,7 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek, man
     }
   };
 
-  const sortedRows = [...rowsWithStreak].sort((a, b) => {
+  const sortedRows = [...rows].sort((a, b) => {
     const av = STANDINGS_SORT_ACCESSORS[sortKey](a);
     const bv = STANDINGS_SORT_ACCESSORS[sortKey](b);
     const cmp = typeof av === 'string' ? av.localeCompare(bv) : av - bv;
@@ -251,20 +238,16 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek, man
       </div>
 
       <div className="hidden md:block overflow-x-auto">
-        <table className="w-full text-left text-sm text-[var(--text2)]">
-          <thead className="bg-[var(--bg)] text-xs text-[var(--text2)] border-b border-[var(--border)]">
+        <table className="w-full text-left text-xs font-medium text-[var(--text)]">
+          <thead className="bg-[var(--surface2)] text-[11px] text-[var(--text2)] border-b border-[var(--border)]">
             <tr>
               <SortHeader label="#" sortKey="rank" activeKey={sortKey} dir={sortDir} onClick={handleSort} title="Rank" />
               <SortHeader label={nameDisplayMode === 'teams' ? 'Team' : 'Manager'} sortKey="manager" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
               <SortHeader label="League Pts" sortKey="totalPts" activeKey={sortKey} dir={sortDir} onClick={handleSort} title="2 per in-conference win, 1 per cross-conference win" />
-              <SortHeader label="Overall" sortKey="overall" activeKey={sortKey} dir={sortDir} onClick={handleSort} title="Overall W-L-T, both matchups each week" />
-              <SortHeader label="In-Conf" sortKey="inConfRecord" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
-              <SortHeader label="Cross-Conf" sortKey="interConfRecord" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
-              <SortHeader label="PF / gm" sortKey="pf" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
-              <SortHeader label="PA / gm" sortKey="pa" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
-              <SortHeader label="Streak" sortKey="streak" activeKey={sortKey} dir={sortDir} onClick={handleSort} title="Current in-conference win/loss streak (2+ games)" />
+              <SortHeader label="Record" sortKey="overall" activeKey={sortKey} dir={sortDir} onClick={handleSort} title="Overall W-L-T, with in-conference and cross-conference records underneath" />
+              <SortHeader label="PF / gm" sortKey="pf" activeKey={sortKey} dir={sortDir} onClick={handleSort} title="Points scored per game, with points against underneath" />
               <SortHeader label="Playoff %" sortKey="playoffPct" activeKey={sortKey} dir={sortDir} onClick={handleSort} title="Estimated from 2,500 simulations; frozen until the next completed week" />
-              <th className="py-3 px-2 uppercase tracking-wider font-semibold">{latestCompletedWeek >= 14 ? 'Postseason' : 'Proj. Seed'}</th>
+              <th className="py-2 px-2 whitespace-nowrap font-semibold">{latestCompletedWeek >= 14 ? 'Postseason' : 'Proj. Seed'}</th>
               <SortHeader label="FAAB" sortKey="faab" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
               <SortHeader label="Moves" sortKey="moves" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
             </tr>
@@ -276,25 +259,27 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek, man
               const other = secondaryName(item.manager);
               return (
               <tr key={item.manager} className={`hover:bg-[var(--surface2)]/50 transition-colors duration-150 ${postseason?.seed <= 6 ? 'standings-playoff-team' : ''}`}>
-                <td className="py-3 px-2 font-bold text-[var(--text2)]">{item.rank}</td>
-                <td className="py-3 px-2">
-                  <TeamName manager={item.manager} conf={conf} className="font-bold" />
-                  {other && <div className="text-xs text-[var(--muted)]">{other}</div>}
+                <td className="py-2 px-2 font-bold text-[var(--text2)]">{item.rank}</td>
+                <td className="py-2 px-2">
+                  <TeamName manager={item.manager} conf={conf} className="font-semibold" />
+                  {other && <div className="text-[11px] font-normal text-[var(--muted)]">{other}</div>}
                 </td>
-                <td className={`py-3 px-3 text-base font-extrabold tabular-nums ${style.text}`}>{item.totalPts.toFixed(1)}</td>
-                <td className="py-3 px-2 font-semibold tabular-nums text-[var(--text)]">{item.overallRecord}</td>
-                <td className="py-3 px-2 tabular-nums">{item.inConfRecord}</td>
-                <td className="py-3 px-2 tabular-nums">{item.interConfRecord}</td>
-                <td className="py-3 px-2 tabular-nums">{item.pfAvg.toFixed(2)}</td>
-                <td className="py-3 px-2 tabular-nums text-[var(--muted)]">{item.paAvg.toFixed(2)}</td>
-                <td className="py-3 px-2"><StreakText streak={item.streak} /></td>
-                <td className="py-3 px-2">
-                  <div className={`font-extrabold tabular-nums ${pulse.color}`}>{item.playoffPct != null ? `${Math.round(item.playoffPct)}%` : '—'}</div>
+                <td className={`py-2 px-2 font-bold ${style.text}`}>{item.totalPts.toFixed(1)}</td>
+                <td className="py-2 px-2 whitespace-nowrap">
+                  <div className="font-semibold">{item.overallRecord}</div>
+                  <div className="text-[11px] text-[var(--muted)]">In {item.inConfRecord} · Cross {item.interConfRecord}</div>
+                </td>
+                <td className="py-2 px-2 whitespace-nowrap">
+                  <div>{item.pfAvg.toFixed(2)}</div>
+                  <div className="text-[11px] text-[var(--muted)]">PA {item.paAvg.toFixed(2)}</div>
+                </td>
+                <td className="py-2 px-2">
+                  <div className={`font-extrabold ${pulse.color}`}>{item.playoffPct != null ? `${Math.round(item.playoffPct)}%` : '—'}</div>
                   <div className={`text-[11px] font-bold whitespace-nowrap ${pulse.color}`}>{pulse.label}</div>
                 </td>
-                <td className="py-3 px-2"><SeedPill postseason={postseason} /></td>
-                <td className="py-3 px-2 tabular-nums">{item.faab}</td>
-                <td className="py-3 px-2 tabular-nums text-[var(--muted)]">{item.moves}</td>
+                <td className="py-2 px-2"><SeedPill postseason={postseason} /></td>
+                <td className="py-2 px-2">{item.faab}</td>
+                <td className="py-2 px-2 text-[var(--muted)]">{item.moves}</td>
               </tr>
               );
             })}
@@ -325,7 +310,6 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek, man
             <div className="flex flex-wrap items-center gap-2 mb-3">
               <SeedPill postseason={postseason} />
               <span className="text-xs font-semibold text-[var(--text)]">{item.overallRecord}</span>
-              <StreakText streak={item.streak} />
             </div>
             <div className="grid grid-cols-3 gap-2 text-sm">
               <div>
@@ -596,7 +580,6 @@ export default function App() {
     window.addEventListener('popstate', handler);
     return () => window.removeEventListener('popstate', handler);
   }, []);
-  const [selectedManager, setSelectedManager] = useState("ALL");
   const [myTeamManager, setMyTeamManager] = useState(() => localStorage.getItem('lenzone_my_team') || null);
   // Starts true (not false) -- the very first render happens BEFORE loadData's effect has even
   // fired, so a reload landing directly on a deep tab (via a bookmarked #hash URL) would otherwise
@@ -1023,7 +1006,6 @@ export default function App() {
     const hasRealRosters = afcData.rosters.length > 0 && nfcData.rosters.length > 0;
     if (!hasRealRosters || !myTeamManager || myTeamConf) return;
     setMyTeamManager(null);
-    setSelectedManager("ALL");
     localStorage.removeItem('lenzone_my_team');
   }, [afcData.rosters.length, nfcData.rosters.length, myTeamManager, myTeamConf]);
 
@@ -1037,7 +1019,6 @@ export default function App() {
     // OWN card (e.g. "Full Matchups Tab ->" from Home/This Week) shouldn't also filter the full
     // list down to just you -- that filter is only useful when the click was actually pointing at
     // someone else (a trophy card, a grid cell, a matchup preview) that isn't shown up top already.
-    setSelectedManager(manager && manager !== myTeamManager ? manager : "ALL");
     if (week != null) setSelectedWeek(week);
     setActiveTab("matchups");
   };
@@ -1055,7 +1036,6 @@ export default function App() {
     if (manager && conf) {
       setConfFilter(conf);
     }
-    setSelectedManager("ALL");
     // Players > Player Search keeps its own internal filter state and doesn't otherwise know "I am"
     // changed -- remounting it (via a key tied to myTeamManager, see the Players tab render) is what
     // actually resets it back to All/All instead of leaving a stale manager/position filter behind.
@@ -1293,12 +1273,6 @@ export default function App() {
     () => computeWaiverWireMvp(afcData, nfcData, afcSeason, nfcSeason, afcTransactions, nfcTransactions, selectedWeek),
     [afcData, nfcData, afcSeason, nfcSeason, afcTransactions, nfcTransactions, selectedWeek]
   );
-  // Each manager's real current active win/loss streak (2+ games) through the latest completed
-  // week -- shown in the standings table.
-  const managerStreaks = useMemo(
-    () => computeManagerStreaks(afcManagers, nfcManagers, afcSeason, nfcSeason, latestCompletedWeek),
-    [afcManagers, nfcManagers, afcSeason, nfcSeason, latestCompletedWeek]
-  );
   // Both conferences' Sleeper transactions tagged with their conference, for the recap's trade list.
   const recapTransactions = useMemo(() => [
     ...afcTransactions.map(tx => ({ tx, conf: 'AFC', rosterIdMap: afcData.rosterIdMap })),
@@ -1335,10 +1309,6 @@ export default function App() {
     nfcWins: nfcManagers.reduce((sum, m) => sum + (crossRecordsForSeason[m]?.wins || 0), 0),
     ties: afcManagers.reduce((sum, m) => sum + (crossRecordsForSeason[m]?.ties || 0), 0)
   };
-  const matchupManagerFilter = selectedManager;
-  const otherManagers = [...afcManagers, ...nfcManagers];
-  const graphAfcManagers = showAfc ? afcManagers.filter(m => matchupManagerFilter === "ALL" || m === matchupManagerFilter) : [];
-  const graphNfcManagers = showNfc ? nfcManagers.filter(m => matchupManagerFilter === "ALL" || m === matchupManagerFilter) : [];
   const teamColorMap = useMemo(
     () => ({
       ...buildConferenceColorMap(afcManagers, afcDraft, afcData.rosterIdMap),
@@ -1427,7 +1397,7 @@ export default function App() {
     <RosterModalProvider onOpen={playTeamSound}>
     <TeamDepthChartProvider>
     <MatchupPreviewProvider>
-    <div className={`min-h-screen bg-[var(--bg)] text-[var(--text)] p-4 md:p-8 ${activeTab === "home" ? "pb-8" : "pb-[calc(10rem+env(safe-area-inset-bottom))] md:pb-24"}`}>
+    <div className={`min-h-screen sand-bg text-[var(--text)] p-4 md:p-8 ${activeTab === "home" ? "pb-8" : "pb-[calc(10rem+env(safe-area-inset-bottom))] md:pb-24"}`}>
       {showLoginModal && (
         <AdminLoginModal onClose={() => setShowLoginModal(false)} onSuccess={handleLoginSuccess} />
       )}
@@ -1464,7 +1434,7 @@ export default function App() {
 
       {/* Header Banner -- hidden on Home, which is deliberately just the "I am" picker + radial menu */}
       {activeTab !== "home" && (
-        <header className="max-w-7xl mx-auto bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-2xl px-5 py-3 mb-8 shadow-xl">
+        <header className="relative z-40 max-w-7xl mx-auto bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-2xl px-5 py-3 mb-8 shadow-xl">
           <div ref={headerRowRef} className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <div className="group flex items-center gap-2.5 shrink-0">
               <AnimatedLogo sizeClass="w-16 h-16 sm:w-[4.5rem] sm:h-[4.5rem]" onClick={() => setActiveTab("home")} />
@@ -1493,6 +1463,7 @@ export default function App() {
               >
                 <Search className="w-5 h-5" />
               </button>
+              <ModeToggle />
               {settingsMenu}
             </div>
             <div className="sm:hidden w-full">
@@ -1622,8 +1593,8 @@ export default function App() {
                   afcStandings={afcStandings} nfcStandings={nfcStandings} confFilter={confFilter}
                   logoMap={teamLogoMap} mode="segregated"
                 />
-                {showAfc && <StandingsTable conf="AFC" rows={afcStandings} afcData={afcData} nfcData={nfcData} latestCompletedWeek={latestCompletedWeek} managerStreaks={managerStreaks} />}
-                {showNfc && <StandingsTable conf="NFC" rows={nfcStandings} afcData={afcData} nfcData={nfcData} latestCompletedWeek={latestCompletedWeek} managerStreaks={managerStreaks} />}
+                {showAfc && <StandingsTable conf="AFC" rows={afcStandings} afcData={afcData} nfcData={nfcData} latestCompletedWeek={latestCompletedWeek} />}
+                {showNfc && <StandingsTable conf="NFC" rows={nfcStandings} afcData={afcData} nfcData={nfcData} latestCompletedWeek={latestCompletedWeek} />}
                 <StandingsTrendChart
                   history={standingsHistory} weeklyHistory={weeklyPfPaHistory} weeklyMedians={weeklyConferenceMedians}
                   afcManagers={afcManagers} nfcManagers={nfcManagers}
@@ -1669,24 +1640,6 @@ export default function App() {
                   ))}
                 </select>
               </div>
-              <div>
-                <span className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)] block mb-1">Conference</span>
-                <ConfFilterToggle value={confFilter} onChange={setConfFilter} />
-              </div>
-              <div>
-                <label htmlFor="matchups-manager" className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)] block mb-1">Team</label>
-                <select
-                  id="matchups-manager"
-                  value={matchupManagerFilter}
-                  onChange={(e) => setSelectedManager(e.target.value)}
-                  className="bg-[var(--bg)] border border-[var(--border)]/80 text-sm rounded-lg px-3 py-2 text-[var(--text)]"
-                >
-                  <option value="ALL">Everyone</option>
-                  {otherManagers.map(m => (
-                    <option key={m} value={m}>{m}</option>
-                  ))}
-                </select>
-              </div>
               {isSelectedWeekFinal && weekRecord.counted > 0 && (
                 <div className="ml-auto">
                   <span className="tracking-wider text-xs uppercase font-semibold text-[var(--muted)] block mb-1">Week {selectedWeek} AFC vs NFC</span>
@@ -1701,13 +1654,13 @@ export default function App() {
             </div>
 
             <WeeklyScoresBarChart
-              afcManagers={graphAfcManagers} nfcManagers={graphNfcManagers} afcSeason={afcSeason} nfcSeason={nfcSeason}
+              afcManagers={afcManagers} nfcManagers={nfcManagers} afcSeason={afcSeason} nfcSeason={nfcSeason}
               afcData={afcData} nfcData={nfcData} playersDB={playersDB}
               schedule={schedule} week={selectedWeek} logoMap={teamLogoMap}
               projectedScores={projectedScoreByManager} pregameScores={pregameScoreByManager} isWeekFinal={isSelectedWeekFinal}
             />
 
-            {["AFC", "NFC"].filter(conf => (conf === "AFC" ? showAfc : showNfc)).map(conf => (
+            {["AFC", "NFC"].map(conf => (
               <SeasonGridTab
                 key={conf}
                 conference={conf}
@@ -1756,7 +1709,6 @@ export default function App() {
                     afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason} playersDB={playersDB} playersLoading={playersLoading}
                     weekProjections={weekProjections} selectedWeek={selectedWeek} setSelectedWeek={setSelectedWeek} seasonWeeks={SEASON_WEEKS}
                     byTeamWeek={enrichedByTeamWeek}
-                    focusManager={resolvedMyTeamManager} focusConf={myTeamConf}
                   />
                 )}
                 {playersSubTab === "draft" && (

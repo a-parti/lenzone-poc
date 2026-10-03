@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { CONF_STYLES } from '../lib/theme';
 import { ConfFilterToggle, SkeletonRows } from './shared';
 import RosterList from './RosterList';
@@ -12,19 +12,12 @@ const SORT_OPTIONS = {
   ACTUAL_DESC: { label: "Actual Total (High to Low)", accessor: r => r.teamTotals.actualPosted, dir: -1 }
 };
 
-export default function RosterTab({ afcData, nfcData, afcSeason, nfcSeason, playersDB, playersLoading, weekProjections, selectedWeek, setSelectedWeek, seasonWeeks, byTeamWeek, focusManager, focusConf }) {
+// Always opens on every roster in both conferences -- no filter pre-applied from "I am".
+export default function RosterTab({ afcData, nfcData, afcSeason, nfcSeason, playersDB, playersLoading, weekProjections, selectedWeek, setSelectedWeek, seasonWeeks, byTeamWeek }) {
   const { displayName } = useNameDisplay();
-  const [conf, setConf] = useState(focusConf || 'ALL');
-  const [team, setTeam] = useState(focusManager || 'ALL');
+  const [conf, setConf] = useState('ALL');
+  const [team, setTeam] = useState('ALL');
   const [sortKey, setSortKey] = useState('DEFAULT');
-
-  // Re-focus on the remembered team whenever it changes (picked via "I am ___" on Home).
-  useEffect(() => {
-    if (focusManager && focusConf) {
-      setConf(focusConf);
-      setTeam(focusManager);
-    }
-  }, [focusManager, focusConf]);
 
   const afcFallbackField = scoringFieldFor(afcData.receptionPoints || 0);
   const nfcFallbackField = scoringFieldFor(nfcData.receptionPoints || 0);

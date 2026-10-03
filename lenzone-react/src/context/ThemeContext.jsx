@@ -6,26 +6,13 @@ const SCHEME = 'coastal';
 
 const ThemeContext = createContext({ scheme: SCHEME, mode: 'dark', setMode: () => {} });
 
-function systemPrefersDark() {
-  return typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches;
-}
-
 function readStoredMode() {
   try { return localStorage.getItem('lenzone_mode'); } catch { return null; }
 }
 
 export function ThemeProvider({ children }) {
-  const [mode, setModeState] = useState(() => readStoredMode() || (systemPrefersDark() ? 'dark' : 'light'));
-
-  // Follow the OS/browser light-dark setting live until the viewer explicitly picks one here.
-  useEffect(() => {
-    if (readStoredMode()) return;
-    const mq = window.matchMedia?.('(prefers-color-scheme: dark)');
-    if (!mq) return;
-    const handler = (e) => setModeState(e.matches ? 'dark' : 'light');
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, []);
+  // Light mode by default (the sand look); dark only once someone picks it with the toggle.
+  const [mode, setModeState] = useState(() => readStoredMode() || 'light');
 
   const setMode = (next) => {
     setModeState(prev => {

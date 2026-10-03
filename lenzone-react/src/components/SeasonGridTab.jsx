@@ -514,19 +514,19 @@ function GridRow({ manager, conf, season, oppSeason, weeks, crossSchedule, curre
         return (
           <td
             key={w}
-            className={`schedule-grid-cell ${WEEK_COL_CLASS} border-b border-[var(--border)]/40 px-2 py-1.5 text-center cursor-pointer hover:bg-[var(--surface2)]/60 ${bgClass}`}
+            className={`schedule-grid-cell ${WEEK_COL_CLASS} border-b border-[var(--border)]/40 px-2 py-1.5 text-left cursor-pointer hover:bg-[var(--surface2)]/60 ${bgClass}`}
             onClick={() => openPreview(manager, conf, w)}
             title={`${displayName(manager, conf)} -- Week ${w}`}
           >
-            <div className="truncate max-w-full font-semibold flex items-center justify-center gap-1">
-              {intraResult && <span className={`text-xs font-black ${RESULT_TEXT[intraResult]}`}>{intraResult}</span>}
-              <TeamMiniLogo manager={intraOpponent} size={16} />
-              <span className="truncate">{displayName(intraOpponent, conf)}</span>
+            <div className="max-w-full font-semibold flex items-center gap-1">
+              <span className={`w-3 shrink-0 text-center text-xs font-black ${intraResult ? RESULT_TEXT[intraResult] : ''}`}>{intraResult || ''}</span>
+              <span className="w-4 shrink-0 grid place-items-center"><TeamMiniLogo manager={intraOpponent} size={16} /></span>
+              <span className="truncate min-w-0">{displayName(intraOpponent, conf)}</span>
             </div>
-            <div className="truncate max-w-full text-[var(--muted)] flex items-center justify-center gap-1">
-              {interResult && <span className={`text-xs font-black ${RESULT_TEXT[interResult]}`}>{interResult}</span>}
-              <TeamMiniLogo manager={interOpponent} size={14} className="opacity-80" />
-              <span className="truncate">{displayName(interOpponent, interConf)}</span>
+            <div className="max-w-full text-[var(--muted)] flex items-center gap-1">
+              <span className={`w-3 shrink-0 text-center text-xs font-black ${interResult ? RESULT_TEXT[interResult] : ''}`}>{interResult || ''}</span>
+              <span className="w-4 shrink-0 grid place-items-center"><TeamMiniLogo manager={interOpponent} size={14} className="opacity-80" /></span>
+              <span className="truncate min-w-0">{displayName(interOpponent, interConf)}</span>
             </div>
           </td>
         );

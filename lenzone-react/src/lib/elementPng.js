@@ -70,6 +70,10 @@ export async function elementToPngCanvas(element, theme = 'dark', { padding = 28
   const sourceWidth = Math.ceil(Math.max(minWidth, element.scrollWidth, element.getBoundingClientRect().width));
   const scheme = document.documentElement.getAttribute('data-scheme') || 'accent';
   const background = theme === 'dark' ? '#0b111d' : '#f7f3eb';
+  // The staging copy is parked off-screen by a separate holder: its own computed styles get inlined
+  // into the image, and an off-screen offset there (left/inset-inline) renders the image empty.
+  const holder = document.createElement('div');
+  holder.style.cssText = 'position:fixed;left:-100000px;top:0;z-index:-2147483648';
   const staging = document.createElement('div');
   const clone = element.cloneNode(true);
 
@@ -77,21 +81,18 @@ export async function elementToPngCanvas(element, theme = 'dark', { padding = 28
   staging.setAttribute('data-scheme', scheme);
   staging.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
   staging.style.cssText = [
-    'position:fixed',
-    'left:-100000px',
-    'top:0',
     `width:${sourceWidth + padding * 2}px`,
     `padding:${padding}px`,
     'box-sizing:border-box',
     `background:${background}`,
-    'font-size:18px',
-    'z-index:-2147483648'
+    'font-size:18px'
   ].join(';');
   clone.style.width = `${sourceWidth}px`;
   clone.style.maxWidth = 'none';
   clone.querySelectorAll('[data-export-ignore="true"]').forEach(node => node.remove());
   staging.appendChild(clone);
-  document.body.appendChild(staging);
+  holder.appendChild(staging);
+  document.body.appendChild(holder);
 
   try {
     await nextFrame();
@@ -100,16 +101,14 @@ export async function elementToPngCanvas(element, theme = 'dark', { padding = 28
     const width = Math.ceil(staging.scrollWidth);
     const height = Math.ceil(staging.scrollHeight);
     inlineComputedStyles(staging);
-    staging.style.position = 'relative';
-    staging.style.left = '0';
-    staging.style.top = '0';
-    staging.style.zIndex = 'auto';
     staging.style.width = `${width}px`;
     staging.style.height = `${height}px`;
     const serialized = new XMLSerializer().serializeToString(staging);
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><foreignObject x="0" y="0" width="100%" height="100%">${serialized}</foreignObject></svg>`;
-    const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
-    try {
+    // A data: URL, not a blob: URL -- Chromium taints the canvas when a foreignObject SVG is drawn
+    // from a blob: URL, which then blocks toDataURL/toBlob (copy and download).
+    const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    {
       const image = await new Promise((resolve, reject) => {
         const img = new Image();
         img.onload = () => resolve(img);
@@ -125,11 +124,9 @@ export async function elementToPngCanvas(element, theme = 'dark', { padding = 28
       context.fillRect(0, 0, canvas.width, canvas.height);
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
       return canvas;
-    } finally {
-      URL.revokeObjectURL(url);
     }
   } finally {
-    staging.remove();
+    holder.remove();
   }
 }
 

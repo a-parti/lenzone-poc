@@ -32,6 +32,8 @@ import GrabbableFootball from './components/GrabbableFootball';
 import DancingStickmen from './components/DancingStickmen';
 import SettingsMenu, { ModeToggle } from './components/SettingsMenu';
 import TeamMiniLogo from './components/TeamMiniLogo';
+import { LuckOfTheWeek, BoomOrBust, LuckMeter, SeasonHeatMap } from './components/FunVisuals';
+import { weekTeamResults, allPlayLuck, seasonHeat } from './lib/funStats';
 import { RosterModalProvider } from './context/RosterModalContext';
 import { MatchupPreviewProvider } from './context/MatchupPreviewContext';
 import MatchupPreviewModal from './components/MatchupPreviewModal';
@@ -1350,6 +1352,21 @@ export default function App() {
     [afcManagers.join('|'), nfcManagers.join('|'), afcDraft, nfcDraft, afcData.rosterIdMap, nfcData.rosterIdMap]
   );
 
+  // Data for the fun visuals (lib/funStats.js): this week's results, all-play luck, season heat.
+  const funWeekRows = useMemo(
+    () => weekTeamResults(selectedWeek, afcSeason, nfcSeason, schedule, afcManagers, nfcManagers),
+    [selectedWeek, afcSeason, nfcSeason, schedule, afcManagers, nfcManagers]
+  );
+  const funLuck = useMemo(
+    () => allPlayLuck(latestCompletedWeek, afcSeason, nfcSeason, schedule, afcManagers, nfcManagers),
+    [latestCompletedWeek, afcSeason, nfcSeason, schedule, afcManagers, nfcManagers]
+  );
+  const funHeat = useMemo(
+    () => seasonHeat(latestCompletedWeek, afcSeason, nfcSeason, schedule, afcManagers, nfcManagers),
+    [latestCompletedWeek, afcSeason, nfcSeason, schedule, afcManagers, nfcManagers]
+  );
+  const completedWeeks = useMemo(() => Array.from({ length: latestCompletedWeek }, (_, i) => i + 1), [latestCompletedWeek]);
+
   const standingsHistory = useMemo(
     () => buildStandingsHistory(afcManagers, nfcManagers, afcData, nfcData, afcSeason, nfcSeason, schedule, latestCompletedWeek),
     [afcManagers, nfcManagers, afcData, nfcData, afcSeason, nfcSeason, schedule, latestCompletedWeek]
@@ -1613,6 +1630,8 @@ export default function App() {
                     <StandingsTable conf={conf} rows={conf === "AFC" ? afcStandings : nfcStandings} afcData={afcData} nfcData={nfcData} latestCompletedWeek={latestCompletedWeek} />
                   </section>
                 ))}
+                <LuckMeter luck={funLuck} />
+                <SeasonHeatMap heat={funHeat} weeks={completedWeeks} />
                 <StandingsTrendChart
                   history={standingsHistory} weeklyHistory={weeklyPfPaHistory}
                   afcManagers={afcManagers} nfcManagers={nfcManagers}
@@ -1677,6 +1696,14 @@ export default function App() {
               schedule={schedule} week={selectedWeek} logoMap={teamLogoMap}
               projectedScores={projectedScoreByManager} pregameScores={pregameScoreByManager} isWeekFinal={isSelectedWeekFinal}
             />
+
+            {/* Fun visuals for a completed week. */}
+            {isSelectedWeekFinal && (
+              <>
+                <LuckOfTheWeek week={selectedWeek} rows={funWeekRows} logoMap={teamLogoMap} />
+                <BoomOrBust week={selectedWeek} rows={funWeekRows} pregameScores={pregameScoreByManager} />
+              </>
+            )}
 
             {["AFC", "NFC"].map(conf => (
               <SeasonGridTab

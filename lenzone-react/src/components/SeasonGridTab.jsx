@@ -13,6 +13,9 @@ import { readThemeTokens } from '../lib/themeTokens';
 
 // Fixed width so the sticky team column is stable; narrower on phones so the weeks get room.
 const TEAM_COL_CLASS = 'w-[120px] min-w-[120px] max-w-[120px] sm:w-[232px] sm:min-w-[232px] sm:max-w-[232px]';
+// Every week column is the same fixed width, so the AFC and NFC grids lay out identically and
+// open scrolled to exactly the same spot regardless of team-name lengths.
+const WEEK_COL_CLASS = 'w-[9rem] min-w-[9rem] max-w-[9rem]';
 const EXPORT_SERIF = "'Lora', Georgia, serif";
 const EXPORT_SANS = "'DM Sans', Arial, sans-serif";
 
@@ -116,8 +119,8 @@ export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afc
     if (!container || !th) return;
     const visibleWidth = container.clientWidth - (teamCol?.offsetWidth || 0);
     const left = th.offsetLeft - (teamCol?.offsetWidth || 0) - (visibleWidth - th.offsetWidth) / 2;
-    container.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
-  }, [targetWeek, seasonWeeks]);
+    container.scrollTo({ left: Math.max(0, left), behavior: 'auto' });
+  }, [targetWeek, seasonWeeks, afcManagers.length, nfcManagers.length]);
   const [exporting, setExporting] = useState(false);
   const [copyState, setCopyState] = useState('idle');
   const [downloadState, setDownloadState] = useState('idle');
@@ -414,7 +417,7 @@ export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afc
                     key={w}
                     data-week={w}
                     onClick={() => toggleHighlight(w)}
-                    className={`schedule-grid-header schedule-week-header ${isCurrent ? "is-current-week" : ""} sticky top-0 border-b px-2 py-2 font-bold whitespace-nowrap cursor-pointer select-none ${
+                    className={`schedule-grid-header schedule-week-header ${WEEK_COL_CLASS} ${isCurrent ? "is-current-week" : ""} sticky top-0 border-b px-2 py-2 font-bold whitespace-nowrap cursor-pointer select-none ${
                       isCurrent
                         ? "bg-[var(--accent)] text-[var(--accent-text)] border-[var(--accent)]"
                         : isHighlighted
@@ -511,16 +514,16 @@ function GridRow({ manager, conf, season, oppSeason, weeks, crossSchedule, curre
         return (
           <td
             key={w}
-            className={`schedule-grid-cell border-b border-[var(--border)]/40 px-2 py-1.5 text-center cursor-pointer hover:bg-[var(--surface2)]/60 ${bgClass}`}
+            className={`schedule-grid-cell ${WEEK_COL_CLASS} border-b border-[var(--border)]/40 px-2 py-1.5 text-center cursor-pointer hover:bg-[var(--surface2)]/60 ${bgClass}`}
             onClick={() => openPreview(manager, conf, w)}
             title={`${displayName(manager, conf)} -- Week ${w}`}
           >
-            <div className="truncate max-w-[7rem] font-semibold flex items-center justify-center gap-1">
+            <div className="truncate max-w-full font-semibold flex items-center justify-center gap-1">
               {intraResult && <span className={`text-xs font-black ${RESULT_TEXT[intraResult]}`}>{intraResult}</span>}
               <TeamMiniLogo manager={intraOpponent} size={16} />
               <span className="truncate">{displayName(intraOpponent, conf)}</span>
             </div>
-            <div className="truncate max-w-[7rem] text-[var(--muted)] flex items-center justify-center gap-1">
+            <div className="truncate max-w-full text-[var(--muted)] flex items-center justify-center gap-1">
               {interResult && <span className={`text-xs font-black ${RESULT_TEXT[interResult]}`}>{interResult}</span>}
               <TeamMiniLogo manager={interOpponent} size={14} className="opacity-80" />
               <span className="truncate">{displayName(interOpponent, interConf)}</span>

@@ -25,7 +25,7 @@ function niceTicks(min, max, count = 4) {
 
 // One conference's lines for one metric. No end-of-line logos (too crowded): hovering a line, a
 // dot, or a legend entry highlights that team and shows its name and value.
-function ChartPanel({ conf, title, series, weeks, yMin, yMax, formatY, zeroLine = false, legendMode = "last" }) {
+function ChartPanel({ conf, title, series, weeks, yMin, yMax, formatY, zeroLine = false, legendMode = "last", invertY = false, fixedTicks = null, lowerIsBetter = false }) {
   const [hover, setHover] = useState(null); // { manager, week? }
   const { mode: nameMode, displayName, managerName } = useNameDisplay();
   const graphName = (s) => {
@@ -37,8 +37,11 @@ function ChartPanel({ conf, title, series, weeks, yMin, yMax, formatY, zeroLine 
   const xMin = weeks[0];
   const xSpan = (weeks[weeks.length - 1] - xMin) || 1;
   const xFor = (w) => MARGIN.left + (weeks.length > 1 ? ((w - xMin) / xSpan) * PLOT_W : 0);
-  const yFor = (v) => MARGIN.top + (1 - (v - yMin) / ((yTop - yMin) || 1)) * PLOT_H;
-  const ticks = niceTicks(yMin, yMax, 5);
+  const yFor = (v) => {
+    const t = (v - yMin) / ((yTop - yMin) || 1);
+    return MARGIN.top + (invertY ? t : 1 - t) * PLOT_H;
+  };
+  const ticks = fixedTicks || niceTicks(yMin, yMax, 5);
   const yTop = Math.max(yMax, ticks.at(-1) ?? yMax);
   const fmt = (v) => (formatY ? formatY(v) : Math.round(v));
   const references = series.filter(s => s.isReference);
@@ -52,7 +55,9 @@ function ChartPanel({ conf, title, series, weeks, yMin, yMax, formatY, zeroLine 
   const rankedTeams = series
     .filter(s => !s.isReference)
     .slice()
-    .sort((a, b) => (legendValue(b) ?? -Infinity) - (legendValue(a) ?? -Infinity));
+    .sort((a, b) => (lowerIsBetter
+      ? (legendValue(a) ?? Infinity) - (legendValue(b) ?? Infinity)
+      : (legendValue(b) ?? -Infinity) - (legendValue(a) ?? -Infinity)));
 
   const hoveredSeries = hover ? series.find(s => s.manager === hover.manager) : null;
   const hoveredPoint = hoveredSeries
@@ -137,7 +142,7 @@ function ChartPanel({ conf, title, series, weeks, yMin, yMax, formatY, zeroLine 
                 className="w-full flex items-center gap-2 py-0.5 text-xs text-left"
                 style={{ opacity: hover && hover.manager !== s.manager ? 0.35 : 1 }}
               >
-                <span className="w-4 text-right font-bold text-[var(--muted)] shrink-0">{i + 1}</span>
+                {!lowerIsBetter && <span className="w-4 text-right font-bold text-[var(--muted)] shrink-0">{i + 1}</span>}
                 <TeamMiniLogo manager={s.manager} size={18} ringColor={s.color} />
                 <span className="truncate flex-1 font-semibold text-[var(--text2)]">{graphName(s)}</span>
                 <span className="font-bold text-[var(--text)] shrink-0">{legendValue(s) != null ? fmt(legendValue(s)) : '—'}</span>
@@ -168,7 +173,7 @@ function ChartPanel({ conf, title, series, weeks, yMin, yMax, formatY, zeroLine 
 
 // One metric: AFC and NFC panels side by side (stacked on phones) on the SAME y-scale, so the two
 // conferences can be compared directly without 24 lines crowding one chart. One export covers both.
-function TrendCard({ title, chartId, panels, weeks, yMin, yMax, formatY, zeroLine = false, legendMode = "last" }) {
+function TrendCard({ title, chartId, panels, weeks, yMin, yMax, formatY, zeroLine = false, legendMode = "last", panelOptions = {} }) {
   const exportRef = useRef(null);
   const imageExport = useElementPngExport(exportRef, `lenzone-${chartId}-trend`, { minWidth: 1100 });
   return (
@@ -188,9 +193,9 @@ function TrendCard({ title, chartId, panels, weeks, yMin, yMax, formatY, zeroLin
         </div>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-6">
-        <ChartPanel conf="AFC" title={title} series={panels.AFC} weeks={weeks} yMin={yMin} yMax={yMax} formatY={formatY} zeroLine={zeroLine} legendMode={legendMode} />
+        <ChartPanel conf="AFC" title={title} series={panels.AFC} weeks={weeks} yMin={yMin} yMax={yMax} formatY={formatY} zeroLine={zeroLine} legendMode={legendMode} {...panelOptions} />
         <div className="hidden lg:block w-px bg-[var(--border)]" aria-hidden="true" />
-        <ChartPanel conf="NFC" title={title} series={panels.NFC} weeks={weeks} yMin={yMin} yMax={yMax} formatY={formatY} zeroLine={zeroLine} legendMode={legendMode} />
+        <ChartPanel conf="NFC" title={title} series={panels.NFC} weeks={weeks} yMin={yMin} yMax={yMax} formatY={formatY} zeroLine={zeroLine} legendMode={legendMode} {...panelOptions} />
       </div>
     </div>
   );
@@ -232,7 +237,15 @@ export default function StandingsTrendChart({
     };
   });
 
-  const ptsPanels = useMemo(() => cumulative('pts'), [history, afcManagers, nfcManagers, hexColorMap]);
+  // Conference standing after each completed week (Week 0 is a synthetic everyone-tied baseline, so
+  // it's left off). Same ranking/tiebreak as the standings table.
+  const rankPanels = useMemo(() => {
+    const panels = cumulative('rank');
+    ['AFC', 'NFC'].forEach(conf => panels[conf].forEach(s => { s.points = s.points.filter(p => p.week >= 1); }));
+    return panels;
+  }, [history, afcManagers, nfcManagers, hexColorMap]);
+  const rankWeeks = useMemo(() => Array.from({ length: latestCompletedWeek }, (_, i) => i + 1), [latestCompletedWeek]);
+  const teamsPerConf = Math.max(afcManagers.length, nfcManagers.length, 1);
   const pfPanels = useMemo(() => cumulative('pf'), [history, afcManagers, nfcManagers, hexColorMap]);
   const paIntraPanels = useMemo(() => runningTotal(r => r.paIntra), [weeklyHistory, afcManagers, nfcManagers, hexColorMap]);
   const paCrossPanels = useMemo(() => runningTotal(r => r.paCross), [weeklyHistory, afcManagers, nfcManagers, hexColorMap]);
@@ -254,8 +267,9 @@ export default function StandingsTrendChart({
     <section className="space-y-4">
       <h2 className="font-display text-xl font-bold text-[var(--text)]">Trends <span className="text-sm font-semibold text-[var(--muted)]">· season so far</span></h2>
       <TrendCard
-        chartId="pts" title="League Pts" panels={ptsPanels} weeks={weeks}
-        yMin={0} yMax={maxOf(ptsPanels)} formatY={(v) => (Number.isInteger(v) ? v : v.toFixed(1))}
+        chartId="rank" title="Conference Standing" panels={rankPanels} weeks={rankWeeks}
+        yMin={1} yMax={teamsPerConf} formatY={(v) => `#${Math.round(v)}`}
+        panelOptions={{ invertY: true, lowerIsBetter: true, fixedTicks: [1, 3, 6, 9, teamsPerConf] }}
       />
       <TrendCard
         chartId="pf" title="Total Points Scored (PF)" panels={pfPanels} weeks={weeks}

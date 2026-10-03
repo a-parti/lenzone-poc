@@ -37,6 +37,26 @@ function FunCard({ title, subtitle, chartId, children }) {
   );
 }
 
+// The same four result colors as the weekly scores chart.
+const RESULT_LEGEND = [['var(--pos)', 'Won both'], ['var(--proj)', 'Won in-conference only'], ['var(--live)', 'Won cross-conference only'], ['var(--neg)', 'No wins']];
+function resultColor(r) {
+  const wonIntra = r.intraOppScore != null && r.score > r.intraOppScore;
+  const wonCross = r.crossOppScore != null && r.score > r.crossOppScore;
+  return wonIntra && wonCross ? 'var(--pos)' : wonIntra ? 'var(--proj)' : wonCross ? 'var(--live)' : 'var(--neg)';
+}
+function ResultLegend() {
+  return (
+    <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs font-semibold text-[var(--text2)]">
+      {RESULT_LEGEND.map(([color, label]) => (
+        <span key={label} className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
+          {label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 const median = (arr) => {
   if (!arr.length) return 0;
   const s = [...arr].sort((a, b) => a - b);
@@ -64,7 +84,9 @@ export function LuckOfTheWeek({ week, rows, logoMap }) {
       const opp = [r.intraOppScore, r.crossOppScore].filter(v => v != null);
       if (!opp.length) return null;
       const wins = [r.intraOppScore, r.crossOppScore].filter(v => v != null && r.score > v).length;
-      return { ...r, oppAvg: opp.reduce((a, b) => a + b, 0) / opp.length, wins, games: opp.length };
+      const wonIntra = r.intraOppScore != null && r.score > r.intraOppScore;
+      const wonCross = r.crossOppScore != null && r.score > r.crossOppScore;
+      return { ...r, oppAvg: opp.reduce((a, b) => a + b, 0) / opp.length, wins, games: opp.length, wonIntra, wonCross };
     })
     .filter(Boolean), [rows]);
   if (points.length < 4) return null;
@@ -77,7 +99,9 @@ export function LuckOfTheWeek({ week, rows, logoMap }) {
   const mx = median(xs), my = median(ys);
   const ticks = [];
   for (let t = lo; t <= hi; t += 20) ticks.push(t);
-  const ring = (p) => (p.wins === p.games ? 'var(--pos)' : p.wins === 0 ? 'var(--neg)' : 'var(--live)');
+  // Same four result colors as the weekly scores chart: won both / in-conference only /
+  // cross-conference only / no wins.
+  const ring = resultColor;
   const corner = (x, y, anchor, text, color) => (
     <text x={x} y={y} textAnchor={anchor} fontSize={14} fontWeight={900} letterSpacing="0.14em" fill={color} opacity={0.9}>{text}</text>
   );
@@ -87,7 +111,7 @@ export function LuckOfTheWeek({ week, rows, logoMap }) {
     <FunCard
       chartId={`luck-week-${week}`}
       title={`Luck of the Week -- Week ${week}`}
-      subtitle="Your score vs. what your opponents scored (average of both games). Ring: green won both, gold split, red lost both."
+      subtitle="Your score vs. what your opponents scored (average of both games). Ring color matches the weekly scores chart."
     >
       <svg viewBox={`0 0 ${SW} ${SH}`} className="w-full h-auto" role="img" aria-label={`Week ${week} luck chart`}>
         {/* quadrant glows, each fading in from its corner */}
@@ -149,6 +173,7 @@ export function LuckOfTheWeek({ week, rows, logoMap }) {
           </g>
         )}
       </svg>
+      <ResultLegend />
     </FunCard>
   );
 }
@@ -171,6 +196,7 @@ export function BoomOrBust({ week, rows, pregameScores }) {
   const half = Math.ceil(items.length / 2);
   const Row = ({ i, rank }) => {
     const boom = i.delta >= 0;
+    const color = resultColor(i);
     const left = Math.min(i.pre, i.score), right = Math.max(i.pre, i.score);
     return (
       <button type="button" onClick={() => openPreview(i.manager, i.conf, week)}
@@ -184,11 +210,11 @@ export function BoomOrBust({ week, rows, pregameScores }) {
         <span className="relative h-5">
           <span className="absolute top-1/2 left-0 right-0 h-px bg-[var(--border)]" />
           <span className="absolute top-1/2 -translate-y-1/2 h-2 rounded-full"
-            style={{ left: pos(left), width: `calc(${pos(right)} - ${pos(left)})`, background: boom ? 'linear-gradient(90deg, transparent, var(--pos))' : 'linear-gradient(270deg, transparent, var(--neg))', boxShadow: `0 0 10px ${boom ? 'var(--pos)' : 'var(--neg)'}` }} />
+            style={{ left: pos(left), width: `calc(${pos(right)} - ${pos(left)})`, background: boom ? `linear-gradient(90deg, transparent, ${color})` : `linear-gradient(270deg, transparent, ${color})`, boxShadow: `0 0 10px ${color}` }} />
           <span className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full border-2 border-[var(--text2)] bg-[var(--surface)]" style={{ left: pos(i.pre) }} />
-          <span className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full ${boom ? 'bg-[var(--pos)]' : 'bg-[var(--neg)]'}`} style={{ left: pos(i.score), boxShadow: `0 0 8px ${boom ? 'var(--pos)' : 'var(--neg)'}` }} />
+          <span className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full" style={{ left: pos(i.score), backgroundColor: color, boxShadow: `0 0 8px ${color}` }} />
         </span>
-        <span className={`text-xs font-black text-right ${boom ? 'text-[var(--pos)]' : 'text-[var(--neg)]'}`}>{signed(i.delta)}</span>
+        <span className="text-xs font-black text-right text-[var(--text)]">{signed(i.delta)}</span>
       </button>
     );
   };
@@ -196,12 +222,13 @@ export function BoomOrBust({ week, rows, pregameScores }) {
     <FunCard
       chartId={`boom-bust-week-${week}`}
       title={`Boom or Bust -- Week ${week}`}
-      subtitle="Hollow dot = pregame projection, solid dot = actual score. Sorted from biggest boom to biggest bust."
+      subtitle="Hollow dot = pregame projection, solid dot = actual score (colored by matchup result). Sorted from biggest boom to biggest bust."
     >
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8">
         <div>{items.slice(0, half).map((i, k) => <Row key={i.manager} i={i} rank={k + 1} />)}</div>
         <div>{items.slice(half).map((i, k) => <Row key={i.manager} i={i} rank={half + k + 1} />)}</div>
       </div>
+      <ResultLegend />
     </FunCard>
   );
 }

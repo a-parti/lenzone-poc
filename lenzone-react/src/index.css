@@ -193,7 +193,7 @@ html {
 }
 
 html {
-  scrollbar-width: thin;
+  scrollbar-width: auto;
   scrollbar-color: var(--border2) var(--bg);
 }
 .scrollbar-none::-webkit-scrollbar { display: none; }
@@ -460,8 +460,8 @@ html {
   to { transform: rotate(360deg); }
 }
 html::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 14px;
+  height: 14px;
 }
 html::-webkit-scrollbar-track {
   background: var(--bg);
@@ -469,7 +469,7 @@ html::-webkit-scrollbar-track {
 html::-webkit-scrollbar-thumb {
   background-color: var(--border2);
   border-radius: 999px;
-  border: 2px solid var(--bg);
+  border: 3px solid var(--bg);
 }
 html::-webkit-scrollbar-thumb:hover {
   background-color: var(--muted);
@@ -824,15 +824,15 @@ button.news-ticker-label {
   animation: fade-in-up 0.4s ease-out both;
 }
 
-/* Thin, theme-aware scrollbar for internal scroll containers (weekly scoring table, etc.) instead
-   of the default chunky OS scrollbar. */
+/* Theme-colored scrollbar for internal scroll containers (charts, schedule grids, tables) --
+   regular width so it's easy to grab, especially on touchpads. */
 .scroll-thin {
-  scrollbar-width: thin;
+  scrollbar-width: auto;
   scrollbar-color: var(--border2) transparent;
 }
 .scroll-thin::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 12px;
+  height: 12px;
 }
 .scroll-thin::-webkit-scrollbar-track {
   background: transparent;
@@ -967,7 +967,7 @@ button.news-ticker-label {
     linear-gradient(155deg, var(--surface2), color-mix(in srgb, var(--surface) 82%, var(--bg)));
   box-shadow: 0 1px 0 rgba(255,255,255,.1) inset, 0 28px 60px -44px rgba(0,0,0,.85);
 }
-.playoff-board-scroll { overflow-x: auto; padding: 1.25rem; scrollbar-width: thin; scrollbar-color: var(--border2) transparent; }
+.playoff-board-scroll { overflow-x: auto; padding: 1.25rem; scrollbar-width: auto; scrollbar-color: var(--border2) transparent; }
 .playoff-board { width: 1450px; margin: 0 auto; display: grid; grid-template-columns: 600px 210px 600px; gap: 20px; align-items: center; }
 .playoff-conference-tree { width: 600px; }
 .playoff-conf-heading {

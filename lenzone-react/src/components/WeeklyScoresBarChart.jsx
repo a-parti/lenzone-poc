@@ -202,6 +202,8 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
   const nfcBars = buildGroup(nfcManagers, nfcSeason, "NFC");
   const afcMedian = median(afcBars.map(b => b.score));
   const nfcMedian = median(nfcBars.map(b => b.score));
+  // One league-wide median reference line (the AFC and NFC medians sat nearly on top of each other).
+  const leagueMedian = median([...afcBars, ...nfcBars].map(b => b.score));
 
   const allBars = [...afcBars, ...nfcBars];
   if (allBars.length === 0) {
@@ -351,8 +353,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
       { color: "var(--text)", label: "Pregame projection", tick: true },
       { color: "var(--muted)", label: "Faded cap = max possible (best lineup)", dashed: true }
     ] : []),
-    { color: AFC_COLOR, label: "AFC Median", dashed: true },
-    { color: NFC_COLOR, label: "NFC Median", dashed: true }
+    { color: "var(--muted)", label: "League median", dashed: true }
   ];
   // Keep live/final clusters and their exports in lockstep. Live uses all three measures; once a
   // week is final, the live projection would equal Actual, so it deliberately drops away.
@@ -516,7 +517,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
     const exportScopeLabel = focusManager
       ? (showEveryoneElse ? '- You, Your Opponents & Everyone Else' : '- You & Your Opponents')
       : '- All Teams';
-    parts.push(`<text x="${exportW / 2}" y="40" text-anchor="middle" font-family="${EXPORT_SERIF}" font-size="30" font-weight="700" fill="${EXPORT.text}">${esc(`Week ${week} Scores - ${scoreTypeLabel} ${exportScopeLabel}`)}</text>`);
+    parts.push(`<text x="${exportW / 2}" y="40" text-anchor="middle" font-family="${EXPORT_SERIF}" font-size="30" font-weight="700" fill="${EXPORT.text}">${esc(reportCard ? `Week ${week} Final Scores ${exportScopeLabel}` : `Week ${week} Scores - ${scoreTypeLabel} ${exportScopeLabel}`)}</text>`);
     // Brand watermark, top-left corner -- doesn't compete with the centered title for space and
     // stays in the same spot regardless of how long the title text is.
     if (brandRing && brandBall) {
@@ -541,15 +542,10 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
       parts.push(`<text x="${sectionGuide.restCenterX}" y="${sectionLabelY}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="11" font-weight="800" letter-spacing="0.8" fill="${EXPORT.muted}">EVERYONE ELSE</text>`);
     }
 
-    if (afcMedian != null) {
-      const my = yFor(afcMedian);
-      parts.push(`<line x1="${MARGIN.left}" x2="${width - MARGIN.right}" y1="${my}" y2="${my}" stroke="${resolveExportColor(AFC_COLOR)}" stroke-width="${focusManager ? 1.5 : 2.5}" stroke-dasharray="7 5" opacity="${focusManager ? 0.4 : 1}"/>`);
-      parts.push(`<text x="${width - MARGIN.right + 8}" y="${my}" dominant-baseline="middle" font-family="${EXPORT_SANS}" font-size="15" font-weight="700" fill="${resolveExportColor(AFC_COLOR)}">AFC ${afcMedian.toFixed(1)} ${referenceTypeLabel}</text>`);
-    }
-    if (nfcMedian != null) {
-      const my = yFor(nfcMedian);
-      parts.push(`<line x1="${MARGIN.left}" x2="${width - MARGIN.right}" y1="${my}" y2="${my}" stroke="${resolveExportColor(NFC_COLOR)}" stroke-width="${focusManager ? 1.5 : 2.5}" stroke-dasharray="7 5" opacity="${focusManager ? 0.4 : 1}"/>`);
-      parts.push(`<text x="${width - MARGIN.right + 8}" y="${my}" dominant-baseline="middle" font-family="${EXPORT_SANS}" font-size="15" font-weight="700" fill="${resolveExportColor(NFC_COLOR)}">NFC ${nfcMedian.toFixed(1)} ${referenceTypeLabel}</text>`);
+    if (leagueMedian != null) {
+      const my = yFor(leagueMedian);
+      parts.push(`<line x1="${MARGIN.left}" x2="${width - MARGIN.right}" y1="${my}" y2="${my}" stroke="${EXPORT.muted}" stroke-width="2" stroke-dasharray="7 5" opacity="${focusManager ? 0.45 : 0.9}"/>`);
+      parts.push(`<text x="${width - MARGIN.right + 8}" y="${my}" dominant-baseline="middle" font-family="${EXPORT_SANS}" font-size="14" font-weight="700" fill="${EXPORT.muted}">Median ${leagueMedian.toFixed(1)}</text>`);
     }
     if (focusManager && focusScore != null) {
       const fy = yFor(focusScore);
@@ -731,7 +727,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
           style={{ fontFamily: SERIF_FONT, fontWeight: 700 }}
         >
           Week {week} Scores {focusManager ? (showEveryoneElse ? "-- You, Your Opponents & Everyone Else" : "-- You & Your Opponents") : "-- All Teams"}
-          <span className="ml-2 text-xs font-bold uppercase tracking-wide text-[var(--proj)]">{scoreTypeLabel}</span>
+          <span className="ml-2 text-xs font-bold uppercase tracking-wide text-[var(--proj)]">{reportCard ? "Final" : scoreTypeLabel}</span>
         </p>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
           {focusManager && (
@@ -806,24 +802,13 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
             </g>
           )}
 
-          {/* AFC/NFC median reference lines for this specific week -- in focus mode these are just
-              backdrop context (faded/thin), since the chosen team's OWN score below is the actual
-              reference point everything else on this chart is being read against. Always stay at
-              full opacity regardless of which bar is hovered (never fade with the rest of the
-              bars) -- they're a fixed reference point, not something being compared. */}
-          {afcMedian != null && (
-            <g opacity={focusManager ? 0.4 : 1}>
-              <line x1={MARGIN.left} x2={width - MARGIN.right} y1={yFor(afcMedian)} y2={yFor(afcMedian)} stroke={AFC_COLOR} strokeWidth={focusManager ? 1.5 : 2.5} strokeDasharray="7 5" />
-              <text x={width - MARGIN.right + 8} y={yFor(afcMedian)} dominantBaseline="middle" fontSize={focusManager ? 11 : 13} fontWeight={700} fill={AFC_COLOR}>
-                AFC {afcMedian.toFixed(1)} {referenceTypeLabel}
-              </text>
-            </g>
-          )}
-          {nfcMedian != null && (
-            <g opacity={focusManager ? 0.4 : 1}>
-              <line x1={MARGIN.left} x2={width - MARGIN.right} y1={yFor(nfcMedian)} y2={yFor(nfcMedian)} stroke={NFC_COLOR} strokeWidth={focusManager ? 1.5 : 2.5} strokeDasharray="7 5" />
-              <text x={width - MARGIN.right + 8} y={yFor(nfcMedian)} dominantBaseline="middle" fontSize={focusManager ? 11 : 13} fontWeight={700} fill={NFC_COLOR}>
-                NFC {nfcMedian.toFixed(1)} {referenceTypeLabel}
+          {/* One league-wide median line, labeled inside the plot; faint in focus mode, where your own
+              score is the main reference. */}
+          {leagueMedian != null && (
+            <g opacity={focusManager ? 0.45 : 0.9} pointerEvents="none">
+              <line x1={MARGIN.left} x2={width - MARGIN.right} y1={yFor(leagueMedian)} y2={yFor(leagueMedian)} stroke="var(--muted)" strokeWidth={2} strokeDasharray="7 5" />
+              <text x={width - MARGIN.right + 8} y={yFor(leagueMedian)} dominantBaseline="middle" fontSize={12} fontWeight={700} fill="var(--muted)">
+                Median {leagueMedian.toFixed(1)}
               </text>
             </g>
           )}
@@ -994,7 +979,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
                   {b.actualScore != null ? ` ${b.actualScore.toFixed(2)} Actual` : ''}
                   {b.projectedScore != null ? `; ${b.projectedScore.toFixed(2)} Live Proj` : ''}
                   {b.pregameScore != null ? `; ${b.pregameScore.toFixed(2)} Pregame Proj` : ''}
-                  {b.maxScore != null ? `; ${b.maxScore.toFixed(2)} Max possible` : ''}
+                  {b.maxScore != null ? `; ${b.maxScore.toFixed(2)} Max possible (${Math.round((b.actualScore / b.maxScore) * 100)}% of best lineup)` : ''}
                   {b.projectedScore == null && b.actualScore == null ? ` ${b.score.toFixed(2)} ${b.scoreType}` : ''}
                   {b.opponent ? ` vs ${graphName(b.opponent, b.conf)}${b.result ? ` (${b.result})` : ''}` : ''}
                 </title>

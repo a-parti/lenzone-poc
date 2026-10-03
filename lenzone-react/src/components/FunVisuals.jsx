@@ -260,6 +260,8 @@ export function LuckMeter({ luck }) {
   const maxAbs = Math.max(0.5, ...luck.map(l => Math.abs(l.luck)));
   // Split on the shown (one-decimal) value, so a team showing "0.0" never sits beside "Unlucky".
   const isLucky = (l) => Number(l.luck.toFixed(1)) >= 0;
+  const sideShade = (l, color) =>
+    `color-mix(in srgb, ${color} ${Math.round(15 + 85 * Math.min(1, Math.abs(l.luck) / maxAbs))}%, var(--border2))`;
   const groups = [
     { key: 'lucky', label: 'Lucky', color: 'var(--pos)', rows: luck.filter(isLucky) },
     { key: 'unlucky', label: 'Unlucky', color: 'var(--neg)', rows: luck.filter(l => !isLucky(l)) }
@@ -297,7 +299,9 @@ export function LuckMeter({ luck }) {
         {groups.map(g => (
           <div key={g.key} className="flex">
             {/* Side label running the height of its group. */}
-            <div className="w-6 shrink-0 flex items-center justify-center border-r-2 my-1" style={{ borderColor: g.color }}>
+            <div className="relative w-6 shrink-0 flex items-center justify-center my-1">
+              <span className="absolute right-0 inset-y-0 w-[3px] rounded-full"
+                style={{ background: `linear-gradient(180deg, ${sideShade(g.rows[0], g.color)}, ${sideShade(g.rows[g.rows.length - 1], g.color)})` }} />
               <span className="text-[10px] font-black uppercase tracking-[0.25em] whitespace-nowrap"
                 style={{ color: g.color, writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>{g.label}</span>
             </div>

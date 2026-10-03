@@ -1620,7 +1620,6 @@ export default function App() {
                   history={standingsHistory} weeklyHistory={weeklyPfPaHistory} weeklyMedians={weeklyConferenceMedians}
                   afcManagers={afcManagers} nfcManagers={nfcManagers}
                   hexColorMap={teamHexColorMap} latestCompletedWeek={latestCompletedWeek}
-                  defaultConf={myTeamConf || "AFC"}
                 />
               </>
             )}

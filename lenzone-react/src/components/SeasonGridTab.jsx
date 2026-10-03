@@ -273,12 +273,12 @@ export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afc
         parts.push(`<rect x="${x}" y="${y}" width="${WEEK_W}" height="${ROW_H}" fill="${fill}" stroke="${COLORS.border}" stroke-width="0.9"/>`);
         parts.push(`<rect x="${x}" y="${y}" width="${WEEK_W}" height="${ROW_H}" fill="url(#material-texture)"/>`);
 
-        const intraName = truncate(displayName(data.intraOpponent, conf), WEEK_W - (data.intraResult ? 55 : 28), `700 23px ${EXPORT_SERIF}`);
-        const interName = truncate(displayName(data.interOpponent, data.interConf), WEEK_W - (data.interResult ? 55 : 28), `650 21px ${EXPORT_SANS}`);
-        if (data.intraResult) parts.push(`<text x="${x + 14}" y="${y + 35}" font-family="${EXPORT_SANS}" font-size="20" font-weight="900" fill="${resultColor(data.intraResult)}">${data.intraResult}</text>`);
-        parts.push(`<text x="${x + (data.intraResult ? 47 : 14)}" y="${y + 35}" font-family="${EXPORT_SERIF}" font-size="23" font-weight="700" fill="${COLORS.text}">${esc(intraName)}</text>`);
-        if (data.interResult) parts.push(`<text x="${x + 14}" y="${y + 70}" font-family="${EXPORT_SANS}" font-size="18" font-weight="900" fill="${resultColor(data.interResult)}">${data.interResult}</text>`);
-        parts.push(`<text x="${x + (data.interResult ? 47 : 14)}" y="${y + 70}" font-family="${EXPORT_SANS}" font-size="21" font-weight="650" fill="${COLORS.muted}">${esc(interName)}</text>`);
+        const intraName = truncate(displayName(data.intraOpponent, conf), WEEK_W - 55, `700 23px ${EXPORT_SERIF}`);
+        const interName = truncate(displayName(data.interOpponent, data.interConf), WEEK_W - 55, `650 21px ${EXPORT_SANS}`);
+        if (data.intraResult) parts.push(`<text x="${x + 26}" y="${y + 35}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="20" font-weight="900" fill="${resultColor(data.intraResult)}">${data.intraResult}</text>`);
+        parts.push(`<text x="${x + 47}" y="${y + 35}" font-family="${EXPORT_SERIF}" font-size="23" font-weight="700" fill="${COLORS.text}">${esc(intraName)}</text>`);
+        if (data.interResult) parts.push(`<text x="${x + 26}" y="${y + 70}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="18" font-weight="900" fill="${resultColor(data.interResult)}">${data.interResult}</text>`);
+        parts.push(`<text x="${x + 47}" y="${y + 70}" font-family="${EXPORT_SANS}" font-size="21" font-weight="650" fill="${COLORS.muted}">${esc(interName)}</text>`);
       });
     });
 

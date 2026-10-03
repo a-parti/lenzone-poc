@@ -126,6 +126,16 @@
   50% { opacity: 0.75; }
   100% { opacity: 0.3; }
 }
+/* Day scene: Mission Beach along the bottom of the screen (public/beach-sd.svg). */
+[data-mode="light"] .sand-bg::after,
+:root:not([data-mode="dark"]) .sand-bg::after {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: min(34vh, 320px);
+  background: url("/beach-sd.svg") center bottom / cover no-repeat;
+  opacity: 0.85;
+}
 /* Night skyline: San Diego bay and downtown silhouette (public/skyline-sd.svg) along the bottom. */
 [data-mode="dark"] .sand-bg::after {
   left: 0;
@@ -175,9 +185,6 @@
 }
 [data-mode="dark"] .border-\[var\(--accent\)\] {
   box-shadow: 0 6px 18px -10px var(--neon-teal-glow);
-}
-[data-mode="dark"] .lenzone-title {
-  filter: drop-shadow(0 0 6px rgba(62, 240, 224, 0.45)) drop-shadow(0 0 14px rgba(255, 95, 162, 0.25));
 }
 html {
   /* Bumps every rem-based Tailwind text size up uniformly (site-wide "bigger text" pass)
@@ -275,33 +282,35 @@ html {
    itself has no seam either. The extra stops (vs. the original 4) are what actually fixes the
    jittery/bandy look -- fewer, farther-apart stops made each color hold for a very visible beat
    before jumping to the next; more, closer stops reads as continuous motion at the same speed. */
-/* Brushed-silver wordmark: a fine horizontal "brushed metal" grain, a cool silver body with
-   darker bands for depth, and a bright highlight that sweeps across continuously. Layers, top to
-   bottom: moving shine, static grain, silver body. Only the shine layer's position animates. */
+/* Wordmark: San Diego sunset colors -- Pacific teal, sea-glass aqua, peach, coral-pink and golden
+   sand -- flowing slowly through the letters (a diagonal gradient drifting sideways, seamless
+   because it starts and ends on the same color). Deeper tones on the light sand; softer neon at
+   night with a gentle glow. Kept low-contrast between stops so it's easy on the eyes. */
 .lenzone-title {
-  background-image:
-    linear-gradient(105deg, transparent 0%, transparent 40%, rgba(255, 255, 255, 0.95) 50%, transparent 60%, transparent 100%),
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.10) 0px, rgba(255, 255, 255, 0.10) 1px, rgba(0, 0, 0, 0.08) 1px, rgba(0, 0, 0, 0.08) 2px),
-    linear-gradient(180deg, #f4f6f8 0%, #c9ced4 28%, #8e959d 50%, #d7dbe0 68%, #9aa1a9 100%);
-  background-size: 250% 100%, 100% 100%, 100% 100%;
-  background-repeat: no-repeat;
-  animation: title-silver-shine 3.2s ease-in-out infinite;
-  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.35)) drop-shadow(0 0 1px rgba(255, 255, 255, 0.25));
+  background-image: linear-gradient(110deg, #00808A 0%, #2FA9B3 18%, #D98A5F 38%, #D25F7E 55%, #C79A3A 75%, #00808A 100%);
+  background-size: 300% 100%;
+  background-repeat: repeat;
+  animation: title-color-flow 12s linear infinite;
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.6));
 }
-/* Light mode: a slightly deeper silver so it still reads against the sand background. */
-[data-mode="light"] .lenzone-title {
-  background-image:
-    linear-gradient(105deg, transparent 0%, transparent 40%, rgba(255, 255, 255, 0.95) 50%, transparent 60%, transparent 100%),
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.12) 0px, rgba(255, 255, 255, 0.12) 1px, rgba(0, 0, 0, 0.10) 1px, rgba(0, 0, 0, 0.10) 2px),
-    linear-gradient(180deg, #b9c0c8 0%, #8a929b 30%, #4f5760 52%, #9aa2ab 70%, #5d656e 100%);
-  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.7));
+[data-mode="dark"] .lenzone-title {
+  background-image: linear-gradient(110deg, #6FE3D8 0%, #A6EEE8 18%, #FFC09A 38%, #FF8FB0 55%, #F5D58A 75%, #6FE3D8 100%);
+  filter: drop-shadow(0 0 6px rgba(255, 143, 176, 0.30)) drop-shadow(0 0 14px rgba(111, 227, 216, 0.20));
 }
-@keyframes title-silver-shine {
-  0% { background-position: 120% 0, 0 0, 0 0; }
-  100% { background-position: -20% 0, 0 0, 0 0; }
+@keyframes title-color-flow {
+  from { background-position: 0% 50%; }
+  to { background-position: 300% 50%; }
+}
+@keyframes title-neon-pulse {
+  from { filter: drop-shadow(0 0 4px rgba(255, 143, 176, 0.45)) drop-shadow(0 0 10px rgba(255, 143, 176, 0.25)); }
+  to { filter: drop-shadow(0 0 4px rgba(111, 227, 216, 0.45)) drop-shadow(0 0 12px rgba(111, 227, 216, 0.25)); }
+}
+/* The round logo mark gets the same alternating neon glow at night. */
+[data-mode="dark"] .lenzone-logo-mark {
+  animation: title-neon-pulse 2.4s ease-in-out infinite alternate;
 }
 @media (prefers-reduced-motion: reduce) {
-  .lenzone-title { animation: none; }
+  .lenzone-title, [data-mode="dark"] .lenzone-title, [data-mode="dark"] .lenzone-logo-mark { animation: none; }
 }
 @keyframes title-shine {
   from { background-position: 0% 50%; }

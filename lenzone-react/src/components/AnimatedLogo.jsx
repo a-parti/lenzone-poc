@@ -108,7 +108,7 @@ export default function AnimatedLogo({ sizeClass = "w-14 h-14", showGlow = false
         aria-label={label}
         onClick={onClick ? fireClick : undefined}
         onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fireClick(); } } : undefined}
-        className={`group relative ${sizeClass} shrink-0 ${onClick ? "cursor-pointer" : ""} ${clicked ? "big-logo-click" : ""} ${bursting ? "big-logo-burst" : ""} ${wobbling ? "big-logo-wobble" : ""}`}
+        className={`lenzone-logo-mark group relative ${sizeClass} shrink-0 ${onClick ? "cursor-pointer" : ""} ${clicked ? "big-logo-click" : ""} ${bursting ? "big-logo-burst" : ""} ${wobbling ? "big-logo-wobble" : ""}`}
       >
         {showGlow && <div className="big-logo-glow absolute -inset-4 rounded-full" aria-hidden="true" />}
         <div className="big-logo-morph absolute inset-0">

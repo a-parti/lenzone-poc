@@ -35,6 +35,11 @@ function LineChart({ title, series, weeks, yMin, yMax, formatY, chartId }) {
   const yFor = (v) => MARGIN.top + (1 - (v - yMin) / ((yMax - yMin) || 1)) * PLOT_H;
   const ticks = niceTicks(yMin, yMax, 4);
   const fmt = (v) => (formatY ? formatY(v) : Math.round(v));
+  const references = series.filter(s => s.isReference);
+  const rankedTeams = series
+    .filter(s => !s.isReference)
+    .slice()
+    .sort((a, b) => (b.points.at(-1)?.value ?? -Infinity) - (a.points.at(-1)?.value ?? -Infinity));
 
   const hoveredSeries = hover ? series.find(s => s.manager === hover.manager) : null;
   const hoveredPoint = hoveredSeries
@@ -110,22 +115,45 @@ function LineChart({ title, series, weeks, yMin, yMax, formatY, chartId }) {
           </g>
         )}
       </svg>
-      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
-        {series.map(s => (
-          <button
-            key={s.manager}
-            type="button"
-            onMouseEnter={() => setHover({ manager: s.manager })}
-            onMouseLeave={() => setHover(null)}
-            onFocus={() => setHover({ manager: s.manager })}
-            onBlur={() => setHover(null)}
-            className="text-xs font-semibold flex items-center gap-1.5 py-0.5"
-            style={{ opacity: hover && hover.manager !== s.manager ? 0.35 : 1 }}
-          >
-            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
-            <span className="truncate max-w-[12rem] text-[var(--text2)]">{graphName(s)}</span>
-          </button>
-        ))}
+      {/* Legend: teams ranked by their latest value (with the value shown), in a tidy grid; the
+          median reference lines sit apart under a divider. Hover any entry to spotlight its line. */}
+      <div className="mt-3 border-t border-[var(--border)] pt-3">
+        <ol className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-1">
+          {rankedTeams.map((s, i) => (
+            <li key={s.manager}>
+              <button
+                type="button"
+                onMouseEnter={() => setHover({ manager: s.manager })}
+                onMouseLeave={() => setHover(null)}
+                onFocus={() => setHover({ manager: s.manager })}
+                onBlur={() => setHover(null)}
+                className="w-full flex items-center gap-2 py-0.5 text-xs text-left"
+                style={{ opacity: hover && hover.manager !== s.manager ? 0.35 : 1 }}
+              >
+                <span className="w-4 text-right font-bold text-[var(--muted)] shrink-0">{i + 1}</span>
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                <span className="truncate flex-1 font-semibold text-[var(--text2)]">{graphName(s)}</span>
+                <span className="font-bold text-[var(--text)] shrink-0">{s.points.length ? fmt(s.points.at(-1).value) : '—'}</span>
+              </button>
+            </li>
+          ))}
+        </ol>
+        {references.length > 0 && (
+          <div className="mt-2 pt-2 border-t border-dashed border-[var(--border)] flex flex-wrap gap-x-5 gap-y-1">
+            {references.map(s => (
+              <button
+                key={s.manager}
+                type="button"
+                onMouseEnter={() => setHover({ manager: s.manager })}
+                onMouseLeave={() => setHover(null)}
+                className="flex items-center gap-2 text-xs font-semibold text-[var(--text2)]"
+              >
+                <span className="w-5 border-t-2 border-dashed" style={{ borderColor: s.color }} />
+                {s.manager}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -138,13 +166,15 @@ function LineChart({ title, series, weeks, yMin, yMax, formatY, chartId }) {
 // weeklyMedians: { afc: [{week,value}], nfc: [...] } from computeWeeklyConferenceMedian.
 // hexColorMap: { manager: '#rrggbb' } (see teamColors.js buildConferenceHexColorMap).
 export default function StandingsTrendChart({
-  history, weeklyHistory, weeklyMedians, afcManagers, nfcManagers, hexColorMap, confFilter, latestCompletedWeek
+  history, weeklyHistory, weeklyMedians, afcManagers, nfcManagers, hexColorMap, latestCompletedWeek, defaultConf = "AFC"
 }) {
   const [view, setView] = useState("cumulative");
+  // One conference at a time: 12 lines is readable, 24 is not.
+  const [confFilter, setConfFilter] = useState(defaultConf);
   const weeks = useMemo(() => Array.from({ length: latestCompletedWeek + 1 }, (_, i) => i), [latestCompletedWeek]);
   const weeklyWeeks = useMemo(() => Array.from({ length: latestCompletedWeek }, (_, i) => i + 1), [latestCompletedWeek]);
 
-  const managers = confFilter === "AFC" ? afcManagers : confFilter === "NFC" ? nfcManagers : [...afcManagers, ...nfcManagers];
+  const managers = confFilter === "NFC" ? nfcManagers : afcManagers;
 
   const buildSeries = (metric) => managers.map(m => {
     const isAfc = afcManagers.includes(m);
@@ -178,9 +208,10 @@ export default function StandingsTrendChart({
   // Weekly PF alongside both conferences' weekly median as dashed reference lines.
   const pfVsMedianSeries = useMemo(() => [
     ...buildWeeklyPfSeries(),
-    { manager: "AFC Median", color: "var(--afc)", dashed: true, isReference: true, points: (weeklyMedians?.afc || []) },
-    { manager: "NFC Median", color: "var(--nfc)", dashed: true, isReference: true, points: (weeklyMedians?.nfc || []) }
-  ], [weeklyHistory, managers, hexColorMap, weeklyMedians]);
+    confFilter === "NFC"
+      ? { manager: "NFC Median", color: "var(--nfc)", dashed: true, isReference: true, points: (weeklyMedians?.nfc || []) }
+      : { manager: "AFC Median", color: "var(--afc)", dashed: true, isReference: true, points: (weeklyMedians?.afc || []) }
+  ], [weeklyHistory, managers, hexColorMap, weeklyMedians, confFilter]);
 
   const maxOf = (series) => Math.max(1, ...series.flatMap(s => s.points.map(p => p.value)));
 
@@ -196,6 +227,22 @@ export default function StandingsTrendChart({
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-display text-xl font-bold text-[var(--text)]">Trends</h2>
+        <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex rounded-full bg-[var(--surface2)] border border-[var(--border)] p-1 gap-1" role="group" aria-label="Conference">
+          {["AFC", "NFC"].map(conf => (
+            <button
+              key={conf}
+              type="button"
+              onClick={() => setConfFilter(conf)}
+              aria-pressed={confFilter === conf}
+              className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all duration-200 ${
+                confFilter === conf ? "bg-[var(--accent)] text-[var(--accent-text)]" : "text-[var(--text2)] hover:text-[var(--text)]"
+              }`}
+            >
+              {conf}
+            </button>
+          ))}
+        </div>
         <div className="inline-flex rounded-full bg-[var(--surface2)] border border-[var(--border)] p-1 gap-1" role="group" aria-label="Trend view">
           {[["cumulative", "Season so far"], ["weekly", "Week by week"]].map(([id, label]) => (
             <button
@@ -210,6 +257,7 @@ export default function StandingsTrendChart({
               {label}
             </button>
           ))}
+        </div>
         </div>
       </div>
 
@@ -229,7 +277,7 @@ export default function StandingsTrendChart({
       {view === "weekly" && (
         <>
           <LineChart
-            chartId="wk-pf-median" title="Points Scored Each Week vs. AFC/NFC Median" series={pfVsMedianSeries} weeks={weeklyWeeks}
+            chartId="wk-pf-median" title={`Points Scored Each Week vs. ${confFilter} Median`} series={pfVsMedianSeries} weeks={weeklyWeeks}
             yMin={0} yMax={maxOf(pfVsMedianSeries)} formatY={(v) => Math.round(v)}
           />
           <LineChart

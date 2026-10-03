@@ -8,6 +8,7 @@ import lenzoneLogoRing from '../assets/lenzone-logo-ring.png';
 import lenzoneLogoBall from '../assets/lenzone-logo-ball.png';
 import ExportControls from './ExportControls';
 import useModuleExportTheme from '../hooks/useModuleExportTheme';
+import { readThemeTokens } from '../lib/themeTokens';
 
 // Fixed width so the sticky team column is stable; narrower on phones so the weeks get room.
 const TEAM_COL_CLASS = 'w-[120px] min-w-[120px] max-w-[120px] sm:w-[232px] sm:min-w-[232px] sm:max-w-[232px]';
@@ -96,7 +97,7 @@ function gridCellData({ manager, conf, season, oppSeason, crossSchedule, week, l
 // -- just the team column, though; the current week is only called out with color/tint, not
 // frozen in place, so scrolling right doesn't leave two separate frozen columns competing for
 // attention.
-export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afcManagers, nfcManagers, seasonWeeks, currentWeek, latestCompletedWeek, logoMap = {}, conference = null }) {
+export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afcManagers, nfcManagers, seasonWeeks, currentWeek, latestCompletedWeek, logoMap = {}, conference = null, weekDateLabels = {} }) {
   // Clicking a week's own header toggles highlighting it -- click the same week again (or a
   // different one) to change/clear it, no separate dropdown control needed.
   const [highlightWeek, setHighlightWeek] = useState(null);
@@ -137,6 +138,9 @@ export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afc
       highlight: '#F8D9D1', highlight2: '#F2C8BC', highlightText: '#6B2A1C',
       winBg: '#D6EDE0', winBg2: '#C5E5D3', lossBg: '#F6D8D5', lossBg2: '#EFC6C2', accent: '#0E8A95'
     };
+    // Core colors come from the live theme tokens so the PNG matches the site; the tints above stay as accents.
+    const t = readThemeTokens(exportTheme);
+    Object.assign(COLORS, { bg: t.bg, text: t.text, muted: t.muted, border: t.border2, afc: t.afc, nfc: t.nfc, win: t.pos, loss: t.neg, accent: t.accent, rowA: t.surface, rowA2: t.surface, rowB: t.surface2, rowB2: t.surface2 });
     const esc = (value) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const LABEL_W = 430;
     const WEEK_W = 205;
@@ -208,7 +212,8 @@ export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afc
       const weekText = week === currentWeek ? COLORS.currentText : week === highlightWeek ? COLORS.highlightText : COLORS.text2;
       parts.push(`<rect x="${x}" y="${TITLE_H}" width="${WEEK_W}" height="${HEADER_H}" fill="${fill}" stroke="${COLORS.border}" stroke-width="1.1"/>`);
       parts.push(`<rect x="${x}" y="${TITLE_H}" width="${WEEK_W}" height="${HEADER_H}" fill="url(#material-texture)"/>`);
-      parts.push(`<text x="${x + WEEK_W / 2}" y="${TITLE_H + 45}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="22" font-weight="800" fill="${weekText}">Wk ${week}${week === currentWeek ? ' •' : ''}${week === highlightWeek ? ' ●' : ''}</text>`);
+      if (weekDateLabels[week]) parts.push(`<text x="${x + WEEK_W / 2}" y="${TITLE_H + 62}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="15" font-weight="650" fill="${weekText}" opacity="0.85">${esc(weekDateLabels[week])}</text>`);
+      parts.push(`<text x="${x + WEEK_W / 2}" y="${TITLE_H + 38}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="22" font-weight="800" fill="${weekText}">Wk ${week}${week === currentWeek ? ' •' : ''}${week === highlightWeek ? ' ●' : ''}</text>`);
     });
 
     rows.forEach(({ manager, conf }, rowIndex) => {
@@ -400,7 +405,8 @@ export default function SeasonGridTab({ afcSeason, nfcSeason, crossSchedule, afc
                     }`}
                     title={`Click to ${isHighlighted ? "clear" : "highlight"} Week ${w}`}
                   >
-                    Wk {w}{isCurrent ? " · This week" : ""}{isHighlighted ? " ●" : ""}
+                    <div>Wk {w}{isCurrent ? " · This week" : ""}{isHighlighted ? " ●" : ""}</div>
+                    {weekDateLabels[w] && <div className={`text-[11px] font-semibold ${isCurrent ? '' : 'text-[var(--muted)]'}`}>{weekDateLabels[w]}</div>}
                   </th>
                 );
               })}

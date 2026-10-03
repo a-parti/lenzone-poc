@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Check, X as XIcon, Link as LinkIcon } from 'lucide-react';
 import { useRosterModal } from '../context/RosterModalContext';
 import { buildPostseasonSeeds } from '../lib/statsMath';
+import { readThemeTokens } from '../lib/themeTokens';
 import { useNameDisplay } from '../context/NameDisplayContext';
 import lenzoneLogoRing from '../assets/lenzone-logo-ring.png';
 import lenzoneLogoBall from '../assets/lenzone-logo-ball.png';
@@ -165,9 +166,12 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
   // WeeklyScoresBarChart: a deliberately separate, self-built SVG (not a clone of the live one) so
   // the export never depends on the viewer's own theme, webfonts, or hover state; team logos are
   // pre-fetched as base64 data URIs since an isolated SVG rasterization can't load external images.
-  const EXPORT = exportTheme === 'dark'
-    ? { bg: "#0B1F2A", bgFrom: "#12303B", bgTo: "#071820", text: "#EAF4F4", muted: "#93AEB5", border: "#34606F", afc: "#FF5FA2", nfc: "#3EF0E0", wildcard: "#F2C14E" }
-    : { bg: "#FAF7F2", bgFrom: "#FFFFFF", bgTo: "#F0ECE4", text: "#12303B", muted: "#5F7680", border: "#CFC7B9", afc: "#D9604A", nfc: "#0E8A95", wildcard: "#B87A12" };
+  // Export colors come from the live theme tokens (lib/themeTokens.js), loaded when an export runs.
+  let EXPORT = null;
+  const loadExportPalette = () => {
+    const t = readThemeTokens(exportTheme);
+    EXPORT = { bg: t.bg, bgFrom: t.surface, bgTo: t.surface2, text: t.text, muted: t.muted, border: t.border2, afc: t.afc, nfc: t.nfc, wildcard: t.live };
+  };
   const exportConfColor = (conf) => (conf === "AFC" ? EXPORT.afc : conf === "NFC" ? EXPORT.nfc : EXPORT.text);
   const EXPORT_SANS = "Arial, Helvetica, sans-serif";
   const EXPORT_SERIF = "Georgia, 'Times New Roman', serif";
@@ -214,6 +218,7 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
   };
 
   const buildExportSvg = async (includeLogos) => {
+    loadExportPalette();
     let logoData = {};
     if (includeLogos) {
       const uniqueManagers = [...new Set(bars.filter(b => logoMap?.[b.manager]).map(b => b.manager))];

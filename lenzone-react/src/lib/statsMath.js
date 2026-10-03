@@ -121,7 +121,14 @@ export function computeStats(history, managers) {
     const mean = gamesPlayed > 0
       ? (gamesPlayed * rawMean + SHRINKAGE_PHANTOM_GAMES * leagueMean) / (gamesPlayed + SHRINKAGE_PHANTOM_GAMES)
       : leagueMean;
-    const std = gamesPlayed > 1 ? (stdev(scores, rawMean) || leagueStd) : leagueStd;
+    // A team's own spread from only a few games is unreliable (three similar scores can give a
+    // spread of ~1 point, which made live win odds absurdly confident). Pool it with the league's
+    // spread the same way the mean is shrunk: SHRINKAGE_PHANTOM_GAMES worth of league variance.
+    const ownVariance = gamesPlayed > 1 ? Math.pow(stdev(scores, rawMean) || leagueStd, 2) : leagueStd * leagueStd;
+    const ownWeight = Math.max(0, gamesPlayed - 1);
+    const std = Math.sqrt(
+      (ownWeight * ownVariance + SHRINKAGE_PHANTOM_GAMES * leagueStd * leagueStd) / (ownWeight + SHRINKAGE_PHANTOM_GAMES)
+    );
     stats[m] = { mean, std, gamesPlayed };
   });
   return stats;

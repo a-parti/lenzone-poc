@@ -3,6 +3,7 @@ import { Check, X as XIcon, Link as LinkIcon } from 'lucide-react';
 import { useMatchupPreview } from '../context/MatchupPreviewContext';
 import { HIGH_SCORE_PRIZES } from '../lib/highScorePrizes';
 import { computeMaxScoresByManager } from '../lib/players';
+import { readThemeTokens, varResolver } from '../lib/themeTokens';
 import { useNameDisplay } from '../context/NameDisplayContext';
 import lenzoneLogoRing from '../assets/lenzone-logo-ring.png';
 import lenzoneLogoBall from '../assets/lenzone-logo-ball.png';
@@ -381,9 +382,15 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
   // team logo as a base64 data URI first), or any hover/CSS-transform state (none of that is
   // meaningful in a static export anyway). It also includes the legend and title, which the old
   // "just serialize the live <svg>" approach silently left out.
-  const EXPORT = exportTheme === 'dark'
-    ? { bg: "#0B1F2A", bgFrom: "#12303B", bgTo: "#071820", text: "#EAF4F4", muted: "#93AEB5", border: "#34606F" }
-    : { bg: "#FAF7F2", bgFrom: "#FFFFFF", bgTo: "#F0ECE4", text: "#12303B", muted: "#5F7680", border: "#CFC7B9" };
+  // Export colors come from the live theme tokens (lib/themeTokens.js), loaded when an export
+  // actually runs -- so a PNG always matches the site's current palette for that mode.
+  let EXPORT = null;
+  let resolveExportColor = (c) => c;
+  const loadExportPalette = () => {
+    const t = readThemeTokens(exportTheme);
+    EXPORT = { bg: t.bg, bgFrom: t.surface, bgTo: t.surface2, text: t.text, muted: t.muted, border: t.border2 };
+    resolveExportColor = varResolver(t);
+  };
   const EXPORT_SANS = "Arial, Helvetica, sans-serif";
   const EXPORT_SERIF = "Georgia, 'Times New Roman', serif";
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -393,10 +400,6 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
   // win/loss meaning the user specifically asked to keep intact. Pinned to this app's own actual
   // dark-mode values (index.css), so the export doesn't depend on the exporting viewer's own
   // light/dark mode or color scheme either.
-  const EXPORT_VAR_RESOLVE = exportTheme === 'dark'
-    ? { "var(--pos)": "#5CD69B", "var(--neg)": "#FF7B72", "var(--proj)": "#7DB4F0", "var(--live)": "#F2C14E", "var(--muted)": EXPORT.muted, "var(--accent)": "#3EF0E0", "var(--afc)": "#FF5FA2", "var(--nfc)": "#3EF0E0", "var(--text2)": "#C2D6DA" }
-    : { "var(--pos)": "#23845A", "var(--neg)": "#C2413B", "var(--proj)": "#2F6DB5", "var(--live)": "#B87A12", "var(--muted)": EXPORT.muted, "var(--accent)": "#0E8A95", "var(--afc)": "#D9604A", "var(--nfc)": "#0E8A95", "var(--text2)": "#3B5560" };
-  const resolveExportColor = (c) => EXPORT_VAR_RESOLVE[c] || c;
 
   // Best-effort: fetch a logo and convert it to a base64 data URI so it can be embedded directly
   // in the export SVG (a plain external <image href> pointing at Sleeper's CDN won't render at all
@@ -453,6 +456,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
   };
 
   const buildExportSvg = async (includeLogos) => {
+    loadExportPalette();
     let logoData = {};
     if (includeLogos) {
       const uniqueLogoManagers = [...new Set(positioned.filter(b => logoMap?.[b.manager]).map(b => b.manager))];

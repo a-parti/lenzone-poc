@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'rea
 import { Trophy, Swords, Megaphone, RefreshCw, X, Activity, ListOrdered, Users, Calendar, Search, Home, GitBranch, Copy, Check } from 'lucide-react';
 import AnimatedLogo from './components/AnimatedLogo';
 import { CONF_STYLES } from './lib/theme';
-import { ConfFilterToggle } from './components/shared';
 import {
   fetchSleeperLeague, fetchFullSeasonData, fetchWeekMatchups, fetchPlayersDB, fetchSeasonTransactions, fetchWeekTransactions, fetchDraftPicks, fetchAllWeekProjections, fetchWeekProjections, fetchNflState, fetchNflSchedule
 } from './lib/sleeperApi';
@@ -550,7 +549,6 @@ export default function App() {
   // Switching tabs always lands at the top of the new page, never wherever the previous tab
   // happened to be scrolled to.
   useEffect(() => { window.scrollTo(0, 0); }, [activeTab]);
-  const [confFilter, setConfFilter] = useState("ALL");
   // The playoff bracket is a mode of the Standings page (#playoffs deep-links straight to it).
   const [standingsView, setStandingsView] = useState(() => rawTabFromHash() === "playoffs" ? "playoffs" : "overview");
   // Back/forward browser navigation updates both the page and the bracket mode.
@@ -613,10 +611,11 @@ export default function App() {
   // Easter egg: picking ANY team plays a random clip from the shared public/sounds/generic/ pool,
   // plus a confetti burst.
   const [teamBurst, setTeamBurst] = useState(null);
-  const [soundMuted, setSoundMuted] = useState(() => localStorage.getItem('lenzone_sound_muted') === 'true');
+  // Sounds and fun animations are both off unless someone turns them on in settings.
+  const [soundMuted, setSoundMuted] = useState(() => { try { return localStorage.getItem('lenzone_sound_muted') !== 'false'; } catch { return true; } });
   // "Fun animations" (dancing stickmen + grabbable football). On by default; settings menu toggle.
   const [funEnabled, setFunEnabled] = useState(() => {
-    try { return localStorage.getItem('lenzone_fun_enabled') !== 'false'; } catch { return true; }
+    try { return localStorage.getItem('lenzone_fun_enabled') === 'true'; } catch { return false; }
   });
   const toggleFunEnabled = () => {
     setFunEnabled(prev => {
@@ -1014,7 +1013,6 @@ export default function App() {
   // cross-conference opponent while your own conference is selected), their matchup card is
   // filtered out of view entirely and the tab appears to do nothing.
   const goToMatchup = (manager, week) => {
-    setConfFilter("ALL");
     // Your own matchup is always pinned at the top of the Matchups tab now, so jumping to your
     // OWN card (e.g. "Full Matchups Tab ->" from Home/This Week) shouldn't also filter the full
     // list down to just you -- that filter is only useful when the click was actually pointing at
@@ -1028,14 +1026,10 @@ export default function App() {
     if (manager) localStorage.setItem('lenzone_my_team', manager);
     else localStorage.removeItem('lenzone_my_team');
     if (manager) triggerTeamEasterEgg(manager);
-    const conf = afcManagers.includes(manager) ? "AFC" : nfcManagers.includes(manager) ? "NFC" : null;
     // Only the conference filter focuses on your own side -- the Matchups "Filter Manager" dropdown
     // resets to "All Managers" (never to your own team) every time "I am" changes, so a manual
     // filter pick from a PREVIOUS identity doesn't linger and quietly scope the matchup list to
     // someone you're no longer looking at things as.
-    if (manager && conf) {
-      setConfFilter(conf);
-    }
     // Players > Player Search keeps its own internal filter state and doesn't otherwise know "I am"
     // changed -- remounting it (via a key tied to myTeamManager, see the Players tab render) is what
     // actually resets it back to All/All instead of leaving a stale manager/position filter behind.
@@ -1104,6 +1098,28 @@ export default function App() {
     });
     return merged;
   }, [nflSchedule.byTeamWeek, weekKickoffInfo, selectedWeek]);
+
+  // Real calendar span of each NFL week (first to last game date), from Sleeper's schedule --
+  // shown under each week in the schedule grid. Weeks with no schedule data simply show no date.
+  const weekDateLabels = useMemo(() => {
+    const byWeek = {};
+    (nflSchedule.games || []).forEach(g => {
+      if (!g.week || !g.date) return;
+      const d = new Date(`${g.date}T12:00:00`);
+      if (Number.isNaN(d.getTime())) return;
+      const span = byWeek[g.week] || (byWeek[g.week] = { start: d, end: d });
+      if (d < span.start) span.start = d;
+      if (d > span.end) span.end = d;
+    });
+    const fmt = (d, withMonth) => d.toLocaleDateString(undefined, withMonth ? { month: 'short', day: 'numeric' } : { day: 'numeric' });
+    const labels = {};
+    Object.entries(byWeek).forEach(([week, { start, end }]) => {
+      labels[week] = start.getTime() === end.getTime()
+        ? fmt(start, true)
+        : `${fmt(start, true)}–${fmt(end, start.getMonth() !== end.getMonth())}`;
+    });
+    return labels;
+  }, [nflSchedule.games]);
 
   const enrichedNflGames = useMemo(() => {
     return (nflSchedule.games || []).map(g => {
@@ -1184,8 +1200,6 @@ export default function App() {
     };
   }, [afcData, nfcData, afcSeason, nfcSeason, schedule, latestCompletedWeek, afcTransactions, nfcTransactions, hasStandingsData, afcManagers, nfcManagers]);
 
-  const showAfc = confFilter !== "NFC";
-  const showNfc = confFilter !== "AFC";
 
   const isSelectedWeekFinal = selectedWeek <= latestCompletedWeek;
   const weekCrossPairs = schedule.filter(m => m.week === selectedWeek);
@@ -1531,9 +1545,13 @@ export default function App() {
         {/* TAB: HOME */}
         {activeTab === "home" && (
           <HomeView
-            setActiveTab={navigateToTab}
-            sections={tabs.map(tab => ({ id: tab.id, title: tab.label }))}
-            afcManagers={afcManagers} nfcManagers={nfcManagers} myTeamManager={resolvedMyTeamManager} onChooseMyTeam={chooseMyTeam}
+            afcManagers={afcManagers} nfcManagers={nfcManagers} myTeamManager={resolvedMyTeamManager}
+            afcStandings={hasStandingsData ? afcStandings : null} nfcStandings={hasStandingsData ? nfcStandings : null}
+            onChooseMyTeam={(manager) => {
+              chooseMyTeam(manager);
+              // Let the confetti play for a beat, then go straight to My Week.
+              window.setTimeout(() => navigateToTab('currentWeek'), 650);
+            }}
             teamBurst={teamBurst} settingsMenu={settingsMenu}
           />
         )}
@@ -1565,7 +1583,6 @@ export default function App() {
           <div className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-                <ConfFilterToggle value={confFilter} onChange={setConfFilter} />
                 <p className="text-sm font-bold">
                   <span className="text-xs uppercase tracking-wider font-semibold text-[var(--muted)] mr-2">Season series</span>
                   <span className={CONF_STYLES.AFC.text}>AFC {seasonRecord.afcWins}</span>
@@ -1589,16 +1606,21 @@ export default function App() {
 
             {standingsView !== "playoffs" && (
               <>
-                <StandingsBarChart
-                  afcStandings={afcStandings} nfcStandings={nfcStandings} confFilter={confFilter}
-                  logoMap={teamLogoMap} mode="segregated"
-                />
-                {showAfc && <StandingsTable conf="AFC" rows={afcStandings} afcData={afcData} nfcData={nfcData} latestCompletedWeek={latestCompletedWeek} />}
-                {showNfc && <StandingsTable conf="NFC" rows={nfcStandings} afcData={afcData} nfcData={nfcData} latestCompletedWeek={latestCompletedWeek} />}
+                {/* Both conferences, always -- each gets its own chart with its table right under it. */}
+                {["AFC", "NFC"].map(conf => (
+                  <section key={conf} className="space-y-4">
+                    <StandingsBarChart
+                      afcStandings={afcStandings} nfcStandings={nfcStandings} confFilter={conf}
+                      logoMap={teamLogoMap} mode="segregated"
+                    />
+                    <StandingsTable conf={conf} rows={conf === "AFC" ? afcStandings : nfcStandings} afcData={afcData} nfcData={nfcData} latestCompletedWeek={latestCompletedWeek} />
+                  </section>
+                ))}
                 <StandingsTrendChart
                   history={standingsHistory} weeklyHistory={weeklyPfPaHistory} weeklyMedians={weeklyConferenceMedians}
                   afcManagers={afcManagers} nfcManagers={nfcManagers}
-                  hexColorMap={teamHexColorMap} confFilter={confFilter} latestCompletedWeek={latestCompletedWeek}
+                  hexColorMap={teamHexColorMap} latestCompletedWeek={latestCompletedWeek}
+                  defaultConf={myTeamConf || "AFC"}
                 />
               </>
             )}
@@ -1668,7 +1690,7 @@ export default function App() {
                 afcManagers={afcManagers} nfcManagers={nfcManagers}
                 seasonWeeks={SEASON_WEEKS} currentWeek={nflState.week}
                 latestCompletedWeek={latestCompletedWeek}
-                logoMap={teamLogoMap}
+                logoMap={teamLogoMap} weekDateLabels={weekDateLabels}
               />
             ))}
           </div>

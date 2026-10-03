@@ -61,6 +61,16 @@ const NO_WIN_COLOR = "var(--neg)";
 const THEO_POS = "var(--proj)"; // would lose to you
 const THEO_NEG = "var(--live)"; // would beat you
 
+// Darker shade of a hex color, for the score pill in exported images (SVG-as-image can't rely on
+// CSS color-mix).
+function darkenHex(hex, amount) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex).trim());
+  if (!m) return 'rgba(0,0,0,0.42)';
+  const n = parseInt(m[1], 16);
+  const ch = (shift) => Math.round(((n >> shift) & 255) * (1 - amount));
+  return `rgb(${ch(16)}, ${ch(8)}, ${ch(0)})`;
+}
+
 function median(arr) {
   if (!arr.length) return null;
   const sorted = [...arr].sort((a, b) => a - b);
@@ -567,7 +577,6 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
         const scx = s.x + s.seriesWidth / 2;
         parts.push(`<rect x="${s.x}" y="${sy}" width="${s.seriesWidth}" height="${sh}" rx="5" fill="${color}" fill-opacity="${s.opacity}" stroke="${color}" stroke-width="2"${s.dash ? ` stroke-dasharray="${s.dash}"` : ''}/>`);
         if (reportCard) {
-          parts.push(`<text x="${scx}" y="${yFor(Math.max(s.value, b.maxScore ?? 0)) - 8}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="15" font-weight="800" fill="${EXPORT.text}">${s.value.toFixed(1)}</text>`);
           return;
         }
         const labelY = sy - (hasProjectedBars ? EXPORT_VALUE_LABEL_LANE[s.kind] : 14);
@@ -577,6 +586,11 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
       if (reportCard && b.pregameScore != null) {
         parts.push(`<line x1="${b.x - 5}" x2="${b.x + barW + 5}" y1="${yFor(b.pregameScore)}" y2="${yFor(b.pregameScore)}" stroke="${EXPORT.text}" stroke-width="3" stroke-linecap="round" opacity="0.85"/>`);
       }
+      if (reportCard && b.actualScore != null) {
+        const ly = yFor(b.actualScore);
+        parts.push(`<rect x="${b.x + barW / 2 - 25}" y="${ly + 4}" width="50" height="21" rx="10.5" fill="${darkenHex(color, 0.45)}"/>`);
+        parts.push(`<text x="${b.x + barW / 2}" y="${ly + 20}" text-anchor="middle" font-family="${EXPORT_SANS}" font-size="15" font-weight="800" fill="#ffffff">${b.actualScore.toFixed(1)}</text>`);
+      }
       const logoUrl = logoData[b.manager];
       const clusterBarY = Math.min(...series.map(s => yFor(s.value)));
       const logoSize = series.length > 1 ? CLUSTER_LOGO_SIZE : LOGO_SIZE;
@@ -584,8 +598,8 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
       const logoSeriesY = yFor(logoSeries.value);
       const logoSeriesHeight = MARGIN.top + plotH - logoSeriesY;
       const logoCx = logoSeries.x + logoSeries.seriesWidth / 2;
-      if (logoUrl && logoSeriesHeight >= logoSize + 14) {
-        const logoCy = logoSeriesY + logoSize / 2 + 8;
+      if (logoUrl && logoSeriesHeight >= logoSize + (reportCard ? 36 : 14)) {
+        const logoCy = logoSeriesY + logoSize / 2 + (reportCard ? 28 : 8);
         const clipId = `export-logo-${b.manager.replace(/[^a-zA-Z0-9]/g, '')}`;
         parts.push(`<defs><clipPath id="${clipId}"><circle cx="${logoCx}" cy="${logoCy}" r="${logoSize / 2}"/></clipPath></defs>`);
         parts.push(`<image href="${logoUrl}" x="${logoCx - logoSize / 2}" y="${logoCy - logoSize / 2}" width="${logoSize}" height="${logoSize}" clip-path="url(#${clipId})" preserveAspectRatio="xMidYMid slice"/>`);
@@ -593,7 +607,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
       }
       if (b.manager === highScoreManager) {
         const emoji = HIGH_SCORE_PRIZES[week]?.choice === "wine" ? "\u{1F377}" : HIGH_SCORE_PRIZES[week]?.choice === "cash" ? "\u{1F4B0}" : "\u{1F4B0}\u{1F377}";
-        parts.push(`<text x="${cx}" y="${reportCard ? yFor(Math.max(b.actualScore, b.maxScore ?? 0)) - 28 : clusterBarY - 24}" text-anchor="middle" font-size="17">${emoji}</text>`);
+        parts.push(`<text x="${cx}" y="${reportCard ? yFor(Math.max(b.actualScore, b.maxScore ?? 0)) - 8 : clusterBarY - 24}" text-anchor="middle" font-size="17">${emoji}</text>`);
       }
       const labelY = MARGIN.top + plotH + 12;
       const visibleName = displayName(b.manager, b.conf);
@@ -871,8 +885,8 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
             const logoSeriesY = yFor(logoSeries.value);
             const logoSeriesHeight = MARGIN.top + plotH - logoSeriesY;
             const logoCx = logoSeries.x + logoSeries.seriesWidth / 2;
-            const logoCy = logoSeriesY + logoSize / 2 + 8;
-            const showLogo = logoUrl && logoSeriesHeight >= logoSize + 14;
+            const logoCy = logoSeriesY + logoSize / 2 + (reportCard ? 28 : 8);
+            const showLogo = logoUrl && logoSeriesHeight >= logoSize + (reportCard ? 36 : 14);
             const visibleName = displayName(b.manager, b.conf);
             const secondaryName = nameMode === 'teams' ? managerName(b.manager, b.conf) : null;
             return (
@@ -912,9 +926,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
                         style={{ transition: 'height 0.6s cubic-bezier(.22,1,.36,1), y 0.6s cubic-bezier(.22,1,.36,1)' }}
                       />
                       {reportCard ? (
-                        <text x={scx} y={yFor(Math.max(s.value, b.maxScore ?? 0)) - 7} textAnchor="middle" fontSize={13} fontWeight={800} fill="var(--text)">
-                          {s.value.toFixed(1)}
-                        </text>
+                        null
                       ) : (
                         <>
                           <text x={scx} y={sy - 15} textAnchor="middle" fontSize={11} fontWeight={800} fill="var(--text)">
@@ -933,6 +945,14 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
                     x1={b.x - 5} x2={b.x + barW + 5} y1={yFor(b.pregameScore)} y2={yFor(b.pregameScore)}
                     stroke="var(--text)" strokeWidth={3} strokeLinecap="round" opacity={0.85} pointerEvents="none"
                   />
+                )}
+                {reportCard && b.actualScore != null && (
+                  <g pointerEvents="none">
+                    <rect x={b.x + barW / 2 - 23} y={yFor(b.actualScore) + 4} width={46} height={19} rx={9.5} style={{ fill: `color-mix(in srgb, ${color} 55%, black)` }} />
+                    <text x={b.x + barW / 2} y={yFor(b.actualScore) + 18} textAnchor="middle" fontSize={13} fontWeight={800} fill="#fff">
+                      {b.actualScore.toFixed(1)}
+                    </text>
+                  </g>
                 )}
                 {showLogo && (
                   <>
@@ -954,7 +974,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
                   </>
                 )}
                 {b.manager === highScoreManager && (
-                  <text x={b.x + barW / 2} y={reportCard ? yFor(Math.max(b.actualScore, b.maxScore ?? 0)) - 26 : barY - 24} textAnchor="middle" fontSize={17}>
+                  <text x={b.x + barW / 2} y={reportCard ? yFor(Math.max(b.actualScore, b.maxScore ?? 0)) - 8 : barY - 24} textAnchor="middle" fontSize={17}>
                     {HIGH_SCORE_PRIZES[week]?.choice === "wine" ? "\u{1F377}" : HIGH_SCORE_PRIZES[week]?.choice === "cash" ? "\u{1F4B0}" : "\u{1F4B0}\u{1F377}"}
                   </text>
                 )}

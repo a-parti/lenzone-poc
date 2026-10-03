@@ -13,7 +13,6 @@ export default function ExportControls({
 }) {
   return (
     <div className="export-control" role="group" aria-label={`${label} image`}>
-      <span className="export-control-label">{label}</span>
       <button
         type="button"
         onClick={() => onThemeChange('light')}

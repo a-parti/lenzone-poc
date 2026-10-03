@@ -276,7 +276,7 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek, hea
       </div>
 
       <div className="hidden md:block overflow-x-auto">
-        <table className="w-full text-left text-xs font-medium text-[var(--text)]">
+        <table className="w-full text-left text-sm font-medium text-[var(--text)] [&_th]:px-4 [&_td]:px-4 [&_td]:py-2.5">
           <thead className="bg-[var(--surface2)] text-[11px] text-[var(--text2)] border-b border-[var(--border)]">
             <tr>
               <SortHeader label="#" sortKey="rank" activeKey={sortKey} dir={sortDir} onClick={handleSort} title="Rank" />

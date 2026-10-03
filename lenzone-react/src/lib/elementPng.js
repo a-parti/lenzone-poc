@@ -90,6 +90,17 @@ export async function elementToPngCanvas(element, theme = 'dark', { padding = 28
   clone.style.width = `${sourceWidth}px`;
   clone.style.maxWidth = 'none';
   clone.querySelectorAll('[data-export-ignore="true"]').forEach(node => node.remove());
+  // Show the whole thing: no scroll containers/clipping, and no lazy images (an off-screen lazy
+  // <img> never loads, which leaves its logo blank in the export).
+  const originals = [element, ...element.querySelectorAll('*')];
+  [clone, ...clone.querySelectorAll('*')].forEach((node, index) => {
+    const { overflowX, overflowY } = window.getComputedStyle(originals[index]);
+    if (/auto|scroll/.test(overflowX + overflowY)) {
+      node.style.setProperty('overflow', 'visible', 'important');
+      node.style.setProperty('max-height', 'none', 'important');
+    }
+  });
+  clone.querySelectorAll('img[loading]').forEach(img => img.setAttribute('loading', 'eager'));
   staging.appendChild(clone);
   holder.appendChild(staging);
   document.body.appendChild(holder);

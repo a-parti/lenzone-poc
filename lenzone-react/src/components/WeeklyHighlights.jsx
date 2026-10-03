@@ -116,7 +116,7 @@ export default function WeeklyHighlights({
   const prefix = isWeekFinal ? "" : "Projected ";
   const icon = isWeekFinal ? Trophy : Award;
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-3">
       <HighlightCard
         icon={icon} label={`${prefix}High Score`} name={visibleName(high.manager)} nameManager={high.manager} value={`${high.points.toFixed(2)} pts`} accent="text-[var(--live)]"
         onClick={() => showMatchup(high.manager)}

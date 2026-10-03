@@ -282,24 +282,53 @@ html {
    itself has no seam either. The extra stops (vs. the original 4) are what actually fixes the
    jittery/bandy look -- fewer, farther-apart stops made each color hold for a very visible beat
    before jumping to the next; more, closer stops reads as continuous motion at the same speed. */
-/* Wordmark: San Diego sunset colors -- Pacific teal, sea-glass aqua, peach, coral-pink and golden
-   sand -- flowing slowly through the letters (a diagonal gradient drifting sideways, seamless
-   because it starts and ends on the same color). Deeper tones on the light sand; softer neon at
-   night with a gentle glow. Kept low-contrast between stops so it's easy on the eyes. */
+/* Wordmark: Miami Vice colors only -- hot pink, aqua and lavender -- flowing through the letters,
+   with a bright shine sweeping across (top layer) and a star glint that sparkles at the corner
+   (::after). Deeper tones on the light sand; neon at night. */
 .lenzone-title {
-  background-image: linear-gradient(110deg, #00808A 0%, #2FA9B3 18%, #D98A5F 38%, #D25F7E 55%, #C79A3A 75%, #00808A 100%);
-  background-size: 300% 100%;
-  background-repeat: repeat;
-  animation: title-color-flow 12s linear infinite;
+  position: relative;
+  display: inline-block;
+  background-image:
+    linear-gradient(105deg, transparent 0%, transparent 42%, rgba(255, 255, 255, 0.9) 50%, transparent 58%, transparent 100%),
+    linear-gradient(110deg, #E0457B 0%, #8A5CD6 25%, #0097A7 50%, #8A5CD6 75%, #E0457B 100%);
+  background-size: 300% 100%, 300% 100%;
+  background-repeat: no-repeat, repeat;
+  animation: title-vice-flow 7s linear infinite;
   filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.6));
 }
 [data-mode="dark"] .lenzone-title {
-  background-image: linear-gradient(110deg, #6FE3D8 0%, #A6EEE8 18%, #FFC09A 38%, #FF8FB0 55%, #F5D58A 75%, #6FE3D8 100%);
-  filter: drop-shadow(0 0 6px rgba(255, 143, 176, 0.30)) drop-shadow(0 0 14px rgba(111, 227, 216, 0.20));
+  background-image:
+    linear-gradient(105deg, transparent 0%, transparent 42%, rgba(255, 255, 255, 0.95) 50%, transparent 58%, transparent 100%),
+    linear-gradient(110deg, #FF5FA2 0%, #C38CFF 25%, #3EF0E0 50%, #C38CFF 75%, #FF5FA2 100%);
+  filter: drop-shadow(0 0 6px rgba(255, 95, 162, 0.35)) drop-shadow(0 0 14px rgba(62, 240, 224, 0.25));
 }
-@keyframes title-color-flow {
-  from { background-position: 0% 50%; }
-  to { background-position: 300% 50%; }
+/* The star glint: a four-point sparkle that pops near the top-right corner once per cycle. */
+.lenzone-title::after {
+  content: "";
+  position: absolute;
+  top: -0.12em;
+  right: -0.32em;
+  width: 0.5em;
+  height: 0.5em;
+  background: radial-gradient(circle, #fff 0 12%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(0deg, transparent 46%, #fff 50%, transparent 54%),
+    linear-gradient(90deg, transparent 46%, #fff 50%, transparent 54%);
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.9)) drop-shadow(0 0 8px rgba(255, 95, 162, 0.7));
+  transform: scale(0) rotate(0deg);
+  opacity: 0;
+  pointer-events: none;
+  animation: title-glint 7s ease-in-out infinite;
+}
+@keyframes title-vice-flow {
+  0% { background-position: 160% 0, 0% 50%; }
+  30% { background-position: -60% 0, 90% 50%; }
+  100% { background-position: -60% 0, 300% 50%; }
+}
+@keyframes title-glint {
+  0%, 26% { transform: scale(0) rotate(0deg); opacity: 0; }
+  31% { transform: scale(1.15) rotate(45deg); opacity: 1; }
+  38% { transform: scale(0) rotate(90deg); opacity: 0; }
+  100% { transform: scale(0) rotate(90deg); opacity: 0; }
 }
 @keyframes title-neon-pulse {
   from { filter: drop-shadow(0 0 4px rgba(255, 143, 176, 0.45)) drop-shadow(0 0 10px rgba(255, 143, 176, 0.25)); }
@@ -310,7 +339,7 @@ html {
   animation: title-neon-pulse 2.4s ease-in-out infinite alternate;
 }
 @media (prefers-reduced-motion: reduce) {
-  .lenzone-title, [data-mode="dark"] .lenzone-title, [data-mode="dark"] .lenzone-logo-mark { animation: none; }
+  .lenzone-title, [data-mode="dark"] .lenzone-title, .lenzone-title::after, [data-mode="dark"] .lenzone-logo-mark { animation: none; }
 }
 @keyframes title-shine {
   from { background-position: 0% 50%; }

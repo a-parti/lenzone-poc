@@ -7,7 +7,6 @@ import PlayerHighlights from './PlayerHighlights';
 import MyPlayerHighlights from './MyPlayerHighlights';
 import ManagerMatchupRow from './ManagerMatchupRow';
 import NflGamesPanel from './NflGamesPanel';
-import CopyRecapButton from './CopyRecapButton';
 import WeeklyScoresBarChart from './WeeklyScoresBarChart';
 import YourPlayerNews from './YourPlayerNews';
 
@@ -29,7 +28,7 @@ export default function CurrentWeekView({
   playersDB, weekProjections, byTeamWeek, afcSlots, nfcSlots, afcData, nfcData, afcSeason, nfcSeason,
   afcManagers, nfcManagers, schedule, logoMap,
   projectedScoreByManager, pregameScoreByManager,
-  weekBigPlays, waiverWireMvp, transactions,
+  weekBigPlays, waiverWireMvp,
   myPlayerNotes, myPlayerHeadlines, onRefreshPlayerNews
 }) {
   const logoUrl = useTeamLogo(myTeamManager);
@@ -69,12 +68,6 @@ export default function CurrentWeekView({
             ))}
           </select>
         </div>
-        <CopyRecapButton
-          week={selectedWeek} weeklyAwards={weeklyAwards}
-          afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
-          weekProjections={weekProjections} playersDB={playersDB}
-          waiverWireMvp={waiverWireMvp} transactions={transactions}
-        />
       </div>
 
       {/* You vs. your two opponents (then everyone else) -- the first thing on My Week. */}

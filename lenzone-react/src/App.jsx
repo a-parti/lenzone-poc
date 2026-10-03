@@ -1573,7 +1573,7 @@ export default function App() {
             afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
             afcManagers={afcManagers} nfcManagers={nfcManagers} schedule={schedule} logoMap={teamLogoMap} hexColorMap={teamHexColorMap}
             projectedScoreByManager={projectedScoreByManager} pregameScoreByManager={pregameScoreByManager}
-            weekBigPlays={weekBigPlays} waiverWireMvp={waiverWireMvp} transactions={recapTransactions}
+            weekBigPlays={weekBigPlays} waiverWireMvp={waiverWireMvp}
             myPlayerNotes={myPlayerNotes} myPlayerHeadlines={myPlayerHeadlines}
             onRefreshPlayerNews={() => Promise.all([refreshHeadlines(), refreshPlayerNotes()])}
           />

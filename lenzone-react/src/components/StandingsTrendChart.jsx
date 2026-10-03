@@ -236,24 +236,10 @@ export default function StandingsTrendChart({
   const pfPanels = useMemo(() => cumulative('pf'), [history, afcManagers, nfcManagers, hexColorMap]);
   const paIntraPanels = useMemo(() => runningTotal(r => r.paIntra), [weeklyHistory, afcManagers, nfcManagers, hexColorMap]);
   const paCrossPanels = useMemo(() => runningTotal(r => r.paCross), [weeklyHistory, afcManagers, nfcManagers, hexColorMap]);
-  // Weekly (not cumulative) margin: each week a team plays two games with the same score, so the
-  // margin is (score - in-conf opponent) + (score - cross-conf opponent), counting only games
-  // that have an opponent score.
-  const marginPanels = useMemo(() => byConf((m, conf, key) => ({
-    manager: m, conf, color: colorOf(m),
-    points: (weeklyHistory[key][m] || [])
-      .filter(r => r.pf != null && (r.paIntra != null || r.paCross != null))
-      .map(r => ({
-        week: r.week,
-        value: (r.paIntra != null ? r.pf - r.paIntra : 0) + (r.paCross != null ? r.pf - r.paCross : 0)
-      }))
-  })), [weeklyHistory, afcManagers, nfcManagers, hexColorMap]);
-  const weeklyWeeks = useMemo(() => Array.from({ length: latestCompletedWeek }, (_, i) => i + 1), [latestCompletedWeek]);
 
   const allValues = (panels) => [...panels.AFC, ...panels.NFC].flatMap(s => s.points.map(p => p.value));
   // One shared range per metric across BOTH conferences, so the panels are directly comparable.
   const maxOf = (panels) => Math.max(1, ...allValues(panels));
-  const minOf = (panels) => Math.min(0, ...allValues(panels));
   const whole = (v) => Math.round(v);
 
   if (latestCompletedWeek < 1) {
@@ -282,11 +268,6 @@ export default function StandingsTrendChart({
       <TrendCard
         chartId="pa-cross" title="Points Against -- Cross-Conference" panels={paCrossPanels} weeks={weeks}
         yMin={0} yMax={maxOf(paCrossPanels)} formatY={whole}
-      />
-      <TrendCard
-        chartId="margin" title="Weekly Point Differential (both games combined)" panels={marginPanels} weeks={weeklyWeeks}
-        yMin={minOf(marginPanels)} yMax={maxOf(marginPanels)} formatY={(v) => `${v > 0 ? '+' : ''}${Math.round(v)}`}
-        zeroLine legendMode="avg"
       />
     </section>
   );

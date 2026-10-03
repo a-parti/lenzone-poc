@@ -10,7 +10,7 @@ import {
   computeStats, buildHistory, simulateCombinedPlayoffOdds, computeCrossRecords, computeCrossWeekRecord,
   computeWeeklyAwards, buildConferenceList, rankConference, winProbability, roughWinProbability, computePointsAgainst, computeInConfRecord,
   computeCrossPointsAgainst, computeIntraGamesPlayed, computeInterGamesPlayed, buildStandingsHistory,
-  buildWeeklyPfPaHistory, computeWeeklyConferenceMedian,
+  buildWeeklyPfPaHistory, 
   buildPostseasonSeeds
 } from './lib/statsMath';
 const RosterTab = lazy(() => import('./components/RosterTab'));
@@ -1357,14 +1357,6 @@ export default function App() {
     [afcManagers, nfcManagers, afcData, nfcData, afcSeason, nfcSeason, schedule, latestCompletedWeek]
   );
 
-  const weeklyConferenceMedians = useMemo(
-    () => ({
-      afc: computeWeeklyConferenceMedian(afcSeason, latestCompletedWeek),
-      nfc: computeWeeklyConferenceMedian(nfcSeason, latestCompletedWeek)
-    }),
-    [afcSeason, nfcSeason, latestCompletedWeek]
-  );
-
   const afcOwners = useMemo(() => buildOwnerMap(afcData.rosters), [afcData.rosters]);
   const nfcOwners = useMemo(() => buildOwnerMap(nfcData.rosters), [nfcData.rosters]);
   const afcHistory = useMemo(
@@ -1619,7 +1611,7 @@ export default function App() {
                   </section>
                 ))}
                 <StandingsTrendChart
-                  history={standingsHistory} weeklyHistory={weeklyPfPaHistory} weeklyMedians={weeklyConferenceMedians}
+                  history={standingsHistory} weeklyHistory={weeklyPfPaHistory}
                   afcManagers={afcManagers} nfcManagers={nfcManagers}
                   hexColorMap={teamHexColorMap} latestCompletedWeek={latestCompletedWeek}
                 />

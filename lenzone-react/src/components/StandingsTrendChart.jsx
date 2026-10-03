@@ -142,10 +142,10 @@ function ChartPanel({ conf, title, series, weeks, yMin, yMax, formatY, zeroLine 
                 className="w-full flex items-center gap-2 py-0.5 text-xs text-left"
                 style={{ opacity: hover && hover.manager !== s.manager ? 0.35 : 1 }}
               >
-                {!lowerIsBetter && <span className="w-4 text-right font-bold text-[var(--muted)] shrink-0">{i + 1}</span>}
+                <span className="w-4 text-right font-bold text-[var(--muted)] shrink-0">{lowerIsBetter && legendValue(s) != null ? Math.round(legendValue(s)) : i + 1}</span>
                 <TeamMiniLogo manager={s.manager} size={18} ringColor={s.color} />
                 <span className="truncate flex-1 font-semibold text-[var(--text2)]">{graphName(s)}</span>
-                <span className="font-bold text-[var(--text)] shrink-0">{legendValue(s) != null ? fmt(legendValue(s)) : '—'}</span>
+                {!lowerIsBetter && <span className="font-bold text-[var(--text)] shrink-0">{legendValue(s) != null ? fmt(legendValue(s)) : '—'}</span>}
               </button>
             </li>
           ))}

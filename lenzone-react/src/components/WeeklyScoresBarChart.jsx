@@ -1,5 +1,4 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { Check, X as XIcon, Link as LinkIcon } from 'lucide-react';
 import { useMatchupPreview } from '../context/MatchupPreviewContext';
 import { HIGH_SCORE_PRIZES } from '../lib/highScorePrizes';
 import { computeMaxScoresByManager } from '../lib/players';
@@ -154,7 +153,6 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
   const [copyState, setCopyState] = useState("idle"); // idle | copying | copied | error
   const [downloadState, setDownloadState] = useState("idle"); // idle | error
   const { theme: exportTheme, setTheme: setExportTheme, scheme: exportScheme } = useModuleExportTheme();
-  const [linkCopyState, setLinkCopyState] = useState("idle");
 
   // Cross-conference opponent/result for one manager this week -- `schedule` is the same
   // {week, afcTeam, nfcTeam} pairing list used throughout the app (App.jsx's cross-conference
@@ -717,21 +715,6 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
       setExporting(false);
     }
   };
-  // A real, deep-linked URL to this exact week/chart (see weekFromHash in App.jsx) -- the closest
-  // thing to an "interactive embed" Teams/Discord actually support: not a live widget inside the
-  // chat itself (neither platform allows that), but a link that opens the real, fully-interactive
-  // chart the moment someone clicks it.
-  const copyLink = async () => {
-    const targetTab = focusManager ? "currentWeek" : "matchups";
-    const url = `${window.location.origin}${window.location.pathname}#${targetTab}?week=${week}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      setLinkCopyState("copied");
-    } catch {
-      setLinkCopyState("error");
-    }
-    setTimeout(() => setLinkCopyState("idle"), 2000);
-  };
 
   return (
     <div data-mode={exportTheme} data-scheme={exportScheme} className="material-surface bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-5">
@@ -764,13 +747,6 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
             copyState={copyState}
             downloadState={downloadState}
           />
-          <button
-            type="button" onClick={copyLink} title="Copy a link straight to this week's chart" aria-label="Copy link to this chart"
-            className="flex items-center gap-1 text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)] px-2.5 py-2 rounded-lg hover:bg-[var(--surface2)] transition-colors duration-150"
-          >
-            {linkCopyState === "copied" ? <Check className="w-3.5 h-3.5 text-[var(--pos)]" /> : linkCopyState === "error" ? <XIcon className="w-3.5 h-3.5 text-[var(--neg)]" /> : <LinkIcon className="w-3.5 h-3.5" />}
-            {linkCopyState === "copied" ? "Link Copied!" : linkCopyState === "error" ? "Couldn't copy" : "Copy Link"}
-          </button>
         </div>
       </div>
       <div className="overflow-x-auto scroll-thin">

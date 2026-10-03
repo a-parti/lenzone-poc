@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Check, X as XIcon, Link as LinkIcon } from 'lucide-react';
 import { useRosterModal } from '../context/RosterModalContext';
 import { buildPostseasonSeeds } from '../lib/statsMath';
 import { readThemeTokens } from '../lib/themeTokens';
@@ -30,7 +29,7 @@ const LOGO_MAX_SIZE = 68;
 const AFC_COLOR = "var(--afc)";
 const NFC_COLOR = "var(--nfc)";
 const WILDCARD_COLOR = "var(--live)";
-// Victory Points (VP, from lib/terms.js: 2 per in-conference win, 1 per cross-conference win) -- spelled
+// League Points (LP, from lib/terms.js: 2 per in-conference win, 1 per cross-conference win) -- spelled
 // out instead of the old "SP" shorthand.
 const PTS_LABEL = STANDINGS_PTS.long;
 const formatTick = (t) => (Number.isInteger(t) ? String(t) : t.toFixed(1));
@@ -64,7 +63,7 @@ function niceTicks(max, targetCount = 5) {
 //   the segregated chart can't answer since its "#1" is only ever relative to a 12-team half.
 //   Only meaningfully different from segregated when both conferences are showing; the parent
 //   only renders this mode for the ALL filter for exactly that reason.
-export default function StandingsBarChart({ afcStandings, nfcStandings, confFilter, logoMap, mode = "segregated" }) {
+export default function StandingsBarChart({ afcStandings, nfcStandings, confFilter, logoMap, mode = "segregated", headerExtra = null }) {
   const [hovered, setHovered] = useState(null);
   const { mode: nameMode, displayName, managerName } = useNameDisplay();
   const graphName = (manager, conf) => {
@@ -77,7 +76,6 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
   const [copyState, setCopyState] = useState("idle");
   const [downloadState, setDownloadState] = useState("idle");
   const { theme: exportTheme, setTheme: setExportTheme, scheme: exportScheme } = useModuleExportTheme();
-  const [linkCopyState, setLinkCopyState] = useState("idle");
 
   // Keep the visual ordering honest: standings points decide rank, and PF resolves a tie.
   const compareStandings = (a, b) => b.totalPts - a.totalPts || b.pfAvg - a.pfAvg;
@@ -392,16 +390,6 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
       setExporting(false);
     }
   };
-  const copyLink = async () => {
-    const url = `${window.location.origin}${window.location.pathname}#standings`;
-    try {
-      await navigator.clipboard.writeText(url);
-      setLinkCopyState("copied");
-    } catch {
-      setLinkCopyState("error");
-    }
-    setTimeout(() => setLinkCopyState("idle"), 2000);
-  };
 
   return (
     <div data-mode={exportTheme} data-scheme={exportScheme} className="material-surface bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-5">
@@ -410,6 +398,7 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
           {chartTitle}
         </p>
         <div className="flex flex-wrap items-center gap-2">
+          {headerExtra}
           <ExportControls
             theme={exportTheme}
             onThemeChange={setExportTheme}
@@ -419,13 +408,6 @@ export default function StandingsBarChart({ afcStandings, nfcStandings, confFilt
             copyState={copyState}
             downloadState={downloadState}
           />
-          <button
-            type="button" onClick={copyLink} title="Copy a link straight to the Standings tab" aria-label="Copy link to Standings"
-            className="flex items-center gap-1 text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)] px-2.5 py-2 rounded-lg hover:bg-[var(--surface2)] transition-colors duration-150"
-          >
-            {linkCopyState === "copied" ? <Check className="w-3.5 h-3.5 text-[var(--pos)]" /> : linkCopyState === "error" ? <XIcon className="w-3.5 h-3.5 text-[var(--neg)]" /> : <LinkIcon className="w-3.5 h-3.5" />}
-            {linkCopyState === "copied" ? "Link Copied!" : linkCopyState === "error" ? "Couldn't copy" : "Copy Link"}
-          </button>
         </div>
       </div>
       <p className="text-xs text-[var(--muted)] -mt-1 mb-3">

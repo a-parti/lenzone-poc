@@ -52,6 +52,8 @@ import StandingsBarChart from './components/StandingsBarChart';
 import { getRealName } from './lib/realNames';
 import { scoringFieldFor, computeRosterProjection, computeBlendedRosterScore, buildOwnerMap, buildAcquisitionHistory, computeMoveCounts, playerLabel, projectedPoints, computeWaiverWireMvp } from './lib/players';
 import { Button, TeamPicker, useEscapeKey, SkeletonRows } from './components/shared';
+import ExportControls from './components/ExportControls';
+import useElementPngExport from './hooks/useElementPngExport';
 import { copyTextToClipboard } from './lib/clipboard';
 import { defaultBrowseWeek, sleeperCurrentWeek } from './lib/weekSelection';
 import { startPolling } from './lib/polling';
@@ -71,11 +73,11 @@ const AFC_DEFAULT = ["Kenny", "Grant", "Rob", "Tim", "Ted", "Nikko", "Dan", "Mag
 const NFC_DEFAULT = ["Alanna", "Kruti", "Mario", "Ahmad", "Melody", "Kris + Mahtab", "David C", "Eric", "Sam", "Jeremy", "Chris", "Melissa"];
 
 const DEFAULT_CHARTER = `Standings
-In-Conference Win = 2.0 Victory Points (VP) | Cross-Conference Win = 1.0 VP | Ties = 50% value.
+In-Conference Win = 2.0 League Points (LP) | Cross-Conference Win = 1.0 LP | Ties = 50% value.
 Tiebreaker: Points For (PF) -- whoever has scored more total points wins the tiebreak.
 
 Playoff Qualification (Per Conference)
-Each 12-team conference sends 6 teams to the playoffs. Seeds 1-5 are locked by total VP (in-conference + cross-conference). Seed 6 (the Wildcard) goes to whichever of the remaining 7 teams in that same conference has the highest Points For (PF). AFC and NFC seed independently of each other.
+Each 12-team conference sends 6 teams to the playoffs. Seeds 1-5 are locked by total League Points (LP), in-conference plus cross-conference. Seed 6 (the Wildcard) goes to whichever of the remaining 7 teams in that same conference has the highest Points For (PF). AFC and NFC seed independently of each other.
 
 Prizes
 Conference Champion (AFC and NFC): $300 each
@@ -205,13 +207,31 @@ function SeedPill({ postseason }) {
   );
 }
 
-function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek }) {
-  const style = CONF_STYLES[conf];
+function StandingsScopeToggle({ scope, onChange, target }) {
+  return (
+    <div role="group" aria-label="Standings view" className="inline-flex rounded-full border border-[var(--border2)] bg-[var(--surface)] p-0.5">
+      {[["conference", "By conference"], ["league", "Whole league"]].map(([key, label]) => (
+        <button key={key} type="button" aria-pressed={scope === key} onClick={() => onChange(key, target)}
+          className={`rounded-full px-3 py-1 text-xs font-bold transition-colors ${scope === key ? "bg-[var(--accent)] text-[var(--accent-text)]" : "text-[var(--text2)] hover:text-[var(--text)]"}`}>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek, headerExtra = null }) {
+  const whole = conf == null;
+  const exportRef = useRef(null);
+  const imageExport = useElementPngExport(exportRef, `lenzone-standings-table-${whole ? 'league' : conf.toLowerCase()}`, { minWidth: 1100 });
+  const styleFor = (item) => CONF_STYLES[item.conf] || CONF_STYLES[conf];
+  // Whole-league rank is by LP, then PF; seeds still come from each team's own conference.
   const { mode: nameDisplayMode } = useNameDisplay();
   const [sortKey, setSortKey] = useState('rank');
   const [sortDir, setSortDir] = useState('asc');
-  const postseasonByManager = new Map(buildPostseasonSeeds(rows, conf).map(team => [team.manager, team]));
-  const secondaryName = (manager) => (nameDisplayMode === 'teams' ? getRealName(afcData, nfcData, manager, conf) : manager);
+  const postseasonByManager = new Map((whole ? ['AFC', 'NFC'] : [conf]).flatMap(c =>
+    buildPostseasonSeeds(rows.filter(r => !whole || r.conf === c), c)).map(team => [team.manager, team]));
+  const secondaryName = (manager, rowConf) => (nameDisplayMode === 'teams' ? getRealName(afcData, nfcData, manager, rowConf) : manager);
 
   const handleSort = (key) => {
     if (key === sortKey) {
@@ -230,15 +250,29 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek }) {
   });
 
   return (
-    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden shadow-sm">
+    <div ref={exportRef} data-mode={imageExport.exportTheme} data-scheme={imageExport.scheme} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden shadow-sm">
       <div className="px-4 py-3 border-b border-[var(--border)] flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${style.badge}`}>{conf}</span>
-          <span className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)]">Conference Standings</span>
+          {!whole && <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${CONF_STYLES[conf].badge}`}>{conf}</span>}
+          <span className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)]">{whole ? 'League Standings' : 'Conference Standings'}</span>
         </div>
-        <span className="text-xs font-semibold text-[var(--muted)]">
-          {latestCompletedWeek >= 14 ? 'Final regular season' : `Through Week ${latestCompletedWeek}`}
-        </span>
+        <div className="flex flex-wrap items-center gap-3">
+          <div data-export-ignore="true" className="flex flex-wrap items-center gap-2">
+            {headerExtra}
+            <ExportControls
+              theme={imageExport.exportTheme}
+              onThemeChange={imageExport.setExportTheme}
+              onCopy={imageExport.copyPng}
+              onDownload={imageExport.downloadPng}
+              exporting={imageExport.exporting}
+              copyState={imageExport.copyState}
+              downloadState={imageExport.downloadState}
+            />
+          </div>
+          <span className="text-xs font-semibold text-[var(--muted)]">
+            {latestCompletedWeek >= 14 ? 'Final regular season' : `Through Week ${latestCompletedWeek}`}
+          </span>
+        </div>
       </div>
 
       <div className="hidden md:block overflow-x-auto">
@@ -260,12 +294,16 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek }) {
             {sortedRows.map((item) => {
               const pulse = playoffPulse(item.playoffPct);
               const postseason = postseasonByManager.get(item.manager);
-              const other = secondaryName(item.manager);
+              const other = secondaryName(item.manager, item.conf);
+              const style = styleFor(item);
               return (
               <tr key={item.manager} className={`hover:bg-[var(--surface2)]/50 transition-colors duration-150 ${postseason?.seed <= 6 ? 'standings-playoff-team' : ''}`}>
                 <td className="py-2 px-2 font-bold text-[var(--text2)]">{item.rank}</td>
                 <td className="py-2 px-2">
-                  <TeamName manager={item.manager} conf={conf} className="font-semibold" />
+                  <div className="flex items-center gap-1.5">
+                    <TeamName manager={item.manager} conf={item.conf} className="font-semibold" />
+                    {whole && <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${style.badge}`}>{item.conf}</span>}
+                  </div>
                   {other && <div className="text-[11px] font-normal text-[var(--muted)]">{other}</div>}
                 </td>
                 <td className={`py-2 px-2 font-bold ${style.text}`}>{item.totalPts.toFixed(1)}</td>
@@ -295,14 +333,18 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek }) {
         {sortedRows.map((item) => {
           const pulse = playoffPulse(item.playoffPct);
           const postseason = postseasonByManager.get(item.manager);
-          const other = secondaryName(item.manager);
+          const other = secondaryName(item.manager, item.conf);
+          const style = styleFor(item);
           return (
           <div key={item.manager} className={`p-4 border-l-2 ${style.border} ${postseason?.seed <= 6 ? 'standings-playoff-team' : ''}`}>
             <div className="flex justify-between items-start gap-3 mb-3">
               <div className="flex items-start gap-2 min-w-0">
                 <span className="text-[var(--muted)] font-bold text-sm pt-0.5">#{item.rank}</span>
                 <div className="min-w-0">
-                  <TeamName manager={item.manager} conf={conf} className="font-bold" />
+                  <div className="flex items-center gap-1.5">
+                    <TeamName manager={item.manager} conf={item.conf} className="font-bold" />
+                    {whole && <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${style.badge}`}>{item.conf}</span>}
+                  </div>
                   {other && <div className="text-xs text-[var(--muted)] truncate">{other}</div>}
                 </div>
               </div>
@@ -557,6 +599,22 @@ export default function App() {
   // happened to be scrolled to.
   useEffect(() => { window.scrollTo(0, 0); }, [activeTab]);
   // The playoff bracket is a mode of the Standings page (#playoffs deep-links straight to it).
+  const [standingsScope, setStandingsScope] = useState(() => {
+    try { return localStorage.getItem('lenzone_standings_scope') === 'league' ? 'league' : 'conference'; } catch { return 'conference'; }
+  });
+  const pendingStandingsScroll = useRef(null);
+  useEffect(() => {
+    const target = pendingStandingsScroll.current;
+    if (!target) return;
+    pendingStandingsScroll.current = null;
+    document.querySelector(`[data-standings-anchor="${target}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [standingsScope]);
+  const chooseStandingsScope = (scope, target) => {
+    if (scope === standingsScope) return;
+    pendingStandingsScroll.current = target;
+    setStandingsScope(scope);
+    try { localStorage.setItem('lenzone_standings_scope', scope); } catch { /* per-viewer convenience only */ }
+  };
   const [standingsView, setStandingsView] = useState(() => rawTabFromHash() === "playoffs" ? "playoffs" : "overview");
   // Back/forward browser navigation updates both the page and the bracket mode.
   useEffect(() => {
@@ -1621,14 +1679,35 @@ export default function App() {
 
             {standingsView !== "playoffs" && (
               <>
-                {/* Both conferences, always -- each gets its own chart with its table right under it. */}
-                {["AFC", "NFC"].map(conf => (
+                {standingsScope === "league" ? (
+                  <section className="space-y-4">
+                    <div data-standings-anchor="chart" className="scroll-mt-24">
+                      <StandingsBarChart
+                        afcStandings={afcStandings} nfcStandings={nfcStandings}
+                        logoMap={teamLogoMap} mode="combined"
+                        headerExtra={<StandingsScopeToggle scope={standingsScope} onChange={chooseStandingsScope} target="chart" />}
+                      />
+                    </div>
+                    <div data-standings-anchor="table" className="scroll-mt-24">
+                    <StandingsTable conf={null}
+                      headerExtra={<StandingsScopeToggle scope={standingsScope} onChange={chooseStandingsScope} target="table" />}
+                      rows={[...afcStandings, ...nfcStandings].sort((a, b) => b.totalPts - a.totalPts || b.pfAvg - a.pfAvg).map((row, i) => ({ ...row, rank: i + 1 }))}
+                      afcData={afcData} nfcData={nfcData} latestCompletedWeek={latestCompletedWeek} />
+                    </div>
+                  </section>
+                ) : ["AFC", "NFC"].map(conf => (
                   <section key={conf} className="space-y-4">
-                    <StandingsBarChart
-                      afcStandings={afcStandings} nfcStandings={nfcStandings} confFilter={conf}
-                      logoMap={teamLogoMap} mode="segregated"
-                    />
-                    <StandingsTable conf={conf} rows={conf === "AFC" ? afcStandings : nfcStandings} afcData={afcData} nfcData={nfcData} latestCompletedWeek={latestCompletedWeek} />
+                    <div data-standings-anchor={conf === "AFC" ? "chart" : undefined} className="scroll-mt-24">
+                      <StandingsBarChart
+                        afcStandings={afcStandings} nfcStandings={nfcStandings} confFilter={conf}
+                        logoMap={teamLogoMap} mode="segregated"
+                        headerExtra={<StandingsScopeToggle scope={standingsScope} onChange={chooseStandingsScope} target="chart" />}
+                      />
+                    </div>
+                    <div data-standings-anchor={conf === "AFC" ? "table" : undefined} className="scroll-mt-24">
+                      <StandingsTable conf={conf} rows={conf === "AFC" ? afcStandings : nfcStandings} afcData={afcData} nfcData={nfcData} latestCompletedWeek={latestCompletedWeek}
+                        headerExtra={<StandingsScopeToggle scope={standingsScope} onChange={chooseStandingsScope} target="table" />} />
+                    </div>
                   </section>
                 ))}
                 <LuckMeter luck={funLuck} />

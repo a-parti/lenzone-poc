@@ -1,20 +1,9 @@
-// Real meme templates (Imgflip's public list of popular memes) and real GIFs (Giphy).
+// Real GIFs (Giphy). Meme templates are in memeTemplates.js.
 //
 // GIFs reach visitors from a saved file, never from live searches: once a week an admin runs the
 // searches (needs a Giphy key in a LOCAL .env, dev only) and saves the picks to
 // src/data/gifs/week-N.json. The live site only plays GIFs from those saved IDs, so it makes no
 // Giphy API calls and the key never ships in the site.
-
-let templatesPromise = null;
-export function fetchMemeTemplates() {
-  if (!templatesPromise) {
-    templatesPromise = fetch('https://api.imgflip.com/get_memes')
-      .then(r => r.json())
-      .then(j => (j.success ? j.data.memes : []))
-      .catch(() => []);
-  }
-  return templatesPromise;
-}
 
 // Only available when running locally (npm run dev); stripped from production builds.
 export const GIPHY_KEY = import.meta.env.DEV ? import.meta.env.VITE_GIPHY_API_KEY : undefined;
@@ -89,15 +78,22 @@ export async function fetchGifs(query, limit = 12) {
   return request;
 }
 
-// Runs one search per situation (its first query for this week) and returns the picks to save.
+// Runs one search per situation and returns the picks to save. Player situations (gifFirst) search
+// the player's name first; others use this week's pick of their queries. If a search comes back
+// empty, one more query is tried.
 export async function searchWeekPicks(week, situations, pickIndex) {
   const picks = {};
   let limited = false;
   for (const sit of situations) {
-    const query = sit.gifQueries[pickIndex(week, `${sit.key}|gif`, sit.gifQueries.length)];
-    const r = await fetchGifs(query);
-    if (r.limited) { limited = true; break; }
-    if (r.gifs.length) picks[sit.key] = r.gifs.slice(0, 6);
+    const qs = sit.gifQueries || [];
+    if (!qs.length) continue;
+    const first = sit.gifFirst ? 0 : pickIndex(week, `${sit.key}|gif`, qs.length);
+    for (const query of [qs[first], qs[(first + 1) % qs.length]].filter((q, i, a) => a.indexOf(q) === i)) {
+      const r = await fetchGifs(query);
+      if (r.limited) { limited = true; break; }
+      if (r.gifs.length) { picks[sit.key] = r.gifs.slice(0, 6); break; }
+    }
+    if (limited) break;
   }
   return { picks, limited };
 }

@@ -33,7 +33,7 @@ export default function GraphsTab({
   const loading = playersLoading ? <SkeletonRows rows={5} /> : null;
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-4">
+    <div className="mx-auto w-full max-w-7xl space-y-4">
       <div role="tablist" aria-label="Graphs" className="flex gap-1.5 overflow-x-auto pb-1 scroll-thin">
         {GROUPS.map(g => (
           <button key={g.key} type="button" role="tab" aria-selected={group === g.key} onClick={() => choose(g.key)}

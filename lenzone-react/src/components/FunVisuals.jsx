@@ -246,7 +246,7 @@ function TeamNameStack({ manager, conf, strong = false }) {
   const real = managerName(manager, conf);
   const secondary = mode === 'managers' ? (real ? manager : null) : real;
   return (
-    <span className="min-w-0 flex flex-col leading-tight text-left">
+    <span className="min-w-0 flex-1 flex flex-col leading-tight text-left">
       <span className={`truncate text-xs text-[var(--text)] ${strong ? 'font-black' : 'font-semibold'}`}>{displayName(manager, conf)}</span>
       {secondary && <span className="truncate text-[10px] font-medium text-[var(--muted)]">{secondary}</span>}
     </span>

@@ -28,20 +28,11 @@ function prizeLabel(week) {
   return '(TBD)';
 }
 
-// The most recent Wednesday at local midnight strictly before today -- the league's weekly
-// "since last Wednesday" window for the trade recap.
-export function lastWednesday(now = new Date()) {
-  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const daysBack = ((d.getDay() - 3 + 7) % 7) || 7;
-  d.setDate(d.getDate() - daysBack);
-  return d;
-}
-
-// Completed Sleeper trades since `since`, one line per trade: "AFC: Mina gets X + Y · Rob gets Z".
-export function tradeLines(transactions, playersDB, since) {
-  const sinceMs = since.getTime();
+// Completed Sleeper trades made during `week` (Sleeper's `leg`), one line per trade:
+// "AFC: Mina gets WR Tetairoa McMillan + $10 FAAB · Rob gets TE Juwan Johnson".
+export function tradeLines(transactions, playersDB, week) {
   return (transactions || [])
-    .filter(({ tx }) => tx.type === 'trade' && tx.status === 'complete' && (tx.created || 0) >= sinceMs)
+    .filter(({ tx }) => tx.type === 'trade' && tx.status === 'complete' && tx.leg === week)
     .sort((x, y) => (x.tx.created || 0) - (y.tx.created || 0))
     .map(({ tx, conf, rosterIdMap }) => {
       const gets = new Map();
@@ -49,11 +40,17 @@ export function tradeLines(transactions, playersDB, since) {
       Object.entries(tx.adds || {}).forEach(([playerId, rosterId]) => {
         const key = String(rosterId);
         if (!gets.has(key)) gets.set(key, []);
-        gets.get(key).push(playerLabel(playersDB || {}, playerId).name);
+        const { name, position } = playerLabel(playersDB || {}, playerId);
+        gets.get(key).push(position ? `${position} ${name}` : name);
       });
-      const sides = [...gets.entries()].map(([rosterId, names]) => {
+      (tx.waiver_budget || []).forEach(b => {
+        const key = String(b.receiver);
+        if (!gets.has(key)) gets.set(key, []);
+        gets.get(key).push(`$${b.amount} FAAB`);
+      });
+      const sides = [...gets.entries()].map(([rosterId, items]) => {
         const manager = rosterIdMap?.[rosterId] || `Roster ${rosterId}`;
-        return names.length ? `${manager} gets ${names.join(' + ')}` : manager;
+        return items.length ? `${manager} gets ${items.join(' + ')}` : manager;
       });
       return `${conf}: ${sides.join(' · ')}`;
     });
@@ -101,7 +98,7 @@ export function buildWeeklyRecapText({ week, weeklyAwards, playerHighlights, pla
   lines.push('Trade Recap');
   lines.push('');
   if (trades && trades.length > 0) trades.forEach(t => lines.push(`  ${t}`));
-  else lines.push('No trades since last Wednesday!');
+  else lines.push(`No trades in Week ${week}!`);
   lines.push('');
   lines.push(RULE);
 
@@ -129,6 +126,6 @@ export function buildWeeklyRecapForWeek({
     topByPosition: computeTopByPosition(afcData, nfcData, afcSeason, nfcSeason, week, playersDB),
     playersDB,
     waiverWireMvp,
-    trades: tradeLines(transactions, playersDB, lastWednesday())
+    trades: tradeLines(transactions, playersDB, week)
   });
 }

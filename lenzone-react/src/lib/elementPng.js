@@ -9,18 +9,26 @@ function blobToDataUrl(blob) {
   });
 }
 
+// Logos come from HTML <img> tags and from SVG <image> elements inside charts. An exported SVG can't
+// load anything external, so both kinds are swapped for inline data URLs.
 async function embedImages(root) {
-  const images = [...root.querySelectorAll('img')];
+  const images = [...root.querySelectorAll('img, image')];
   await Promise.all(images.map(async image => {
-    const url = image.currentSrc || image.src;
+    const isSvgImage = image.tagName.toLowerCase() === 'image';
+    const url = isSvgImage
+      ? (image.getAttribute('href') || image.getAttribute('xlink:href'))
+      : (image.currentSrc || image.src);
+    const apply = (value) => {
+      if (isSvgImage) { image.setAttribute('href', value); image.removeAttribute('xlink:href'); } else image.src = value;
+    };
     if (!url || url.startsWith('data:')) return;
     try {
       const response = await fetch(url);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      image.src = await blobToDataUrl(await response.blob());
+      apply(await blobToDataUrl(await response.blob()));
     } catch {
       try {
-        image.src = await new Promise((resolve, reject) => {
+        apply(await new Promise((resolve, reject) => {
           const source = new Image();
           source.crossOrigin = 'anonymous';
           source.onload = () => {
@@ -36,9 +44,9 @@ async function embedImages(root) {
           };
           source.onerror = reject;
           source.src = `${url}${url.includes('?') ? '&' : '?'}_export=1`;
-        });
+        }));
       } catch {
-        image.src = TRANSPARENT_PIXEL;
+        apply(TRANSPARENT_PIXEL);
       }
     }
   }));
@@ -228,6 +236,12 @@ export async function elementToPngCanvas(element, theme = 'dark', { padding = 28
       if (el === staging || fixedKinds.has(el.tagName.toLowerCase()) || el.closest('svg')) return;
       // Grid tracks were frozen to pixel sizes too; let the rows size to their content again.
       if (/grid/.test(el.style.display)) el.style.setProperty('grid-template-rows', 'none', 'important');
+      // Text elements keep their measured width as a floor only, so a slightly wider font can't force a wrap.
+      const w = parseFloat(el.style.width);
+      if (w > 0 && el.children.length === 0 && el.textContent.trim() && !/^inline$/.test(el.style.display)) {
+        el.style.setProperty('min-width', `${w}px`, 'important');
+        el.style.setProperty('width', 'auto', 'important');
+      }
       const h = parseFloat(el.style.height);
       if (!(h > 0)) return;
       el.style.setProperty('min-height', `${h}px`, 'important');

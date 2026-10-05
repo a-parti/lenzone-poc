@@ -47,9 +47,11 @@ import { PlayerPhotoProvider } from './context/PlayerPhotoContext';
 import { NameDisplayProvider, useNameDisplay } from './context/NameDisplayContext';
 import { buildConferenceColorMap, buildConferenceHexColorMap, getDraftSlotMap } from './lib/teamColors';
 const GraphsTab = lazy(() => import('./components/GraphsTab'));
+const MemesTab = lazy(() => import('./components/MemesTab'));
+const BroadcastGraphs = lazy(() => import('./components/BroadcastGraphs'));
 import StandingsBarChart from './components/StandingsBarChart';
 import { getRealName } from './lib/realNames';
-import { scoringFieldFor, computeRosterProjection, computeBlendedRosterScore, buildOwnerMap, buildAcquisitionHistory, computeMoveCounts, playerLabel, projectedPoints, computeWaiverWireMvp } from './lib/players';
+import { scoringFieldFor, computeRosterProjection, computeBlendedRosterScore, buildOwnerMap, buildAcquisitionHistory, computeMoveCounts, playerLabel, projectedPoints, computeWaiverWireMvp, computePlayerHighlights } from './lib/players';
 import { Button, TeamPicker, useEscapeKey, SkeletonRows } from './components/shared';
 import ExportControls from './components/ExportControls';
 import useElementPngExport from './hooks/useElementPngExport';
@@ -299,9 +301,9 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek, hea
               <tr key={item.manager} className={`hover:bg-[var(--surface2)]/50 transition-colors duration-150 ${postseason?.seed <= 6 ? 'standings-playoff-team' : ''}`}>
                 <td className="py-2 px-2 font-bold text-[var(--text2)]">{item.rank}</td>
                 <td className="py-2 px-2">
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center justify-between gap-2">
                     <TeamName manager={item.manager} conf={item.conf} className="font-semibold" />
-                    {whole && <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${style.badge}`}>{item.conf}</span>}
+                    {whole && <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${style.badge}`}>{item.conf}</span>}
                   </div>
                   {other && <div className="text-[11px] font-normal text-[var(--muted)]">{other}</div>}
                 </td>
@@ -549,7 +551,7 @@ function mergeMatchupWeek(previous, week, pairs) {
   };
 }
 
-const VALID_TABS = new Set(["home", "currentWeek", "standings", "matchups", "graphs", "players", "teams", "charter"]);
+const VALID_TABS = new Set(["home", "currentWeek", "standings", "matchups", "graphs", "players", "memes", "teams", "charter"]);
 // Old bookmarked hashes keep landing somewhere sensible after the navigation consolidation.
 const LEGACY_TAB_PARENTS = {
   playoffs: "standings",
@@ -620,7 +622,7 @@ export default function App() {
   };
   const [standingsView, setStandingsView] = useState(() => rawTabFromHash() === "playoffs" ? "playoffs" : "overview");
   // Activity lives inside the Players tab now; the old #activity hash opens that sub-tab.
-  const [playersSubTab, setPlayersSubTab] = useState(() => rawTabFromHash() === "activity" ? "activity" : "search");
+  const [playersSubTab, setPlayersSubTab] = useState("activity");
   // Back/forward browser navigation updates both the page and the bracket mode.
   useEffect(() => {
     const handler = () => {
@@ -1485,6 +1487,8 @@ export default function App() {
     { id: "standings", label: "Standings", shortLabel: "Standings", icon: Trophy },
     { id: "graphs", label: "Graphs", shortLabel: "Graphs", icon: ChartColumn },
     { id: "players", label: "League", shortLabel: "League", icon: Users },
+    // Memes is labeled with just the emoji (no icon); ariaLabel and keywords keep it findable.
+    { id: "memes", label: "🌶️", shortLabel: "🌶️", ariaLabel: "Memes", keywords: "memes gifs spicy" },
     ...(isAdmin ? [{ id: "teams", label: "MS Teams Broadcast", shortLabel: "Broadcast", icon: Megaphone }] : [])
   ];
 
@@ -1620,6 +1624,7 @@ export default function App() {
               <button
                 key={tab.id}
                 onClick={() => navigateToTab(tab.id)}
+                aria-label={tab.ariaLabel}
                 className={`flex items-center gap-2 px-5 py-3 font-semibold text-sm border-b-2 transition-all duration-200 ${
                   activeTab === tab.id ? "border-[var(--accent)] text-[var(--accent)] bg-[var(--surface)]/40" : "border-transparent text-[var(--text2)] hover:text-[var(--text)]"
                 }`}
@@ -1712,7 +1717,7 @@ export default function App() {
             {standingsView !== "playoffs" && (
               <>
                 {standingsScope === "league" ? (
-                  <section className="space-y-4">
+                  <section className="flex flex-col gap-4">
                     <div data-standings-anchor="chart" className="scroll-mt-24">
                       <StandingsBarChart
                         afcStandings={afcStandings} nfcStandings={nfcStandings}
@@ -1720,7 +1725,7 @@ export default function App() {
                         headerExtra={<StandingsScopeToggle scope={standingsScope} onChange={chooseStandingsScope} target="chart" />}
                       />
                     </div>
-                    <div data-standings-anchor="table" className="scroll-mt-24">
+                    <div data-standings-anchor="table" className="scroll-mt-24 order-first">
                     <StandingsTable conf={null}
                       headerExtra={<StandingsScopeToggle scope={standingsScope} onChange={chooseStandingsScope} target="table" />}
                       rows={[...afcStandings, ...nfcStandings].sort((a, b) => b.totalPts - a.totalPts || b.pfAvg - a.pfAvg).map((row, i) => ({ ...row, rank: i + 1 }))}
@@ -1728,7 +1733,7 @@ export default function App() {
                     </div>
                   </section>
                 ) : ["AFC", "NFC"].map(conf => (
-                  <section key={conf} className="space-y-4">
+                  <section key={conf} className="flex flex-col gap-4">
                     <div data-standings-anchor={conf === "AFC" ? "chart" : undefined} className="scroll-mt-24">
                       <StandingsBarChart
                         afcStandings={afcStandings} nfcStandings={nfcStandings} confFilter={conf}
@@ -1736,7 +1741,7 @@ export default function App() {
                         headerExtra={<StandingsScopeToggle scope={standingsScope} onChange={chooseStandingsScope} target="chart" />}
                       />
                     </div>
-                    <div data-standings-anchor={conf === "AFC" ? "table" : undefined} className="scroll-mt-24">
+                    <div data-standings-anchor={conf === "AFC" ? "table" : undefined} className="scroll-mt-24 order-first">
                       <StandingsTable conf={conf} rows={conf === "AFC" ? afcStandings : nfcStandings} afcData={afcData} nfcData={nfcData} latestCompletedWeek={latestCompletedWeek}
                         headerExtra={<StandingsScopeToggle scope={standingsScope} onChange={chooseStandingsScope} target="table" />} />
                     </div>
@@ -1835,7 +1840,7 @@ export default function App() {
           <div className="space-y-6">
               <div className="space-y-6">
                 <div className="inline-flex bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-1 gap-1 flex-wrap">
-                  {[["search", "Player Search", Search], ["rosters", "Rosters", Users], ["activity", "Activity", Activity], ["draft", "Draft Board", ListOrdered]].map(([key, label, Icon]) => (
+                  {[["activity", "Activity", Activity], ["search", "Player Search", Search], ["rosters", "Rosters", Users], ["draft", "Draft Board", ListOrdered]].map(([key, label, Icon]) => (
                     <button
                       key={key}
                       onClick={() => setPlayersSubTab(key)}
@@ -1871,7 +1876,7 @@ export default function App() {
                   <ActivityTab
                     afcTransactions={afcTransactions} nfcTransactions={nfcTransactions}
                     afcRosterIdMap={afcData.rosterIdMap} nfcRosterIdMap={nfcData.rosterIdMap}
-                    playersDB={playersDB} loading={transactionsLoading} focusConf={myTeamConf}
+                    playersDB={playersDB} loading={transactionsLoading}
                   />
                 )}
                 {playersSubTab === "draft" && (
@@ -1883,6 +1888,22 @@ export default function App() {
                 )}
               </div>
           </div>
+        )}
+
+        {/* TAB: MEMES -- real memes and GIFs about how each team and its players did this week. */}
+        {activeTab === "memes" && (
+          <MemesTab
+            week={selectedWeek} onSelectWeek={setSelectedWeek} seasonWeeks={SEASON_WEEKS}
+            latestCompletedWeek={latestCompletedWeek} isWeekFinal={isSelectedWeekFinal}
+            boardInput={{
+              weekRows: funWeekRows, weeklyAwards, pregameScores: pregameScoreByManager,
+              afcData, nfcData, afcSeason, nfcSeason, playersDB, recapTransactions, waiverWireMvp,
+              standingsHistory,
+              luck: allPlayLuck(selectedWeek, afcSeason, nfcSeason, schedule, afcManagers, nfcManagers),
+              playerHighlights: computePlayerHighlights(afcData, nfcData, afcSeason, nfcSeason, selectedWeek, weekProjections)
+            }}
+            isAdmin={isAdmin}
+          />
         )}
 
         {/* TAB: MS TEAMS RECAP (admin only) */}
@@ -1909,7 +1930,7 @@ export default function App() {
           <div className="bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-6 space-y-4">
             <div>
               <h2 className="text-xl font-bold mb-2 text-[var(--text)]">MS Teams Weekly Broadcast Generator</h2>
-              <p className="text-sm text-[var(--text2)]">A Teams-ready recap built from the selected week's real results: awards, top players, player trophies, and trades since last Wednesday. Paste the two charts in where marked.</p>
+              <p className="text-sm text-[var(--text2)]">A Teams-ready recap built from the selected week's real results: awards, top players, player trophies, and that week's trades. Copy the text, then paste in the graphs below.</p>
             </div>
 
             <div className="flex items-center gap-2">
@@ -1925,11 +1946,6 @@ export default function App() {
               </select>
             </div>
 
-            {/* Visual reference for whoever's writing the recap -- same "All Teams" chart as the
-                Matchups tab, not part of the copyable markdown text below (Teams chat can't render
-                a live SVG from pasted markdown). */}
-            <WeeklyScoresBarChart afcManagers={afcManagers} nfcManagers={nfcManagers} afcSeason={afcSeason} nfcSeason={nfcSeason} afcData={afcData} nfcData={nfcData} playersDB={playersDB} schedule={schedule} week={selectedWeek} logoMap={teamLogoMap} projectedScores={projectedScoreByManager} pregameScores={pregameScoreByManager} isWeekFinal={isSelectedWeekFinal} />
-
             <div className="flex justify-end">
               <button
                 type="button"
@@ -1942,6 +1958,20 @@ export default function App() {
               </button>
             </div>
             <pre className="bg-[var(--bg)] p-4 rounded-lg border border-[var(--border)]/80 text-xs font-mono text-[var(--text)] whitespace-pre-wrap select-all">{broadcastText}</pre>
+
+            <Suspense fallback={<SkeletonRows rows={5} />}>
+              <BroadcastGraphs
+                weeklyScoresProps={{
+                  afcManagers, nfcManagers, afcSeason, nfcSeason, afcData, nfcData, playersDB, schedule,
+                  week: selectedWeek, logoMap: teamLogoMap, projectedScores: projectedScoreByManager,
+                  pregameScores: pregameScoreByManager, isWeekFinal: isSelectedWeekFinal
+                }}
+                afcStandings={afcStandings} nfcStandings={nfcStandings} logoMap={teamLogoMap}
+                week={selectedWeek} isWeekFinal={isSelectedWeekFinal} weekRows={funWeekRows} pregameScores={pregameScoreByManager}
+                luck={funLuck} heat={funHeat} completedWeeks={completedWeeks}
+                fleece={funFleece} sitStart={funSitStart} boomBust={funBoomBust} waiver={funWaiver} draft={funDraft}
+              />
+            </Suspense>
           </div>
           </div>
         )}
@@ -1985,12 +2015,12 @@ export default function App() {
               type="button"
               onClick={() => navigateToTab(tab.id)}
               aria-current={activeTab === tab.id ? "page" : undefined}
+              aria-label={tab.ariaLabel}
               className={`flex flex-col items-center gap-0.5 min-w-[3.25rem] text-[11px] font-semibold transition-colors duration-200 shrink-0 px-1.5 py-1 ${
                 activeTab === tab.id ? "text-[var(--accent)]" : "text-[var(--text2)]"
               }`}
             >
-              <Icon className="w-5 h-5" />
-              {tab.shortLabel}
+              {Icon ? <><Icon className="w-5 h-5" />{tab.shortLabel}</> : <span className="text-xl leading-6">{tab.shortLabel}</span>}
             </button>
           );
         })}

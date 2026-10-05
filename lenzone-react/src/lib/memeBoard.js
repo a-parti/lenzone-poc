@@ -53,8 +53,11 @@ function expand(joke) {
 
 export function buildMemeBoard({
   week, weekRows, weeklyAwards, pregameScores, afcData, nfcData, afcSeason, nfcSeason, playersDB,
-  recapTransactions, waiverWireMvp, standingsHistory, luck, playerHighlights
+  recapTransactions, waiverWireMvp, standingsHistory, luck, playerHighlights, live = false
 }) {
+  // live: the week is still being played. Only stories that can't flip as games finish are kept
+  // (someone who hasn't played yet shows 0, so lows, duds and results wait for the final), and
+  // every fact line says "So far".
   const rows = (weekRows || []).filter(r => Number.isFinite(r.score));
   if (!rows.length) return null;
   const sorted = [...rows].sort((a, b) => b.score - a.score);
@@ -558,8 +561,10 @@ export function buildMemeBoard({
     'lucky', 'close', 'boom', 'bust', 'playerRiser', 'playerBust', 'jump', 'drop', 'trade', 'waiver', 'hotStreak', 'coldStreak',
     'first', 'last', 'luckiest', 'unluckiest', 'bench'];
   const rank = (s) => { const i = PRIORITY.indexOf(s.key); return i < 0 ? PRIORITY.length : i; };
+  const LIVE_OK = new Set(['mirror', 'sharedStar', 'playerTop', 'playerRiser', 'carry', 'waiver', 'trade']);
   const featured = new Set();
   const chosen = [...situations].sort((a, b) => rank(a) - rank(b)).filter(s => {
+    if (live && !LIVE_OK.has(s.key)) return false;
     const teams = s.teams || [s.manager];
     if (teams.some(t => featured.has(t))) return false;
     teams.forEach(t => featured.add(t));
@@ -585,6 +590,7 @@ export function buildMemeBoard({
     ], [search(l.best, l.best.team || ''), 'celebration', 'lets go'], { gifFirst: true });
     featured.add(M);
   }
+  if (live) situations.forEach(s => { s.fact = `So far: ${s.fact}`; });
 
   // Variety across the whole board: each card opens on the freshest template (not used yet, and its
   // kind of joke used least so far). About one team in four opens on its logo instead (otherwise

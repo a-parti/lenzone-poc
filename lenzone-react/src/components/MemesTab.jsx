@@ -172,18 +172,20 @@ function downloadJson(data, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export default function MemesTab({ week, onSelectWeek, seasonWeeks, latestCompletedWeek, isWeekFinal, boardInput, isAdmin }) {
+export default function MemesTab({ week, onSelectWeek, seasonWeeks, isWeekFinal, boardInput, isAdmin }) {
   const [shuffleNo, setShuffleNo] = useState(0);
   // An admin's fresh search for this week: previewed here, and saved to be committed.
   const [draft, setDraft] = useState(null);
   const [saveState, setSaveState] = useState(null);
   useEffect(() => { setSaveState(null); }, [week]);
-  // Open on the latest finished week, not a week still in progress.
-  useEffect(() => {
-    if (!isWeekFinal && latestCompletedWeek > 0) onSelectWeek(latestCompletedWeek);
-  }, []);
 
-  const board = useMemo(() => (isWeekFinal ? buildMemeBoard({ ...boardInput, week }) : null), [isWeekFinal, boardInput, week]);
+  // A week still being played gets a live board (only stories that can't flip as games finish)
+  // once at least four teams have points on the board.
+  const live = !isWeekFinal;
+  const board = useMemo(() => {
+    if (live && (boardInput.weekRows || []).length < 4) return null;
+    return buildMemeBoard({ ...boardInput, week, live });
+  }, [live, boardInput, week]);
   const picks = draft?.week === week ? draft.picks : savedGifPicks(week);
   // One card per team: its meme, or (for about a third of teams, when the week has saved GIFs) a
   // GIF instead. Shuffled so the board mixes stories.
@@ -222,7 +224,7 @@ export default function MemesTab({ week, onSelectWeek, seasonWeeks, latestComple
           {Array.from({ length: seasonWeeks }, (_, i) => i + 1).map(w => <option key={w} value={w}>Week {w}</option>)}
         </select>
         {isAdmin && <button type="button" onClick={() => setShuffleNo(n => n + 1)} className={btn}><Shuffle className="h-3 w-3" /> Shuffle</button>}
-        {isAdmin && GIPHY_KEY && board && (
+        {isAdmin && GIPHY_KEY && board && !live && (
           <button type="button" onClick={saveGifs} disabled={saveState?.busy}
             className="inline-flex items-center gap-1 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-bold text-[var(--accent-text)] disabled:opacity-50">
             <Save className="h-3 w-3" /> {saveState?.busy ? 'Searching…' : `Save Week ${week} GIFs`}
@@ -249,13 +251,15 @@ export default function MemesTab({ week, onSelectWeek, seasonWeeks, latestComple
           {saveState.limited && saveState.count > 0 && ` Giphy's limit stopped the search early, so this is partial. Try again in about ${saveState.resetMinutes || 60} minutes; finished searches are cached.`}
         </p>
       )}
-      {!isWeekFinal && (
-        <p className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 text-center text-sm text-[var(--muted)]">
-          Week {week} isn't final yet. The memes appear once the week is complete.
+      {live && board && (
+        <p className="rounded-xl border border-[var(--live)]/40 bg-[var(--live)]/10 p-3 text-sm text-[var(--text)]">
+          Week {week} is still being played, so these only cover what's already happened. Lows, duds, and results show up once the week is final.
         </p>
       )}
-      {isWeekFinal && !board && (
-        <p className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 text-center text-sm text-[var(--muted)]">No scores posted for Week {week}.</p>
+      {!board && (
+        <p className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 text-center text-sm text-[var(--muted)]">
+          {live ? `Week ${week} hasn't started yet. Memes show up once games are underway.` : `No scores posted for Week ${week}.`}
+        </p>
       )}
 
       {board && (
@@ -265,7 +269,7 @@ export default function MemesTab({ week, onSelectWeek, seasonWeeks, latestComple
             : <GifCard key={item.id} situation={item.sit} week={week} slot={item.slot} gifs={item.gifs} isAdmin={isAdmin} />))}
         </div>
       )}
-      {board && !picks && <p className="text-center text-[11px] text-[var(--muted)]">No GIFs saved for Week {week} yet.</p>}
+      {board && !picks && !live && <p className="text-center text-[11px] text-[var(--muted)]">No GIFs saved for Week {week} yet.</p>}
       {board && feed.some(item => item.kind === 'gif') && <p className="text-center text-[11px] text-[var(--muted)]">GIFs powered by GIPHY</p>}
     </div>
   );

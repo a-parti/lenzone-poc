@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
-import { Trophy, Swords, Megaphone, RefreshCw, X, Activity, ListOrdered, Users, Calendar, Search, Home, GitBranch, Copy, Check } from 'lucide-react';
+import { Trophy, Swords, Megaphone, RefreshCw, X, ChartColumn, Activity, ListOrdered, Users, Calendar, Search, Home, GitBranch, Copy, Check } from 'lucide-react';
 import AnimatedLogo from './components/AnimatedLogo';
 import { CONF_STYLES } from './lib/theme';
 import {
@@ -32,8 +32,7 @@ import GrabbableFootball from './components/GrabbableFootball';
 import DancingStickmen from './components/DancingStickmen';
 import SettingsMenu, { ModeToggle } from './components/SettingsMenu';
 import TeamMiniLogo from './components/TeamMiniLogo';
-import { LuckOfTheWeek, BoomOrBust, LuckMeter, SeasonHeatMap } from './components/FunVisuals';
-import { weekTeamResults, allPlayLuck, seasonHeat } from './lib/funStats';
+import { weekTeamResults, allPlayLuck, seasonHeat, sitStartAccuracy, playerBoomBust, tradeFleece, waiverWire, draftValue } from './lib/funStats';
 import { RosterModalProvider } from './context/RosterModalContext';
 import { MatchupPreviewProvider } from './context/MatchupPreviewContext';
 import MatchupPreviewModal from './components/MatchupPreviewModal';
@@ -47,7 +46,7 @@ import { TeamLogoProvider } from './context/TeamLogoContext';
 import { PlayerPhotoProvider } from './context/PlayerPhotoContext';
 import { NameDisplayProvider, useNameDisplay } from './context/NameDisplayContext';
 import { buildConferenceColorMap, buildConferenceHexColorMap, getDraftSlotMap } from './lib/teamColors';
-const StandingsTrendChart = lazy(() => import('./components/StandingsTrendChart'));
+const GraphsTab = lazy(() => import('./components/GraphsTab'));
 import StandingsBarChart from './components/StandingsBarChart';
 import { getRealName } from './lib/realNames';
 import { scoringFieldFor, computeRosterProjection, computeBlendedRosterScore, buildOwnerMap, buildAcquisitionHistory, computeMoveCounts, playerLabel, projectedPoints, computeWaiverWireMvp } from './lib/players';
@@ -194,7 +193,7 @@ const SEED_PILL = {
   TOILET_BOWL: { label: 'Toilet Bowl', className: 'bg-[var(--surface2)] text-[var(--muted)] border-[var(--border)]' }
 };
 
-function SeedPill({ postseason }) {
+function SeedPill({ postseason, conf }) {
   if (!postseason) return null;
   const pill = SEED_PILL[postseason.status] || SEED_PILL.TOILET_BOWL;
   return (
@@ -202,7 +201,7 @@ function SeedPill({ postseason }) {
       className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-bold ${pill.className}`}
       title={postseason.status === 'WILDCARD' ? 'Wild card: the 6th seed goes to the highest-PF team outside the top 5' : undefined}
     >
-      #{postseason.seed} {pill.label}
+      {conf ? `${conf} ` : ''}#{postseason.seed} {pill.label}
     </span>
   );
 }
@@ -269,7 +268,7 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek, hea
               downloadState={imageExport.downloadState}
             />
           </div>
-          <span className="text-xs font-semibold text-[var(--muted)]">
+          <span className="text-xs font-semibold text-[var(--muted)] whitespace-nowrap">
             {latestCompletedWeek >= 14 ? 'Final regular season' : `Through Week ${latestCompletedWeek}`}
           </span>
         </div>
@@ -319,7 +318,7 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek, hea
                   <div className={`font-extrabold ${pulse.color}`}>{item.playoffPct != null ? `${Math.round(item.playoffPct)}%` : '—'}</div>
                   <div className={`text-[11px] font-bold whitespace-nowrap ${pulse.color}`}>{pulse.label}</div>
                 </td>
-                <td className="py-2 px-2"><SeedPill postseason={postseason} /></td>
+                <td className="py-2 px-2"><SeedPill postseason={postseason} conf={item.conf} /></td>
                 <td className="py-2 px-2">{item.faab}</td>
                 <td className="py-2 px-2 text-[var(--muted)]">{item.moves}</td>
               </tr>
@@ -354,7 +353,7 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek, hea
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 mb-3">
-              <SeedPill postseason={postseason} />
+              <SeedPill postseason={postseason} conf={item.conf} />
               <span className="text-xs font-semibold text-[var(--text)]">{item.overallRecord}</span>
             </div>
             <div className="grid grid-cols-3 gap-2 text-sm">
@@ -550,11 +549,12 @@ function mergeMatchupWeek(previous, week, pairs) {
   };
 }
 
-const VALID_TABS = new Set(["home", "currentWeek", "standings", "matchups", "players", "activity", "teams", "charter"]);
+const VALID_TABS = new Set(["home", "currentWeek", "standings", "matchups", "graphs", "players", "teams", "charter"]);
 // Old bookmarked hashes keep landing somewhere sensible after the navigation consolidation.
 const LEGACY_TAB_PARENTS = {
   playoffs: "standings",
-  trends: "standings",
+  trends: "graphs",
+  activity: "players",
   grid: "matchups",
   season: "matchups",
   league: "players",
@@ -589,7 +589,10 @@ export default function App() {
     if (fromHash) return fromHash;
     // First visit after the redesign: everyone starts on Home once (see lib/freshStart.js).
     if (IS_FRESH_START) return "home";
-    try { return localStorage.getItem('lenzone_my_team') ? "currentWeek" : "home"; } catch { return "home"; }
+    try {
+      if (localStorage.getItem('lenzone_my_team')) return "currentWeek";
+      return localStorage.getItem('lenzone_guest') ? "standings" : "home";
+    } catch { return "home"; }
   });
   const setActiveTab = (id) => {
     setActiveTabState(id);
@@ -600,7 +603,7 @@ export default function App() {
   useEffect(() => { window.scrollTo(0, 0); }, [activeTab]);
   // The playoff bracket is a mode of the Standings page (#playoffs deep-links straight to it).
   const [standingsScope, setStandingsScope] = useState(() => {
-    try { return localStorage.getItem('lenzone_standings_scope') === 'league' ? 'league' : 'conference'; } catch { return 'conference'; }
+    try { return localStorage.getItem('lenzone_standings_scope') === 'conference' ? 'conference' : 'league'; } catch { return 'league'; }
   });
   const pendingStandingsScroll = useRef(null);
   useEffect(() => {
@@ -616,11 +619,14 @@ export default function App() {
     try { localStorage.setItem('lenzone_standings_scope', scope); } catch { /* per-viewer convenience only */ }
   };
   const [standingsView, setStandingsView] = useState(() => rawTabFromHash() === "playoffs" ? "playoffs" : "overview");
+  // Activity lives inside the Players tab now; the old #activity hash opens that sub-tab.
+  const [playersSubTab, setPlayersSubTab] = useState(() => rawTabFromHash() === "activity" ? "activity" : "search");
   // Back/forward browser navigation updates both the page and the bracket mode.
   useEffect(() => {
     const handler = () => {
       const id = tabFromHash();
       if (id) setActiveTabState(id);
+      if (rawTabFromHash() === "activity") setPlayersSubTab("activity");
       setStandingsView(rawTabFromHash() === "playoffs" ? "playoffs" : "overview");
     };
     window.addEventListener('popstate', handler);
@@ -806,6 +812,7 @@ export default function App() {
       return;
     }
     if (id === 'standings') setStandingsView('overview');
+    if (id === 'activity') setPlayersSubTab('activity');
     if (LEGACY_TAB_PARENTS[id]) id = LEGACY_TAB_PARENTS[id];
     if (id === 'currentWeek' || id === 'matchups' || id === 'teams') {
       setSelectedWeek(defaultSelectedWeek);
@@ -1091,6 +1098,7 @@ export default function App() {
     if (manager) localStorage.setItem('lenzone_my_team', manager);
     else localStorage.removeItem('lenzone_my_team');
     if (manager) triggerTeamEasterEgg(manager);
+    try { localStorage.removeItem('lenzone_guest'); } catch { /* per-viewer convenience only */ }
     // Only the conference filter focuses on your own side -- the Matchups "Filter Manager" dropdown
     // resets to "All Managers" (never to your own team) every time "I am" changes, so a manual
     // filter pick from a PREVIOUS identity doesn't linger and quietly scope the matchup list to
@@ -1425,6 +1433,26 @@ export default function App() {
     [latestCompletedWeek, afcSeason, nfcSeason, schedule, afcManagers, nfcManagers]
   );
   const completedWeeks = useMemo(() => Array.from({ length: latestCompletedWeek }, (_, i) => i + 1), [latestCompletedWeek]);
+  const funSitStart = useMemo(
+    () => sitStartAccuracy(latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, playersDB),
+    [latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, playersDB]
+  );
+  const funBoomBust = useMemo(
+    () => playerBoomBust(latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, weekProjectionsByWeek),
+    [latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, weekProjectionsByWeek]
+  );
+  const funWaiver = useMemo(
+    () => waiverWire(latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, afcTransactions, nfcTransactions, playersDB),
+    [latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, afcTransactions, nfcTransactions, playersDB]
+  );
+  const funDraft = useMemo(
+    () => draftValue(latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, afcDraft, nfcDraft, playersDB),
+    [latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, afcDraft, nfcDraft, playersDB]
+  );
+  const funFleece = useMemo(
+    () => tradeFleece(latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, afcTransactions, nfcTransactions, playersDB),
+    [latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, afcTransactions, nfcTransactions, playersDB]
+  );
 
   const standingsHistory = useMemo(
     () => buildStandingsHistory(afcManagers, nfcManagers, afcData, nfcData, afcSeason, nfcSeason, schedule, latestCompletedWeek),
@@ -1447,7 +1475,6 @@ export default function App() {
     [nfcDraft, nfcTransactions, nfcData.rosterIdMap]
   );
 
-  const [playersSubTab, setPlayersSubTab] = useState("search");
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   // Home isn't listed as a desktop nav tab -- the header logo links there. The mobile bottom nav
@@ -1456,8 +1483,8 @@ export default function App() {
     { id: "currentWeek", label: "My Week", shortLabel: "My Week", icon: Calendar },
     { id: "matchups", label: "Matchups", shortLabel: "Matchups", icon: Swords },
     { id: "standings", label: "Standings", shortLabel: "Standings", icon: Trophy },
-    { id: "players", label: "Players", shortLabel: "Players", icon: Users },
-    { id: "activity", label: "Activity", shortLabel: "Activity", icon: Activity },
+    { id: "graphs", label: "Graphs", shortLabel: "Graphs", icon: ChartColumn },
+    { id: "players", label: "League", shortLabel: "League", icon: Users },
     ...(isAdmin ? [{ id: "teams", label: "MS Teams Broadcast", shortLabel: "Broadcast", icon: Megaphone }] : [])
   ];
 
@@ -1625,6 +1652,11 @@ export default function App() {
               // Let the confetti play for a beat, then go straight to My Week.
               window.setTimeout(() => navigateToTab('currentWeek'), 650);
             }}
+            onGuest={() => {
+              chooseMyTeam(null);
+              try { localStorage.setItem('lenzone_guest', '1'); } catch { /* per-viewer convenience only */ }
+              navigateToTab('standings');
+            }}
             teamBurst={teamBurst} settingsMenu={settingsMenu}
           />
         )}
@@ -1710,13 +1742,6 @@ export default function App() {
                     </div>
                   </section>
                 ))}
-                <LuckMeter luck={funLuck} />
-                <SeasonHeatMap heat={funHeat} weeks={completedWeeks} />
-                <StandingsTrendChart
-                  history={standingsHistory} weeklyHistory={weeklyPfPaHistory}
-                  afcManagers={afcManagers} nfcManagers={nfcManagers}
-                  hexColorMap={teamHexColorMap} latestCompletedWeek={latestCompletedWeek}
-                />
               </>
             )}
 
@@ -1777,14 +1802,6 @@ export default function App() {
               projectedScores={projectedScoreByManager} pregameScores={pregameScoreByManager} isWeekFinal={isSelectedWeekFinal}
             />
 
-            {/* Fun visuals for a completed week. */}
-            {isSelectedWeekFinal && (
-              <>
-                <LuckOfTheWeek week={selectedWeek} rows={funWeekRows} logoMap={teamLogoMap} />
-                <BoomOrBust week={selectedWeek} rows={funWeekRows} pregameScores={pregameScoreByManager} />
-              </>
-            )}
-
             {["AFC", "NFC"].map(conf => (
               <SeasonGridTab
                 key={conf}
@@ -1799,12 +1816,26 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB: PLAYERS -- player search, rosters, and the draft board. */}
+        {/* TAB: GRAPHS -- the meters, heat map, trends and weekly fun charts, one at a time. */}
+        {activeTab === "graphs" && (
+          <GraphsTab
+            luck={funLuck} heat={funHeat} completedWeeks={completedWeeks}
+            fleece={funFleece} sitStart={funSitStart} boomBust={funBoomBust} waiver={funWaiver} draft={funDraft} playersLoading={playersLoading}
+            standingsHistory={standingsHistory} weeklyPfPaHistory={weeklyPfPaHistory}
+            afcManagers={afcManagers} nfcManagers={nfcManagers}
+            hexColorMap={teamHexColorMap} latestCompletedWeek={latestCompletedWeek}
+            selectedWeek={selectedWeek} onSelectWeek={setSelectedWeek} seasonWeeks={SEASON_WEEKS}
+            currentWeek={currentSleeperWeek} isWeekFinal={isSelectedWeekFinal}
+            weekRows={funWeekRows} logoMap={teamLogoMap} pregameScores={pregameScoreByManager}
+          />
+        )}
+
+        {/* TAB: LEAGUE (id "players") -- player search, rosters, draft board and activity. */}
         {activeTab === "players" && (
           <div className="space-y-6">
               <div className="space-y-6">
                 <div className="inline-flex bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-1 gap-1 flex-wrap">
-                  {[["search", "Player Search", Search], ["rosters", "Rosters", Users], ["draft", "Draft Board", ListOrdered]].map(([key, label, Icon]) => (
+                  {[["search", "Player Search", Search], ["rosters", "Rosters", Users], ["activity", "Activity", Activity], ["draft", "Draft Board", ListOrdered]].map(([key, label, Icon]) => (
                     <button
                       key={key}
                       onClick={() => setPlayersSubTab(key)}
@@ -1836,6 +1867,13 @@ export default function App() {
                     byTeamWeek={enrichedByTeamWeek}
                   />
                 )}
+                {playersSubTab === "activity" && (
+                  <ActivityTab
+                    afcTransactions={afcTransactions} nfcTransactions={nfcTransactions}
+                    afcRosterIdMap={afcData.rosterIdMap} nfcRosterIdMap={nfcData.rosterIdMap}
+                    playersDB={playersDB} loading={transactionsLoading} focusConf={myTeamConf}
+                  />
+                )}
                 {playersSubTab === "draft" && (
                   <DraftBoardTab
                     afcDraft={afcDraft} nfcDraft={nfcDraft}
@@ -1845,15 +1883,6 @@ export default function App() {
                 )}
               </div>
           </div>
-        )}
-
-        {/* TAB: ACTIVITY -- trades, waiver claims, and free-agent moves. */}
-        {activeTab === "activity" && (
-          <ActivityTab
-            afcTransactions={afcTransactions} nfcTransactions={nfcTransactions}
-            afcRosterIdMap={afcData.rosterIdMap} nfcRosterIdMap={nfcData.rosterIdMap}
-            playersDB={playersDB} loading={transactionsLoading} focusConf={myTeamConf}
-          />
         )}
 
         {/* TAB: MS TEAMS RECAP (admin only) */}

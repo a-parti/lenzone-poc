@@ -44,10 +44,10 @@ async function embedImages(root) {
   }));
 }
 
-function inlineComputedStyles(root) {
+function inlineComputedStyles(root, view = window) {
   const elements = [root, ...root.querySelectorAll('*')];
   elements.forEach(element => {
-    const computed = window.getComputedStyle(element);
+    const computed = view.getComputedStyle(element);
     const values = [];
     for (let index = 0; index < computed.length; index += 1) {
       const property = computed[index];
@@ -60,8 +60,107 @@ function inlineComputedStyles(root) {
   });
 }
 
+// An SVG rendered as an <img> can't load web fonts, so text would re-flow in a fallback font and
+// clip/overflow. Embed the Google Fonts faces the export actually uses as data URLs instead.
+const fontTextCache = new Map();
+const fontDataCache = new Map();
+
+async function cachedFetch(cache, url, read) {
+  if (!cache.has(url)) cache.set(url, fetch(url).then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return read(res); }).catch(() => null));
+  return cache.get(url);
+}
+
+function collectUsedFonts(root, view) {
+  const used = new Map();
+  [root, ...root.querySelectorAll('*')].forEach(element => {
+    const style = view.getComputedStyle(element);
+    const family = style.fontFamily.split(',')[0].trim().replace(/^["']|["']$/g, '').toLowerCase();
+    if (!family) return;
+    if (!used.has(family)) used.set(family, new Set());
+    used.get(family).add(Number(style.fontWeight) || 400);
+  });
+  return used;
+}
+
+async function buildFontCss(root, view) {
+  const used = collectUsedFonts(root, view);
+  const links = [...document.querySelectorAll('link[rel="stylesheet"][href*="fonts.googleapis.com"]')];
+  const css = await Promise.all(links.map(link => cachedFetch(fontTextCache, link.href, res => res.text())));
+  const faces = [];
+  css.filter(Boolean).forEach(text => {
+    for (const match of text.matchAll(/\/\*\s*([\w-]+)\s*\*\/\s*@font-face\s*\{([^}]*)\}/g)) {
+      const [, subset, body] = match;
+      if (subset !== 'latin') continue;
+      const family = /font-family:\s*['"]?([^;'"]+)['"]?/.exec(body)?.[1]?.trim().toLowerCase();
+      const weightText = /font-weight:\s*([\d\s]+);/.exec(body)?.[1]?.trim();
+      const url = /url\(([^)]+)\)/.exec(body)?.[1];
+      if (!family || !weightText || !url || !used.has(family)) continue;
+      const [min, max = min] = weightText.split(/\s+/).map(Number);
+      if (![...used.get(family)].some(weight => weight >= min && weight <= max)) continue;
+      faces.push({ body, url: url.replace(/^["']|["']$/g, '') });
+    }
+  });
+  const rules = await Promise.all(faces.map(async ({ body, url }) => {
+    const dataUrl = await cachedFetch(fontDataCache, url, async res => blobToDataUrl(await res.blob()));
+    return dataUrl ? `@font-face{${body.replace(/src:[^;]+;/, `src:url(${dataUrl}) format('woff2');`)}}` : '';
+  }));
+  return rules.join('\n');
+}
+
 function nextFrame() {
   return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+}
+
+// Responsive (md:/lg:) styles key off the viewport, so a phone would export its mobile layout
+// stretched wide. Rendering the copy in an iframe as wide as the export makes them resolve at that width.
+async function createExportFrame(width) {
+  const frame = document.createElement('iframe');
+  frame.setAttribute('aria-hidden', 'true');
+  frame.style.cssText = `position:fixed;left:-100000px;top:0;width:${width}px;height:1200px;border:0;visibility:hidden;pointer-events:none`;
+  document.body.appendChild(frame);
+  const doc = frame.contentDocument;
+  const source = document.documentElement;
+  [...source.attributes].forEach(attr => doc.documentElement.setAttribute(attr.name, attr.value));
+  const base = doc.createElement('base');
+  base.href = document.baseURI;
+  doc.head.appendChild(base);
+  const pending = [];
+  document.head.querySelectorAll('link[rel="stylesheet"], style').forEach(node => {
+    const copy = node.cloneNode(true);
+    if (copy.tagName === 'LINK') {
+      pending.push(new Promise(resolve => {
+        copy.onload = resolve;
+        copy.onerror = resolve;
+        setTimeout(resolve, 3000);
+      }));
+    }
+    doc.head.appendChild(copy);
+  });
+  doc.body.style.cssText = 'margin:0;padding:0';
+  await Promise.all(pending);
+  return frame;
+}
+
+function trimBottom(canvas, background, keep) {
+  const context = canvas.getContext('2d');
+  const target = [1, 3, 5].map(i => parseInt(background.slice(i, i + 2), 16));
+  const { width, height } = canvas;
+  let last = height - 1;
+  for (; last > 0; last -= 1) {
+    const row = context.getImageData(0, last, width, 1).data;
+    let differs = false;
+    for (let x = 0; x < width * 4; x += 4) {
+      if (Math.abs(row[x] - target[0]) > 6 || Math.abs(row[x + 1] - target[1]) > 6 || Math.abs(row[x + 2] - target[2]) > 6) { differs = true; break; }
+    }
+    if (differs) break;
+  }
+  const trimmedHeight = Math.min(height, last + 1 + keep);
+  if (trimmedHeight >= height) return canvas;
+  const trimmed = document.createElement('canvas');
+  trimmed.width = width;
+  trimmed.height = trimmedHeight;
+  trimmed.getContext('2d').drawImage(canvas, 0, 0);
+  return trimmed;
 }
 
 export async function elementToPngCanvas(element, theme = 'dark', { padding = 28, maxPixels = 64_000_000, minWidth = 0 } = {}) {
@@ -70,11 +169,11 @@ export async function elementToPngCanvas(element, theme = 'dark', { padding = 28
   const sourceWidth = Math.ceil(Math.max(minWidth, element.scrollWidth, element.getBoundingClientRect().width));
   const scheme = document.documentElement.getAttribute('data-scheme') || 'accent';
   const background = theme === 'dark' ? '#0b111d' : '#f7f3eb';
-  // The staging copy is parked off-screen by a separate holder: its own computed styles get inlined
-  // into the image, and an off-screen offset there (left/inset-inline) renders the image empty.
-  const holder = document.createElement('div');
-  holder.style.cssText = 'position:fixed;left:-100000px;top:0;z-index:-2147483648';
-  const staging = document.createElement('div');
+  const frame = await createExportFrame(sourceWidth + padding * 2);
+  const frameDoc = frame.contentDocument;
+  const frameView = frame.contentWindow;
+  const holder = frameDoc.createElement('div');
+  const staging = frameDoc.createElement('div');
   const clone = element.cloneNode(true);
 
   staging.setAttribute('data-mode', theme);
@@ -92,26 +191,55 @@ export async function elementToPngCanvas(element, theme = 'dark', { padding = 28
   clone.querySelectorAll('[data-export-ignore="true"]').forEach(node => node.remove());
   // Show the whole thing: no scroll containers/clipping, and no lazy images (an off-screen lazy
   // <img> never loads, which leaves its logo blank in the export).
-  const originals = [element, ...element.querySelectorAll('*')];
-  [clone, ...clone.querySelectorAll('*')].forEach((node, index) => {
-    const { overflowX, overflowY } = window.getComputedStyle(originals[index]);
+  clone.querySelectorAll('img[loading]').forEach(img => img.setAttribute('loading', 'eager'));
+  staging.appendChild(clone);
+  holder.appendChild(staging);
+  frameDoc.body.appendChild(holder);
+  [clone, ...clone.querySelectorAll('*')].forEach(node => {
+    const { overflowX, overflowY } = frameView.getComputedStyle(node);
     if (/auto|scroll/.test(overflowX + overflowY)) {
       node.style.setProperty('overflow', 'visible', 'important');
       node.style.setProperty('max-height', 'none', 'important');
     }
+    // Long names wrap in the image instead of being cut with an ellipsis.
+    if (frameView.getComputedStyle(node).textOverflow === 'ellipsis') {
+      node.style.setProperty('overflow', 'visible', 'important');
+      node.style.setProperty('text-overflow', 'clip', 'important');
+      node.style.setProperty('white-space', 'normal', 'important');
+      node.style.setProperty('overflow-wrap', 'anywhere', 'important');
+    }
   });
-  clone.querySelectorAll('img[loading]').forEach(img => img.setAttribute('loading', 'eager'));
-  staging.appendChild(clone);
-  holder.appendChild(staging);
-  document.body.appendChild(holder);
 
   try {
     await nextFrame();
     await embedImages(staging);
+    await frameDoc.fonts?.ready;
     await nextFrame();
     const width = Math.ceil(staging.scrollWidth);
-    const height = Math.ceil(staging.scrollHeight);
-    inlineComputedStyles(staging);
+    const measuredHeight = Math.ceil(staging.scrollHeight);
+    // The image can lay out taller than the live page, so render with spare room and trim it after.
+    const height = Math.ceil(measuredHeight * 1.6);
+    const fontCss = await buildFontCss(staging, frameView);
+    inlineComputedStyles(staging, frameView);
+    // Computed styles freeze every element's height, but the image can wrap text onto an extra line.
+    // Turn each frozen height into a minimum so text can grow while bars, cells and logos keep their size.
+    const fixedKinds = new Set(['svg', 'img', 'canvas', 'video', 'iframe']);
+    [staging, ...staging.querySelectorAll('*')].forEach(el => {
+      if (el === staging || fixedKinds.has(el.tagName.toLowerCase()) || el.closest('svg')) return;
+      // Grid tracks were frozen to pixel sizes too; let the rows size to their content again.
+      if (/grid/.test(el.style.display)) el.style.setProperty('grid-template-rows', 'none', 'important');
+      const h = parseFloat(el.style.height);
+      if (!(h > 0)) return;
+      el.style.setProperty('min-height', `${h}px`, 'important');
+      el.style.removeProperty('height');
+      el.style.removeProperty('block-size');
+      el.style.removeProperty('max-height');
+    });
+    if (fontCss) {
+      const fontStyle = frameDoc.createElement('style');
+      fontStyle.textContent = fontCss;
+      staging.insertBefore(fontStyle, staging.firstChild);
+    }
     staging.style.width = `${width}px`;
     staging.style.height = `${height}px`;
     const serialized = new XMLSerializer().serializeToString(staging);
@@ -134,10 +262,10 @@ export async function elementToPngCanvas(element, theme = 'dark', { padding = 28
       context.fillStyle = background;
       context.fillRect(0, 0, canvas.width, canvas.height);
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      return canvas;
+      return trimBottom(canvas, background, Math.round(padding * scale));
     }
   } finally {
-    holder.remove();
+    frame.remove();
   }
 }
 

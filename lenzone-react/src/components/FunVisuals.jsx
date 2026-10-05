@@ -253,64 +253,229 @@ function TeamNameStack({ manager, conf, strong = false }) {
   );
 }
 
+// A diverging meter: bars grow right from the centre line for positive values, left for negative,
+// split into a positive and a negative group. Used by Luck, Boom/Bust and Fleece.
+function DivergingMeterBody({ items, posLabel, negLabel, digits = 1, unit, emptyText }) {
+  const { openRoster } = useRosterModal();
+  if (!items.length) return <p className="py-6 text-center text-sm text-[var(--muted)]">{emptyText}</p>;
+  const maxAbs = Math.max(0.5, ...items.map(i => Math.abs(i.value)));
+  // Split on the shown (rounded) value, so a team showing "0.0" never sits beside the negative group.
+  const rounded = (i) => Number(i.value.toFixed(digits));
+  const isPos = (i) => rounded(i) > 0;
+  const sideShade = (i, color) =>
+    `color-mix(in srgb, ${color} ${Math.round(15 + 85 * Math.min(1, Math.abs(i.value) / maxAbs))}%, var(--border2))`;
+  const groups = [
+    { key: 'pos', label: posLabel, color: 'var(--pos)', rows: items.filter(isPos) },
+    { key: 'even', label: 'Even', color: 'var(--muted)', rows: items.filter(i => rounded(i) === 0) },
+    { key: 'neg', label: negLabel, color: 'var(--neg)', rows: items.filter(i => rounded(i) < 0) }
+  ].filter(g => g.rows.length);
+  const renderRow = (i) => {
+    const w = `${(Math.abs(i.value) / maxAbs) * 50}%`;
+    const positive = i.value >= 0;
+    return (
+      <button key={i.manager} type="button" onClick={() => openRoster(i.manager, i.conf)}
+        className="w-full grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,13rem)_1fr_7.5rem] items-center gap-x-2 gap-y-1 py-1.5 text-left hover:bg-[var(--surface2)]/60 px-1"
+        title={i.title}>
+        <span className="order-1 sm:order-none flex items-center gap-1.5 min-w-0">
+          <TeamMiniLogo manager={i.manager} size={20} />
+          <TeamNameStack manager={i.manager} conf={i.conf} />
+          <ConfTag conf={i.conf} />
+        </span>
+        <span className="order-3 col-span-2 sm:order-none sm:col-span-1 relative h-4">
+          <span className="absolute -inset-y-1.5 left-1/4 border-l border-dashed border-[var(--border)]" />
+          <span className="absolute -inset-y-1.5 left-3/4 border-l border-dashed border-[var(--border)]" />
+          <span className="absolute -inset-y-1.5 left-1/2 w-px bg-[var(--border2)]" />
+          {rounded(i) !== 0 && <span className="absolute top-0.5 bottom-0.5 rounded"
+            style={{ ...(positive ? { left: '50%' } : { right: '50%' }), width: w, background: positive ? 'linear-gradient(90deg, color-mix(in srgb, var(--pos) 35%, transparent), var(--pos))' : 'linear-gradient(270deg, color-mix(in srgb, var(--neg) 35%, transparent), var(--neg))', boxShadow: `0 0 10px ${positive ? 'var(--pos)' : 'var(--neg)'}` }} />}
+        </span>
+        <span className="order-2 sm:order-none text-right leading-tight">
+          <span className={`block text-xs font-black ${rounded(i) === 0 ? 'text-[var(--muted)]' : positive ? 'text-[var(--pos)]' : 'text-[var(--neg)]'}`}>{signed(i.value, digits)} {unit}</span>
+          {i.detail && <span className="block whitespace-nowrap text-[10px] font-medium text-[var(--muted)]">{i.detail}</span>}
+        </span>
+      </button>
+    );
+  };
+  return (
+    <div className="max-w-3xl mx-auto divide-y divide-[var(--border2)]">
+      {groups.map(g => (
+        <div key={g.key} className="py-1.5">
+          <div className="flex items-center gap-2 px-1 py-1">
+            <span className="text-[10px] font-black uppercase tracking-[0.25em] whitespace-nowrap" style={{ color: g.color }}>{g.label}</span>
+            <span className="h-[3px] flex-1 rounded-full"
+              style={{ background: `linear-gradient(90deg, ${sideShade(g.rows[0], g.color)}, ${sideShade(g.rows[g.rows.length - 1], g.color)})` }} />
+          </div>
+          <div className="divide-y divide-[var(--border)]/70">
+            {g.rows.map(renderRow)}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function LuckMeter({ luck }) {
   const { displayName } = useNameDisplay();
-  const { openRoster } = useRosterModal();
   if (!luck?.length) return null;
-  const maxAbs = Math.max(0.5, ...luck.map(l => Math.abs(l.luck)));
-  // Split on the shown (one-decimal) value, so a team showing "0.0" never sits beside "Unlucky".
-  const isLucky = (l) => Number(l.luck.toFixed(1)) >= 0;
-  const sideShade = (l, color) =>
-    `color-mix(in srgb, ${color} ${Math.round(15 + 85 * Math.min(1, Math.abs(l.luck) / maxAbs))}%, var(--border2))`;
-  const groups = [
-    { key: 'lucky', label: 'Lucky', color: 'var(--pos)', rows: luck.filter(isLucky) },
-    { key: 'unlucky', label: 'Unlucky', color: 'var(--neg)', rows: luck.filter(l => !isLucky(l)) }
-  ].filter(g => g.rows.length);
-  const renderRow = (l) => {
-        const w = `${(Math.abs(l.luck) / maxAbs) * 50}%`;
-        const lucky = isLucky(l);
-        return (
-          <button key={l.manager} type="button" onClick={() => openRoster(l.manager, l.conf)}
-            className="w-full grid grid-cols-[minmax(0,13rem)_1fr_5rem] items-center gap-2 py-1.5 text-left hover:bg-[var(--surface2)]/60 px-1"
-            title={`${displayName(l.manager, l.conf)}: ${l.wins.toFixed(1)} ${STANDINGS_PTS.short} earned vs ${l.expected.toFixed(1)} all-play expected in ${l.games} games`}>
-            <span className="flex items-center gap-1.5 min-w-0">
-              <TeamMiniLogo manager={l.manager} size={20} />
-              <TeamNameStack manager={l.manager} conf={l.conf} />
-              <ConfTag conf={l.conf} />
-            </span>
-            <span className="relative h-4">
-              <span className="absolute -inset-y-1.5 left-1/4 border-l border-dashed border-[var(--border)]" />
-              <span className="absolute -inset-y-1.5 left-3/4 border-l border-dashed border-[var(--border)]" />
-              <span className="absolute -inset-y-1.5 left-1/2 w-px bg-[var(--border2)]" />
-              <span className="absolute top-0.5 bottom-0.5 rounded"
-                style={{ ...(lucky ? { left: '50%' } : { right: '50%' }), width: w, background: lucky ? 'linear-gradient(90deg, color-mix(in srgb, var(--pos) 35%, transparent), var(--pos))' : 'linear-gradient(270deg, color-mix(in srgb, var(--neg) 35%, transparent), var(--neg))', boxShadow: `0 0 10px ${lucky ? 'var(--pos)' : 'var(--neg)'}` }} />
-            </span>
-            <span className={`text-xs font-black text-right ${Math.abs(l.luck) < 0.05 ? 'text-[var(--muted)]' : lucky ? 'text-[var(--pos)]' : 'text-[var(--neg)]'}`}>{signed(l.luck)} {STANDINGS_PTS.short}</span>
-          </button>
-        );
-  };
+  const items = luck.map(l => ({
+    manager: l.manager, conf: l.conf, value: l.luck,
+    title: `${displayName(l.manager, l.conf)}: ${l.wins.toFixed(1)} ${STANDINGS_PTS.short} earned vs ${l.expected.toFixed(1)} all-play expected in ${l.games} games`
+  }));
   return (
     <FunCard
       chartId="luck-meter"
       title="Luck Meter"
-      subtitle={`${STANDINGS_PTS.long} earned vs. expected against every possible opponent`}
+      subtitle={`${STANDINGS_PTS.short} you got vs. what you'd get playing everyone`}
     >
-      <div className="max-w-3xl mx-auto divide-y divide-[var(--border2)]">
-        {groups.map(g => (
-          <div key={g.key} className="flex">
-            {/* Side label running the height of its group. */}
-            <div className="relative w-6 shrink-0 flex items-center justify-center my-1">
-              <span className="absolute right-0 inset-y-0 w-[3px] rounded-full"
-                style={{ background: `linear-gradient(180deg, ${sideShade(g.rows[0], g.color)}, ${sideShade(g.rows[g.rows.length - 1], g.color)})` }} />
-              <span className="text-[10px] font-black uppercase tracking-[0.25em] whitespace-nowrap"
-                style={{ color: g.color, writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>{g.label}</span>
+      <DivergingMeterBody items={items} posLabel="Lucky" negLabel="Unlucky" unit={STANDINGS_PTS.short} />
+    </FunCard>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Boom/Bust meter: average started player vs. his projection, per team, across the season.
+// ---------------------------------------------------------------------------------------------
+export function PlayerBoomBustMeter({ rows }) {
+  const { displayName } = useNameDisplay();
+  const items = (rows || []).map(r => ({
+    manager: r.manager, conf: r.conf, value: r.avg,
+    detail: `${signed(r.boomPts, 0)} boom · ${signed(r.bustPts, 0)} bust`,
+    title: `${displayName(r.manager, r.conf)}: starters beat projection by ${signed(r.avg)} on average over ${r.n} starts (${signed(r.boomPts)} pts above projection on booms, ${signed(r.bustPts)} below on busts)`
+  }));
+  return (
+    <FunCard
+      chartId="boom-bust-meter"
+      title="Boom/Bust Meter"
+      subtitle="Points your starters scored vs. their projection. Boom = beat it, bust = missed it."
+    >
+      <DivergingMeterBody items={items} posLabel="Boom" negLabel="Bust" unit="/start" emptyText="No projections yet." />
+    </FunCard>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Sit/Start meter: points left on the bench vs. a perfect lineup, season total.
+// ---------------------------------------------------------------------------------------------
+export function SitStartMeter({ rows }) {
+  const { displayName } = useNameDisplay();
+  const { openRoster } = useRosterModal();
+  const list = rows || [];
+  const maxLeft = Math.max(1, ...list.map(r => r.left));
+  return (
+    <FunCard
+      chartId="sit-start-meter"
+      title="Sit/Start Meter"
+      subtitle="Points you left on the bench. % is how much of your best possible lineup you started."
+    >
+      {!list.length ? <p className="py-6 text-center text-sm text-[var(--muted)]">Waiting on player data.</p> : (
+        <div className="max-w-3xl mx-auto divide-y divide-[var(--border)]/70">
+          {list.map(r => (
+            <button key={r.manager} type="button" onClick={() => openRoster(r.manager, r.conf)}
+              className="w-full grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,13rem)_1fr_7rem] items-center gap-x-2 gap-y-1 py-1.5 text-left hover:bg-[var(--surface2)]/60 px-1"
+              title={`${displayName(r.manager, r.conf)}: ${r.left.toFixed(1)} points left on the bench over ${r.weeks} weeks${r.worst ? ` (worst: Week ${r.worst.week}, ${r.worst.left.toFixed(1)})` : ''}`}>
+              <span className="order-1 sm:order-none flex items-center gap-1.5 min-w-0">
+                <TeamMiniLogo manager={r.manager} size={20} />
+                <TeamNameStack manager={r.manager} conf={r.conf} />
+                <ConfTag conf={r.conf} />
+              </span>
+              <span className="order-3 col-span-2 sm:order-none sm:col-span-1 relative h-4 rounded bg-[var(--surface2)]">
+                <span className="absolute inset-y-0 left-0 rounded"
+                  style={{ width: `${(r.left / maxLeft) * 100}%`, background: 'var(--neg)', opacity: 0.4 + 0.6 * (r.left / maxLeft) }} />
+              </span>
+              <span className="order-2 sm:order-none text-right leading-tight">
+                <span className="block text-xs font-black text-[var(--text)]">{r.left.toFixed(1)} pts</span>
+                <span className="block text-[10px] font-medium text-[var(--muted)]">{r.pct.toFixed(1)}%</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </FunCard>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Fleece meter: net production won or lost in trades, plus every trade, side by side.
+// ---------------------------------------------------------------------------------------------
+const MIN_FLEECE_WEEKS = 2;
+
+function TradeCard({ trade }) {
+  const { displayName } = useNameDisplay();
+  const small = trade.weeks < MIN_FLEECE_WEEKS;
+  return (
+    <div className="rounded-lg border border-[var(--border)] p-3">
+      <div className="mb-2 flex items-center justify-between text-[11px] font-semibold text-[var(--muted)]">
+        <span>Week {trade.week} · {trade.conf}</span>
+        <span>{small ? 'Small sample (under 2 weeks)' : `${trade.weeks} weeks measured`}</span>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {trade.sides.map(s => (
+          <div key={s.rosterId} className="min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex min-w-0 items-center gap-1.5 text-xs font-bold text-[var(--text)]">
+                <TeamMiniLogo manager={s.manager} size={18} />
+                <span className="truncate">{displayName(s.manager, s.conf)}</span>
+              </span>
+              <span className={`shrink-0 text-xs font-black ${Math.abs(s.net) < 0.05 ? 'text-[var(--muted)]' : s.net > 0 ? 'text-[var(--pos)]' : 'text-[var(--neg)]'}`}>{signed(s.net)}</span>
             </div>
-            <div className="flex-1 min-w-0 pl-2 divide-y divide-[var(--border)]/70">
-              {g.rows.map(renderRow)}
-            </div>
+            <p className="mt-1 text-[11px] text-[var(--text2)]">
+              <span className="font-semibold text-[var(--muted)]">Got </span>
+              {s.got.length ? s.got.map(p => `${p.name}${p.pos ? ` (${p.pos})` : ''} ${signed(p.value)}`).join(', ') : 'nothing'}
+            </p>
+            <p className="text-[11px] text-[var(--text2)]">
+              <span className="font-semibold text-[var(--muted)]">Gave </span>
+              {s.gave.length ? s.gave.map(p => `${p.name}${p.pos ? ` (${p.pos})` : ''} ${signed(p.value)}`).join(', ') : 'nothing'}
+            </p>
+            {s.faab !== 0 && (
+              <p className="text-[11px] font-semibold text-[var(--muted)]">
+                {s.faab > 0 ? `+$${s.faab} FAAB received` : `$${-s.faab} FAAB sent`}
+                {Math.abs(s.faabValue) >= 0.05 && ` (${signed(s.faabValue)} pts)`}
+              </p>
+            )}
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+export function FleeceMeter({ data }) {
+  const { displayName } = useNameDisplay();
+  const [showAll, setShowAll] = useState(false);
+  const byTeam = data?.byTeam || [];
+  const trades = data?.trades || [];
+  const items = byTeam.map(t => ({
+    manager: t.manager, conf: t.conf, value: t.net,
+    detail: `${t.trades} trade${t.trades === 1 ? '' : 's'}`,
+    title: `${displayName(t.manager, t.conf)}: ${signed(t.net)} net points over position median across ${t.trades} trade${t.trades === 1 ? '' : 's'}`
+  }));
+  const shown = showAll ? trades : trades.slice(0, 5);
+  return (
+    <FunCard
+      chartId="fleece-meter"
+      title="Fleece Meter"
+      subtitle="Points scored since each trade by the players you got, minus the players you gave up. Measured against the weekly median at each position."
+    >
+      <DivergingMeterBody items={items} posLabel="Fleecers" negLabel="Fleeced" unit="pts" emptyText="No completed trades yet." />
+      {trades.length > 0 && (
+        <p className="mt-3 text-center text-[11px] text-[var(--muted)]">
+          {data.faabRate > 0
+            ? `FAAB in trades counts at ${data.faabRate.toFixed(2)} pts per $, based on how waiver bids have paid off.`
+            : `FAAB in trades counts as 0 for now. Waiver bids ($${data.claimBid} total) have scored ${signed(data.claimValue)} pts vs. the median, so they haven't paid off yet.`}
+        </p>
+      )}
+      {trades.length > 0 && (
+        <div className="mt-4 space-y-2">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text2)]">Trades</h4>
+          {shown.map(t => <TradeCard key={t.id} trade={t} />)}
+          {trades.length > 5 && (
+            <div data-export-ignore="true">
+              <button type="button" onClick={() => setShowAll(v => !v)} className="text-xs font-bold text-[var(--accent)] hover:underline">
+                {showAll ? 'Show fewer' : `Show all ${trades.length} trades`}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </FunCard>
   );
 }
@@ -409,6 +574,73 @@ export function SeasonHeatMap({ heat, weeks }) {
         <span className="h-2.5 w-40 rounded-full" style={{ background: 'linear-gradient(90deg, var(--proj), var(--coral))' }} />
         <span>Hot</span>
       </div>
+    </FunCard>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Waiver Wire meter: points over the position median from pickups, per team.
+// ---------------------------------------------------------------------------------------------
+export function WaiverWireMeter({ rows }) {
+  const { displayName } = useNameDisplay();
+  const items = (rows || []).map(r => ({
+    manager: r.manager, conf: r.conf, value: r.net,
+    detail: `${r.pickups} pickup${r.pickups === 1 ? '' : 's'}${r.faab > 0 ? ` · $${r.faab}` : ''}`,
+    title: `${displayName(r.manager, r.conf)}: ${signed(r.net)} pts vs. position median from ${r.pickups} pickups, $${r.faab} FAAB${r.best ? `. Best: ${r.best.name} (${signed(r.best.value)})` : ''}`
+  }));
+  return (
+    <FunCard
+      chartId="waiver-wire-meter"
+      title="Waiver Wire"
+      subtitle="Points your pickups scored in the weeks you started them, vs. the weekly median at their position."
+    >
+      <DivergingMeterBody items={items} posLabel="Hot wire" negLabel="Cold wire" unit="pts" emptyText="No pickups yet." />
+    </FunCard>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Draft Value meter: points over the position median from each team's draft picks.
+// ---------------------------------------------------------------------------------------------
+function PickLine({ pick }) {
+  const { displayName } = useNameDisplay();
+  const spots = pick.drafters.map(d => `Rd ${d.round}, #${d.pickNo} ${displayName(d.manager, d.conf)}`).join(' · ');
+  return (
+    <li className="flex items-start justify-between gap-2 text-xs">
+      <span className="min-w-0 text-[var(--text2)]">
+        <span className="font-bold text-[var(--text)]">{pick.name}</span>{pick.pos ? ` (${pick.pos})` : ''}
+        <span className="block text-[11px] text-[var(--muted)]">{spots}</span>
+      </span>
+      <span className={`shrink-0 font-black ${pick.value >= 0 ? 'text-[var(--pos)]' : 'text-[var(--neg)]'}`}>{signed(pick.value)}</span>
+    </li>
+  );
+}
+
+export function DraftValueMeter({ data }) {
+  const { displayName } = useNameDisplay();
+  const items = (data?.byTeam || []).map(t => ({
+    manager: t.manager, conf: t.conf, value: t.net,
+    title: `${displayName(t.manager, t.conf)}: ${signed(t.net)} pts vs. position median across ${t.picks} picks`
+  }));
+  return (
+    <FunCard
+      chartId="draft-value-meter"
+      title="Draft Value"
+      subtitle="Points your draft picks scored for you, compared to an average player at their position. Only weeks you started them count."
+    >
+      <DivergingMeterBody items={items} posLabel="Good drafts" negLabel="Bad drafts" unit="pts" emptyText="No drafted players have started for their team yet." />
+      {data?.best?.length > 0 && (
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div>
+            <h4 className="mb-1 text-xs font-bold uppercase tracking-wider text-[var(--text2)]">Best picks</h4>
+            <ul className="space-y-1">{data.best.map(p => <PickLine key={p.playerId} pick={p} />)}</ul>
+          </div>
+          <div>
+            <h4 className="mb-1 text-xs font-bold uppercase tracking-wider text-[var(--text2)]">Worst picks</h4>
+            <ul className="space-y-1">{data.worst.map(p => <PickLine key={p.playerId} pick={p} />)}</ul>
+          </div>
+        </div>
+      )}
     </FunCard>
   );
 }

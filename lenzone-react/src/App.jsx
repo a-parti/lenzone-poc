@@ -662,9 +662,9 @@ export default function App() {
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   const [isAdmin, setIsAdmin] = useState(() => localStorage.getItem('lenzone_admin') === 'true');
-  // A deep link to the admin-only broadcast tab from a non-admin session lands on Home instead of
-  // a blank page.
-  useEffect(() => { if (activeTab === "teams" && !isAdmin) setActiveTab("home"); }, [activeTab, isAdmin]);
+  // A deep link to an admin-only tab (broadcast, memes) from a non-admin session lands on Home
+  // instead of a blank page.
+  useEffect(() => { if ((activeTab === "teams" || activeTab === "memes") && !isAdmin) setActiveTab("home"); }, [activeTab, isAdmin]);
   // Keeps the URL in sync even on first load (so the address bar always reflects real state,
   // ready to copy/share/bookmark).
   useEffect(() => {
@@ -1487,9 +1487,12 @@ export default function App() {
     { id: "standings", label: "Standings", shortLabel: "Standings", icon: Trophy },
     { id: "graphs", label: "Graphs", shortLabel: "Graphs", icon: ChartColumn },
     { id: "players", label: "League", shortLabel: "League", icon: Users },
-    // Memes is labeled with just the emoji (no icon); ariaLabel and keywords keep it findable.
-    { id: "memes", label: "🌶️", shortLabel: "🌶️", ariaLabel: "Memes", keywords: "memes gifs spicy" },
-    ...(isAdmin ? [{ id: "teams", label: "MS Teams Broadcast", shortLabel: "Broadcast", icon: Megaphone }] : [])
+    // Admin only for now. Memes is labeled with just the emoji (no icon); ariaLabel and keywords
+    // keep it findable.
+    ...(isAdmin ? [
+      { id: "memes", label: "🌶️", shortLabel: "🌶️", ariaLabel: "Memes", keywords: "memes gifs spicy" },
+      { id: "teams", label: "MS Teams Broadcast", shortLabel: "Broadcast", icon: Megaphone }
+    ] : [])
   ];
 
   const settingsMenu = (
@@ -1890,8 +1893,8 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB: MEMES -- real memes and GIFs about how each team and its players did this week. */}
-        {activeTab === "memes" && (
+        {/* TAB: MEMES (admin only for now) -- real memes and GIFs about how each team and its players did this week. */}
+        {activeTab === "memes" && isAdmin && (
           <MemesTab
             week={selectedWeek} onSelectWeek={setSelectedWeek} seasonWeeks={SEASON_WEEKS}
             latestCompletedWeek={latestCompletedWeek} isWeekFinal={isSelectedWeekFinal}

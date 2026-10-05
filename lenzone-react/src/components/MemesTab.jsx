@@ -173,11 +173,15 @@ export default function MemesTab({ week, onSelectWeek, seasonWeeks, latestComple
     setSaveState({ busy: true });
     const { picks: found, limited } = await searchWeekPicks(week, board.situations, pickIndex);
     const count = Object.keys(found).length;
+    let written = null;
     if (count) {
       setDraft({ week, picks: found });
-      downloadJson(found, `week-${week}.json`);
+      // The dev server writes the file into src/data/gifs/ (see vite.config.js); download it otherwise.
+      written = await fetch(`/__save-gifs?week=${week}`, { method: 'POST', body: JSON.stringify(found) })
+        .then(r => (r.ok ? r.json() : null)).then(j => j?.file || null).catch(() => null);
+      if (!written) downloadJson(found, `week-${week}.json`);
     }
-    setSaveState({ count, total: board.situations.length, limited, resetMinutes: giphyBudget().resetMinutes });
+    setSaveState({ count, total: board.situations.length, limited, written, resetMinutes: giphyBudget().resetMinutes });
   };
 
   return (
@@ -198,7 +202,7 @@ export default function MemesTab({ week, onSelectWeek, seasonWeeks, latestComple
         {isAdmin && (
           <p className="text-xs text-[var(--muted)]">
             {GIPHY_KEY
-              ? `Save runs one Giphy search per card (cached for a week, capped at ${GIPHY_HOURLY_CAP} an hour, ${giphyBudget().used} used this hour) and downloads week-${week}.json for src/data/gifs/.`
+              ? `Save runs one Giphy search per card (cached for a week, capped at ${GIPHY_HOURLY_CAP} an hour, ${giphyBudget().used} used this hour) and saves the picks to src/data/gifs/week-${week}.json.`
               : 'Saving GIFs only works in local dev (npm run dev) with VITE_GIPHY_API_KEY in .env.'}
           </p>
         )}
@@ -207,8 +211,12 @@ export default function MemesTab({ week, onSelectWeek, seasonWeeks, latestComple
       {saveState && !saveState.busy && (
         <p className={`rounded-xl border p-3 text-sm text-[var(--text)] ${saveState.limited || !saveState.count ? 'border-[var(--neg)]/40 bg-[var(--neg)]/10' : 'border-[var(--border)] bg-[var(--surface)]'}`}>
           {saveState.count
-            ? `Found GIFs for ${saveState.count} of ${saveState.total} cards and downloaded week-${week}.json. They're showing below; move the file into src/data/gifs/ and commit.`
-            : 'No GIFs found, so nothing was downloaded.'}
+            ? (saveState.written
+              ? `Found GIFs for ${saveState.count} of ${saveState.total} cards and saved them to ${saveState.written}. Commit and push that file to put them on the live site.`
+              : `Found GIFs for ${saveState.count} of ${saveState.total} cards and downloaded week-${week}.json. They're showing below; move the file into src/data/gifs/ and commit.`)
+            : saveState.limited
+              ? 'Giphy refused the search (rate limit), so nothing was saved.'
+              : 'No GIFs found, so nothing was saved.'}
           {saveState.limited && ` Giphy's hourly limit stopped the search early, so this is partial. Try again in about ${saveState.resetMinutes || 60} minutes; finished searches are cached.`}
         </p>
       )}
@@ -228,7 +236,8 @@ export default function MemesTab({ week, onSelectWeek, seasonWeeks, latestComple
             : <GifCard key={item.id} situation={item.sit} week={week} slot={item.slot} gifs={item.gifs} isAdmin={isAdmin} />))}
         </div>
       )}
-      {board && feed.some(item => item.kind === 'gif') && <p className="text-center text-[11px] text-[var(--muted)]">GIFs powered by GIPHY</p>}
+      {board && !picks && <p className="text-center text-[11px] text-[var(--muted)]">No GIFs saved for Week {week} yet.</p>}
+      {board && feed.some(item => item.kind === 'gif') &&<p className="text-center text-[11px] text-[var(--muted)]">GIFs powered by GIPHY</p>}
     </div>
   );
 }

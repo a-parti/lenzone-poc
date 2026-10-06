@@ -48,6 +48,8 @@ import { NameDisplayProvider, useNameDisplay } from './context/NameDisplayContex
 import { buildConferenceColorMap, buildConferenceHexColorMap, getDraftSlotMap } from './lib/teamColors';
 const GraphsTab = lazy(() => import('./components/GraphsTab'));
 const MemesTab = lazy(() => import('./components/MemesTab'));
+// The Memes (🌶️) tab is switched off for everyone; set to true to bring it back.
+const MEMES_ENABLED = false;
 const BroadcastGraphs = lazy(() => import('./components/BroadcastGraphs'));
 import StandingsBarChart from './components/StandingsBarChart';
 import { getRealName } from './lib/realNames';
@@ -662,9 +664,9 @@ export default function App() {
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   const [isAdmin, setIsAdmin] = useState(() => localStorage.getItem('lenzone_admin') === 'true');
-  // A deep link to the admin-only broadcast tab from a non-admin session lands on Home instead of
-  // a blank page.
-  useEffect(() => { if (activeTab === "teams" && !isAdmin) setActiveTab("home"); }, [activeTab, isAdmin]);
+  // A deep link to the admin-only broadcast tab from a non-admin session (or to the Memes tab while
+  // it's switched off) lands on Home instead of a blank page.
+  useEffect(() => { if ((activeTab === "teams" && !isAdmin) || (activeTab === "memes" && !MEMES_ENABLED)) setActiveTab("home"); }, [activeTab, isAdmin]);
   // Keeps the URL in sync even on first load (so the address bar always reflects real state,
   // ready to copy/share/bookmark).
   useEffect(() => {
@@ -1488,7 +1490,7 @@ export default function App() {
     { id: "graphs", label: "Graphs", shortLabel: "Graphs", icon: ChartColumn },
     { id: "players", label: "League", shortLabel: "League", icon: Users },
     // Memes is labeled with just the emoji (no icon); ariaLabel and keywords keep it findable.
-    { id: "memes", label: "🌶️", shortLabel: "🌶️", ariaLabel: "Memes", keywords: "memes gifs spicy" },
+    ...(MEMES_ENABLED ? [{ id: "memes", label: "🌶️", shortLabel: "🌶️", ariaLabel: "Memes", keywords: "memes gifs spicy" }] : []),
     ...(isAdmin ? [{ id: "teams", label: "MS Teams Broadcast", shortLabel: "Broadcast", icon: Megaphone }] : [])
   ];
 
@@ -1891,7 +1893,7 @@ export default function App() {
         )}
 
         {/* TAB: MEMES -- real memes and GIFs about how each team and its players did this week. */}
-        {activeTab === "memes" && (
+        {activeTab === "memes" && MEMES_ENABLED && (
           <MemesTab
             week={selectedWeek} onSelectWeek={setSelectedWeek} seasonWeeks={SEASON_WEEKS}
             isWeekFinal={isSelectedWeekFinal}

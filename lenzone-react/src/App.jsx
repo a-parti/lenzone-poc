@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
-import { Trophy, Swords, Megaphone, RefreshCw, X, Activity, ListOrdered, Users, Calendar, Search, Home, GitBranch, Copy, Check } from 'lucide-react';
+import { Trophy, Swords, Megaphone, RefreshCw, X, Activity, ListOrdered, Users, Calendar, Search, GitBranch, Copy, Check } from 'lucide-react';
 import AnimatedLogo from './components/AnimatedLogo';
 import { CONF_STYLES } from './lib/theme';
 import {
   fetchSleeperLeague, fetchFullSeasonData, fetchWeekMatchups, fetchPlayersDB, fetchSeasonTransactions, fetchWeekTransactions, fetchDraftPicks, fetchAllWeekProjections, fetchWeekProjections, fetchNflState, fetchNflSchedule
 } from './lib/sleeperApi';
-import { fetchWeekKickoffInfo, fetchWeekBigPlays, fetchNflHeadlines, fetchNflPlayerNotes, filterPlayerNotesForPlayers, filterHeadlinesForPlayers } from './lib/espnApi';
+import { fetchWeekKickoffInfo, fetchNflHeadlines, fetchNflPlayerNotes, filterPlayerNotesForPlayers, filterHeadlinesForPlayers } from './lib/espnApi';
 import {
   computeStats, buildHistory, simulateCombinedPlayoffOdds, computeCrossRecords, computeCrossWeekRecord,
   computeWeeklyAwards, buildConferenceList, rankConference, winProbability, roughWinProbability, computePointsAgainst, computeInConfRecord,
@@ -24,7 +24,6 @@ import TeamName from './components/TeamName';
 const SeasonGridTab = lazy(() => import('./components/SeasonGridTab'));
 import PlayoffsTab, { PLAYOFF_WEEKS } from './components/PlayoffsTab';
 import HomeView from './components/HomeView';
-import NewsTicker from './components/NewsTicker';
 import WeeklyScoresBarChart from './components/WeeklyScoresBarChart';
 import CurrentWeekView from './components/CurrentWeekView';
 import CommandPalette from './components/CommandPalette';
@@ -58,7 +57,6 @@ import { copyTextToClipboard } from './lib/clipboard';
 import { defaultBrowseWeek, sleeperCurrentWeek } from './lib/weekSelection';
 import { startPolling } from './lib/polling';
 import { STANDINGS_PTS } from './lib/terms';
-import { IS_FRESH_START } from './lib/freshStart';
 import { buildWeeklyRecapForWeek } from './lib/recapText';
 
 // LENZONE 2026 is a fixed dual-conference league. These IDs should not change season to season.
@@ -687,7 +685,7 @@ function mergeMatchupWeek(previous, week, pairs) {
   };
 }
 
-const VALID_TABS = new Set(["home", "currentWeek", "standings", "matchups", "players", "activity", "teams", "charter"]);
+const VALID_TABS = new Set(["home", "currentWeek", "standings", "matchups", "players", "teams", "charter"]);
 // Old bookmarked hashes keep landing somewhere sensible after the navigation consolidation.
 const LEGACY_TAB_PARENTS = {
   playoffs: "standings",
@@ -695,6 +693,7 @@ const LEGACY_TAB_PARENTS = {
   grid: "matchups",
   season: "matchups",
   league: "players",
+  activity: "players",
   news: "currentWeek"
 };
 
@@ -717,17 +716,9 @@ export default function App() {
   const [afcLeagueId, setAfcLeagueId] = useState(() => localStorage.getItem('lenzone_afc_league_id') || AFC_LEAGUE_ID);
   const [nfcLeagueId, setNfcLeagueId] = useState(() => localStorage.getItem('lenzone_nfc_league_id') || NFC_LEAGUE_ID);
   // Deep-linkable: the current tab lives in the URL hash (shareable/bookmarkable, and survives a
-  // reload) rather than only in memory. A bare visit to the root URL (no hash at all) always lands
-  // on Home -- it used to fall back to whatever tab localStorage remembered from your last visit,
-  // which meant the bare domain silently stopped going Home once you'd ever navigated anywhere else.
-  // A returning visitor who has already picked their team skips the picker and lands on My Week.
-  const [activeTab, setActiveTabState] = useState(() => {
-    const fromHash = tabFromHash();
-    if (fromHash) return fromHash;
-    // First visit after the redesign: everyone starts on Home once (see lib/freshStart.js).
-    if (IS_FRESH_START) return "home";
-    try { return localStorage.getItem('lenzone_my_team') ? "currentWeek" : "home"; } catch { return "home"; }
-  });
+  // reload) rather than only in memory. A bare visit to the root URL (no hash at all) always opens
+  // Standings; Home (the team picker) is one tap away on the header logo.
+  const [activeTab, setActiveTabState] = useState(() => tabFromHash() || "standings");
   const setActiveTab = (id) => {
     setActiveTabState(id);
     window.history.pushState(null, '', `#${id}`);
@@ -791,9 +782,9 @@ export default function App() {
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   const [isAdmin, setIsAdmin] = useState(() => localStorage.getItem('lenzone_admin') === 'true');
-  // A deep link to the admin-only broadcast tab from a non-admin session lands on Home instead of
-  // a blank page.
-  useEffect(() => { if (activeTab === "teams" && !isAdmin) setActiveTab("home"); }, [activeTab, isAdmin]);
+  // A deep link to the admin-only broadcast tab from a non-admin session lands on Standings instead
+  // of a blank page.
+  useEffect(() => { if (activeTab === "teams" && !isAdmin) setActiveTab("standings"); }, [activeTab, isAdmin]);
   // Keeps the URL in sync even on first load (so the address bar always reflects real state,
   // ready to copy/share/bookmark).
   useEffect(() => {
@@ -1141,19 +1132,6 @@ export default function App() {
     };
   }, [selectedWeek]);
 
-  // Real league-wide "big plays" (longest pass/run/field goal) for the viewed week, from ESPN's
-  // real play-by-play -- only fetched once that week is actually done (selectedWeek <=
-  // latestCompletedWeek), since a mid-week fetch would just be an incomplete, still-changing
-  // partial answer to "longest of the week". One request per game in the week, so this is cached
-  // per week (not refetched on unrelated re-renders) via the effect's own dependency array.
-  const [weekBigPlays, setWeekBigPlays] = useState(null);
-  useEffect(() => {
-    if (selectedWeek > latestCompletedWeek) { setWeekBigPlays(null); return; }
-    let cancelled = false;
-    fetchWeekBigPlays(selectedWeek, SEASON_YEAR).then(result => { if (!cancelled) setWeekBigPlays(result); });
-    return () => { cancelled = true; };
-  }, [selectedWeek, latestCompletedWeek]);
-
   // Real, live current NFL headlines (ESPN's own public news feed), refetched every 10 minutes.
   // "Your Player News" on My Week cross-references this against your roster, so a wider pull
   // gives that a real chance of finding a match.
@@ -1198,6 +1176,13 @@ export default function App() {
   const nfcManagers = nfcData.rosters.length > 0 ? nfcData.rosters.map(r => r.manager) : NFC_DEFAULT;
   const myTeamConf = myTeamManager && afcManagers.includes(myTeamManager) ? "AFC" : myTeamManager && nfcManagers.includes(myTeamManager) ? "NFC" : null;
   const resolvedMyTeamManager = myTeamConf ? myTeamManager : null;
+  // Playoff mode: once the regular season is over, your conference's color becomes the site accent
+  // (see the end of index.css).
+  const inPlayoffs = latestCompletedWeek >= SEASON_WEEKS;
+  useEffect(() => {
+    if (inPlayoffs && myTeamConf) document.documentElement.setAttribute('data-playoffs', myTeamConf.toLowerCase());
+    else document.documentElement.removeAttribute('data-playoffs');
+  }, [inPlayoffs, myTeamConf]);
 
   // Sleeper team names can change while an older name remains in localStorage. Once both real
   // league rosters have loaded, discard a selection that no longer resolves instead of passing a
@@ -1432,6 +1417,11 @@ export default function App() {
     };
   }, [afcData, nfcData, afcSeason, nfcSeason, schedule, latestCompletedWeek, afcTransactions, nfcTransactions, hasStandingsData, afcManagers, nfcManagers]);
 
+  // Record and conference rank per team, for the My Week scoreboards.
+  const standingByManager = useMemo(
+    () => (hasStandingsData ? new Map([...afcStandings, ...nfcStandings].map(row => [row.manager, row])) : null),
+    [hasStandingsData, afcStandings, nfcStandings]
+  );
 
   const isSelectedWeekFinal = selectedWeek <= latestCompletedWeek;
   const weekCrossPairs = schedule.filter(m => m.week === selectedWeek);
@@ -1614,17 +1604,17 @@ export default function App() {
     [nfcDraft, nfcTransactions, nfcData.rosterIdMap]
   );
 
-  const [playersSubTab, setPlayersSubTab] = useState("search");
+  // League activity (trades and waivers) is a section of Players; old #activity links open it.
+  const [playersSubTab, setPlayersSubTab] = useState(() => rawTabFromHash() === "activity" ? "activity" : "search");
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
-  // Home isn't listed as a desktop nav tab -- the header logo links there. The mobile bottom nav
-  // adds it explicitly since the logo isn't an obvious button on a phone.
+  // Home isn't listed as a nav tab -- the header logo links there, and the header's team picker
+  // covers what Home is for.
   const tabs = [
+    { id: "standings", label: "Standings", shortLabel: "Standings", icon: Trophy },
     { id: "currentWeek", label: "My Week", shortLabel: "My Week", icon: Calendar },
     { id: "matchups", label: "Matchups", shortLabel: "Matchups", icon: Swords },
-    { id: "standings", label: "Standings", shortLabel: "Standings", icon: Trophy },
     { id: "players", label: "Players", shortLabel: "Players", icon: Users },
-    { id: "activity", label: "Activity", shortLabel: "Activity", icon: Activity },
     ...(isAdmin ? [{ id: "teams", label: "MS Teams Broadcast", shortLabel: "Broadcast", icon: Megaphone }] : [])
   ];
 
@@ -1650,7 +1640,7 @@ export default function App() {
     <RosterModalProvider onOpen={playTeamSound}>
     <TeamDepthChartProvider>
     <MatchupPreviewProvider>
-    <div className={`min-h-screen sand-bg text-[var(--text)] p-4 md:p-8 ${activeTab === "home" ? "pb-8" : "pb-[calc(10rem+env(safe-area-inset-bottom))] md:pb-24"}`}>
+    <div className={`min-h-screen sand-bg text-[var(--text)] p-4 md:p-8 ${activeTab === "home" ? "pb-8" : "pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-24"}`}>
       {showLoginModal && (
         <AdminLoginModal onClose={() => setShowLoginModal(false)} onSuccess={handleLoginSuccess} />
       )}
@@ -1728,15 +1718,6 @@ export default function App() {
       )}
       <GrabbableFootball targetRef={headerRowRef} enabled={funEnabled && activeTab !== "home"} />
       <DancingStickmen enabled={funEnabled && activeTab !== "home"} />
-      {/* One slim league-activity crawl along the bottom; hidden on Home. */}
-      {activeTab !== "home" && (
-        <NewsTicker
-          afcTransactions={afcTransactions} nfcTransactions={nfcTransactions}
-          afcRosterIdMap={afcData.rosterIdMap} nfcRosterIdMap={nfcData.rosterIdMap}
-          playersDB={playersDB}
-          onOpenActivity={() => navigateToTab("activity")}
-        />
-      )}
 
       {loadError && activeTab !== "home" && (
         <div role="alert" className="max-w-7xl mx-auto mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--neg)]/40 bg-[var(--neg)]/10 px-4 py-3 text-sm">
@@ -1809,7 +1790,7 @@ export default function App() {
             byTeamWeek={enrichedByTeamWeek}
             afcSlots={afcData.startingSlots || []} nfcSlots={nfcData.startingSlots || []}
             afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
-            weekBigPlays={weekBigPlays} waiverWireMvp={waiverWireMvp}
+            standingByManager={standingByManager}
             myPlayerNotes={myPlayerNotes} myPlayerHeadlines={myPlayerHeadlines}
             onRefreshPlayerNews={() => Promise.all([refreshHeadlines(), refreshPlayerNotes()])}
           />
@@ -1883,13 +1864,23 @@ export default function App() {
                     </div>
                   </section>
                 ))}
-                <LuckMeter luck={funLuck} />
-                <SeasonHeatMap heat={funHeat} weeks={completedWeeks} />
-                <StandingsTrendChart
-                  history={standingsHistory} weeklyHistory={weeklyPfPaHistory}
-                  afcManagers={afcManagers} nfcManagers={nfcManagers}
-                  hexColorMap={teamHexColorMap} latestCompletedWeek={latestCompletedWeek}
-                />
+                {/* The deeper stats stay one tap away so the page itself is just the standings. */}
+                <details className="group">
+                  <summary className="cursor-pointer list-none flex items-center justify-between gap-2 bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 text-sm font-bold shadow-sm">
+                    More stats: luck, weekly heat map, season trends
+                    <span className="text-xs font-semibold text-[var(--muted)] group-open:hidden">Show</span>
+                    <span className="text-xs font-semibold text-[var(--muted)] hidden group-open:inline">Hide</span>
+                  </summary>
+                  <div className="space-y-6 mt-6">
+                    <LuckMeter luck={funLuck} />
+                    <SeasonHeatMap heat={funHeat} weeks={completedWeeks} />
+                    <StandingsTrendChart
+                      history={standingsHistory} weeklyHistory={weeklyPfPaHistory}
+                      afcManagers={afcManagers} nfcManagers={nfcManagers}
+                      hexColorMap={teamHexColorMap} latestCompletedWeek={latestCompletedWeek}
+                    />
+                  </div>
+                </details>
               </>
             )}
 
@@ -1972,12 +1963,12 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB: PLAYERS -- player search, rosters, and the draft board. */}
+        {/* TAB: PLAYERS -- player search, rosters, the draft board, and league activity. */}
         {activeTab === "players" && (
           <div className="space-y-6">
               <div className="space-y-6">
                 <div className="inline-flex bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-1 gap-1 flex-wrap">
-                  {[["search", "Player Search", Search], ["rosters", "Rosters", Users], ["draft", "Draft Board", ListOrdered]].map(([key, label, Icon]) => (
+                  {[["search", "Player Search", Search], ["rosters", "Rosters", Users], ["draft", "Draft Board", ListOrdered], ["activity", "Activity", Activity]].map(([key, label, Icon]) => (
                     <button
                       key={key}
                       onClick={() => setPlayersSubTab(key)}
@@ -2016,18 +2007,17 @@ export default function App() {
                     loading={draftLoading} playersDB={playersDB} focusConf={myTeamConf}
                   />
                 )}
+                {playersSubTab === "activity" && (
+                  <ActivityTab
+                    afcTransactions={afcTransactions} nfcTransactions={nfcTransactions}
+                    afcRosterIdMap={afcData.rosterIdMap} nfcRosterIdMap={nfcData.rosterIdMap}
+                    playersDB={playersDB} loading={transactionsLoading} focusConf={myTeamConf}
+                  />
+                )}
               </div>
           </div>
         )}
 
-        {/* TAB: ACTIVITY -- trades, waiver claims, and free-agent moves. */}
-        {activeTab === "activity" && (
-          <ActivityTab
-            afcTransactions={afcTransactions} nfcTransactions={nfcTransactions}
-            afcRosterIdMap={afcData.rosterIdMap} nfcRosterIdMap={nfcData.rosterIdMap}
-            playersDB={playersDB} loading={transactionsLoading} focusConf={myTeamConf}
-          />
-        )}
 
         {/* TAB: MS TEAMS RECAP (admin only) */}
         {activeTab === "teams" && isAdmin && (
@@ -2118,10 +2108,10 @@ export default function App() {
         )}
       </main>
 
-      {/* Mobile Sticky Bottom Navigation Bar -- hidden on Home too */}
+      {/* Mobile Sticky Bottom Navigation Bar -- hidden on Home too. The header logo goes Home. */}
       {activeTab !== "home" && (
       <nav data-bottom-chrome className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-[var(--surface)]/95 backdrop-blur-md border-t border-[var(--border)] flex justify-around pt-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] overflow-x-auto">
-        {[{ id: "home", shortLabel: "Home", icon: Home }, ...tabs].map(tab => {
+        {tabs.map(tab => {
           const Icon = tab.icon;
           return (
             <button

@@ -1216,3 +1216,424 @@ button.playoff-team-row:hover { background: color-mix(in srgb, var(--conf) 13%, 
   .wine-calculator { grid-template-columns: 1fr auto; }
   .wine-results { grid-column: 1 / -1; }
 }
+
+/* ---------------------------------------------------------------------------
+   Seasonal looks. ThemeContext sets data-season on <html> from its date table (Halloween, Fall
+   Harvest, Salute, Thanksgiving, First Frost, Snow Game, Holiday, New Year's). Each season re-colors
+   the same tokens as the coastal palette and swaps the scene along the bottom
+   (public/seasons/<season>-night.svg / -day.svg, drawn by scripts/season-scenes.mjs). Quieter than the
+   synthwave look: no scanlines, softer glows.
+
+   Per season, besides the tokens:
+     --scene-day / --scene-night   the bottom scene
+     --sky-day / --sky-night       three layers behind everything: a moon or sun, then two tiled
+                                   layers of stars or snowflakes
+     --title-day / --title-night   the wordmark gradient
+     --glow-rgb, --glow2-rgb       card and header glow colors (r, g, b)
+     --week-hdr, --week-date       season grid header text at night
+--------------------------------------------------------------------------- */
+html[data-season] {
+  --moon-night: radial-gradient(circle 220px at 84% 16%, #FFF4D6 0 46px, rgba(255, 232, 180, 0.30) 48px, rgba(255, 190, 110, 0.08) 120px, transparent 220px);
+  --moon-day: radial-gradient(circle 200px at 84% 14%, rgba(255, 247, 230, 0.95) 0 44px, rgba(255, 214, 160, 0.35) 46px, rgba(255, 190, 120, 0.10) 110px, transparent 200px);
+  --sun-day: radial-gradient(circle 280px at 84% 14%, rgba(255, 236, 190, 0.95) 0 50px, rgba(255, 205, 130, 0.35) 54px, rgba(255, 190, 120, 0.10) 150px, transparent 280px);
+  --stars-a: radial-gradient(circle, rgba(255, 255, 255, 0.85) 0 0.8px, transparent 1.3px);
+  --stars-b: radial-gradient(circle, rgba(220, 210, 255, 0.7) 0 1px, transparent 1.6px);
+  --snow-a: radial-gradient(circle, rgba(255, 255, 255, 0.85) 0 1.6px, transparent 2.3px);
+  --snow-b: radial-gradient(circle, rgba(255, 255, 255, 0.6) 0 2.4px, transparent 3.2px);
+  --snow-day-a: radial-gradient(circle, rgba(110, 140, 180, 0.45) 0 1.6px, transparent 2.3px);
+  --snow-day-b: radial-gradient(circle, rgba(110, 140, 180, 0.3) 0 2.4px, transparent 3.2px);
+}
+html[data-season]:not([data-mode="dark"]),
+html[data-season] [data-mode="light"] {
+  --sand-grain: none;
+  --sand-contours: none;
+  --sand-ripples: none;
+}
+html[data-season][data-mode="dark"],
+html[data-season] [data-mode="dark"] {
+  --sand-ripples: none;
+  --neon-teal-glow: rgba(var(--glow-rgb), 0.28);
+  --neon-pink-glow: rgba(var(--glow2-rgb), 0.28);
+}
+
+/* The scene along the bottom. */
+html[data-season][data-mode] .sand-bg::after {
+  height: min(34vh, 320px);
+  background: var(--scene-day) center bottom / cover no-repeat;
+  opacity: 0.85;
+}
+html[data-season][data-mode="dark"] .sand-bg::after {
+  height: min(40vh, 380px);
+  background-image: var(--scene-night);
+  opacity: 1;
+}
+/* Moon or sun (fixed to the screen, not the page), plus stars or snow, fading out above the scene. */
+html[data-season][data-mode] .sand-bg::before {
+  inset: 0 0 30vh 0;
+  background-image: var(--sky-day);
+  background-size: 100% 100%, 223px 197px, 331px 283px;
+  background-position: 0 0, 0 0, 97px 53px;
+  background-repeat: no-repeat, repeat, repeat;
+  -webkit-mask-image: linear-gradient(to bottom, black 0%, black 60%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 0%, black 60%, transparent 100%);
+  animation: none;
+}
+html[data-season][data-mode="dark"] .sand-bg::before { background-image: var(--sky-night); }
+/* Snow drifts down slowly; the two flake layers move at different speeds. */
+@keyframes lz-snowfall {
+  from { background-position: 0 0, 0 0, 97px 53px; }
+  to { background-position: 0 0, 30px 197px, 67px 336px; }
+}
+html[data-season="frost"][data-mode] .sand-bg::before,
+html[data-season="snowgame"][data-mode] .sand-bg::before,
+html[data-season="holiday"][data-mode] .sand-bg::before {
+  animation: lz-snowfall 40s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-season][data-mode] .sand-bg::before,
+  html[data-season][data-mode="dark"] .sand-bg::before { animation: none; }
+}
+
+/* Softer, darker card edges instead of the neon rim. */
+html[data-season][data-mode="dark"] main .rounded-xl,
+html[data-season][data-mode="dark"] main .rounded-2xl {
+  box-shadow: 0 0 0 1px rgba(var(--glow-rgb), 0.05), 0 12px 32px -20px rgba(0, 0, 0, 0.9);
+}
+html[data-season][data-mode="dark"] header {
+  box-shadow: 0 1px 0 rgba(var(--glow-rgb), 0.25), 0 12px 40px -20px rgba(0, 0, 0, 0.9);
+}
+
+/* Wordmark. */
+html[data-season] .lenzone-title {
+  background-image:
+    linear-gradient(105deg, transparent 0%, transparent 42%, rgba(255, 255, 255, 0.85) 50%, transparent 58%, transparent 100%),
+    var(--title-day);
+}
+html[data-season][data-mode="dark"] .lenzone-title {
+  background-image:
+    linear-gradient(105deg, transparent 0%, transparent 42%, rgba(255, 255, 255, 0.9) 50%, transparent 58%, transparent 100%),
+    var(--title-night);
+  filter: drop-shadow(0 0 8px rgba(var(--glow-rgb), 0.3));
+}
+html[data-season][data-mode="dark"] .lenzone-logo-mark { animation: none; }
+
+/* Season grid week headers. */
+html[data-season][data-mode="dark"] .schedule-week-header { color: var(--week-hdr); text-shadow: none; }
+html[data-season][data-mode="dark"] .schedule-week-header .schedule-week-date { color: var(--week-date); text-shadow: none; }
+html[data-season][data-mode="dark"] .schedule-grid-header.is-current-week {
+  background-color: var(--accent);
+  color: var(--accent-text);
+  box-shadow: 0 0 14px rgba(var(--glow-rgb), 0.45);
+}
+html[data-season][data-mode="dark"] .schedule-grid-header.is-current-week .schedule-week-date { color: var(--accent-text); }
+
+/* ---- Halloween: pumpkin orange and witch purple; haunted hill. ---- */
+html[data-season="halloween"] {
+  --scene-day: url("/seasons/halloween-day.svg");
+  --scene-night: url("/seasons/halloween-night.svg");
+  --sky-day: var(--moon-day), none, none;
+  --sky-night: var(--moon-night), var(--stars-a), var(--stars-b);
+  --title-day: linear-gradient(110deg, #C2560C 0%, #D9901A 25%, #6A3FA0 50%, #D9901A 75%, #C2560C 100%);
+  --title-night: linear-gradient(110deg, #FF8C2B 0%, #FFC857 25%, #B48CFF 50%, #FFC857 75%, #FF8C2B 100%);
+  --glow-rgb: 255, 140, 43;
+  --glow2-rgb: 180, 140, 255;
+  --week-hdr: #FFD9A8;
+  --week-date: #CDB8FF;
+}
+html[data-season="halloween"]:not([data-mode="dark"]),
+html[data-season="halloween"] [data-mode="light"] {
+  --bg: #F4E9DA; --surface: #FFFCF7; --surface2: #F3E8D9; --border: #E0CFB8; --border2: #C7AE8E;
+  --text: #1C1226; --text2: #3B2E47; --muted: #5E5068;
+  --accent: #B4500A; --accent-ink: #8F3F07; --accent-text: #FFFFFF; --coral: #B4500A;
+  --pos: #2F7A3A; --neg: #B3261E; --proj: #3D5BA8; --live: #8A5A00;
+  --afc: #B4500A; --nfc: #6A3FA0;
+  --sand-dunes:
+    radial-gradient(120% 55% at 50% 105%, rgba(240, 140, 60, 0.30) 0%, transparent 65%),
+    radial-gradient(70% 40% at 8% 0%, rgba(190, 160, 225, 0.22) 0%, transparent 70%),
+    linear-gradient(180deg, #F6EEE4 0%, #F3E4D0 55%, #EFD3B4 100%);
+}
+html[data-season="halloween"][data-mode="dark"],
+html[data-season="halloween"] [data-mode="dark"] {
+  --bg: #0B0814; --surface: #151021; --surface2: #1E1730; --border: #2E2545; --border2: #463A66;
+  --text: #F7F2FF; --text2: #D6CCEA; --muted: #A69BC2;
+  --accent: #FF8C2B; --accent-ink: #FFA552; --accent-text: #1A0D00; --coral: #FF7A45;
+  --pos: #7EE08A; --neg: #FF6B7A; --proj: #9DB4FF; --live: #FFD166;
+  --afc: #FF8C2B; --nfc: #B48CFF;
+  --sand-dunes:
+    radial-gradient(90% 40% at 50% 100%, rgba(255, 122, 26, 0.16) 0%, transparent 70%),
+    radial-gradient(60% 35% at 10% 30%, rgba(90, 50, 140, 0.12) 0%, transparent 70%),
+    linear-gradient(180deg, #07050F 0%, #120A24 45%, #1E0F34 80%, #28123C 100%);
+}
+
+/* ---- Fall Harvest: rust, mustard and olive; cornfield, barn and falling leaves. ---- */
+html[data-season="harvest"] {
+  --scene-day: url("/seasons/harvest-day.svg");
+  --scene-night: url("/seasons/harvest-night.svg");
+  --sky-day: var(--sun-day), none, none;
+  --sky-night: radial-gradient(circle 230px at 84% 16%, #FFE2B0 0 48px, rgba(255, 200, 120, 0.30) 50px, rgba(255, 170, 90, 0.08) 125px, transparent 230px), var(--stars-a), none;
+  --title-day: linear-gradient(110deg, #B5531A 0%, #D9901A 25%, #5E6E26 50%, #D9901A 75%, #B5531A 100%);
+  --title-night: linear-gradient(110deg, #E0782F 0%, #F0BE55 25%, #A8B85A 50%, #F0BE55 75%, #E0782F 100%);
+  --glow-rgb: 224, 169, 59;
+  --glow2-rgb: 168, 184, 90;
+  --week-hdr: #F5D9A8;
+  --week-date: #D4DCA0;
+}
+html[data-season="harvest"]:not([data-mode="dark"]),
+html[data-season="harvest"] [data-mode="light"] {
+  --bg: #F5EEDF; --surface: #FFFDF8; --surface2: #F1E7D4; --border: #E0D2B8; --border2: #C4AD88;
+  --text: #241A10; --text2: #423324; --muted: #6B5A47;
+  --accent: #B5531A; --accent-ink: #8F3F10; --accent-text: #FFFFFF; --coral: #B5531A;
+  --pos: #2F7A3A; --neg: #B3261E; --proj: #3D5BA8; --live: #8A5A00;
+  --afc: #B5531A; --nfc: #5E6E26;
+  --sand-dunes:
+    radial-gradient(120% 55% at 50% 105%, rgba(224, 169, 59, 0.28) 0%, transparent 65%),
+    radial-gradient(70% 40% at 8% 0%, rgba(168, 184, 90, 0.18) 0%, transparent 70%),
+    linear-gradient(180deg, #F8F2E6 0%, #F4EAD6 55%, #EEDDBC 100%);
+}
+html[data-season="harvest"][data-mode="dark"],
+html[data-season="harvest"] [data-mode="dark"] {
+  --bg: #120C07; --surface: #1C140D; --surface2: #261B12; --border: #3A2A1C; --border2: #574029;
+  --text: #FBF4EA; --text2: #E3D3BE; --muted: #B39E85;
+  --accent: #E0A93B; --accent-ink: #F0BE55; --accent-text: #1A1000; --coral: #E07A3B;
+  --pos: #8FD47E; --neg: #FF7262; --proj: #9DB4FF; --live: #FFD166;
+  --afc: #E0782F; --nfc: #A8B85A;
+  --sand-dunes:
+    radial-gradient(90% 40% at 50% 100%, rgba(224, 120, 47, 0.14) 0%, transparent 70%),
+    radial-gradient(60% 35% at 10% 30%, rgba(120, 90, 40, 0.12) 0%, transparent 70%),
+    linear-gradient(180deg, #0A0705 0%, #140D08 45%, #1E140B 80%, #261A0E 100%);
+}
+
+/* ---- Salute (Veterans Day week): navy, olive and khaki; a flag on the hill. ---- */
+html[data-season="salute"] {
+  --scene-day: url("/seasons/salute-day.svg");
+  --scene-night: url("/seasons/salute-night.svg");
+  --sky-day: var(--sun-day), none, none;
+  --sky-night: var(--moon-night), var(--stars-a), var(--stars-b);
+  --title-day: linear-gradient(110deg, #B22234 0%, #55652B 25%, #1F3A6E 50%, #55652B 75%, #B22234 100%);
+  --title-night: linear-gradient(110deg, #E8676B 0%, #E0B86A 25%, #7FA8FF 50%, #E0B86A 75%, #E8676B 100%);
+  --glow-rgb: 224, 184, 106;
+  --glow2-rgb: 127, 168, 255;
+  --week-hdr: #F0DDB4;
+  --week-date: #B8CCF5;
+}
+html[data-season="salute"]:not([data-mode="dark"]),
+html[data-season="salute"] [data-mode="light"] {
+  --bg: #EEF0EC; --surface: #FFFFFF; --surface2: #E8EBE4; --border: #D3D8CC; --border2: #AEB6A2;
+  --text: #141B26; --text2: #2D3646; --muted: #586273;
+  --accent: #55652B; --accent-ink: #434F21; --accent-text: #FFFFFF; --coral: #B22234;
+  --pos: #2F7A3A; --neg: #B3261E; --proj: #3D5BA8; --live: #8A5A00;
+  --afc: #B22234; --nfc: #1F3A6E;
+  --sand-dunes:
+    radial-gradient(120% 55% at 50% 105%, rgba(150, 160, 120, 0.25) 0%, transparent 65%),
+    radial-gradient(70% 40% at 8% 0%, rgba(120, 150, 210, 0.15) 0%, transparent 70%),
+    linear-gradient(180deg, #F2F3F0 0%, #ECEEE8 55%, #E2E5DA 100%);
+}
+html[data-season="salute"][data-mode="dark"],
+html[data-season="salute"] [data-mode="dark"] {
+  --bg: #0A0F1A; --surface: #121A2A; --surface2: #19233A; --border: #26334F; --border2: #3A4A6E;
+  --text: #F2F5FA; --text2: #CDD6E6; --muted: #98A4BC;
+  --accent: #E0B86A; --accent-ink: #F0CB82; --accent-text: #1A1305; --coral: #E8676B;
+  --pos: #7FD49B; --neg: #FF6B6B; --proj: #9DB8FF; --live: #FFD166;
+  --afc: #E8676B; --nfc: #7FA8FF;
+  --sand-dunes:
+    radial-gradient(90% 40% at 50% 100%, rgba(80, 110, 180, 0.14) 0%, transparent 70%),
+    radial-gradient(60% 35% at 10% 30%, rgba(180, 60, 70, 0.08) 0%, transparent 70%),
+    linear-gradient(180deg, #060A12 0%, #0B1220 45%, #111A2E 80%, #15203A 100%);
+}
+
+/* ---- Thanksgiving: cranberry, gold and pie-crust tan; farmhouse, fence and geese. ---- */
+html[data-season="thanksgiving"] {
+  --scene-day: url("/seasons/thanksgiving-day.svg");
+  --scene-night: url("/seasons/thanksgiving-night.svg");
+  --sky-day: var(--sun-day), none, none;
+  --sky-night: var(--moon-night), var(--stars-a), none;
+  --title-day: linear-gradient(110deg, #A8283F 0%, #C98A1E 25%, #7A3A14 50%, #C98A1E 75%, #A8283F 100%);
+  --title-night: linear-gradient(110deg, #F0607A 0%, #F5C566 25%, #E8915B 50%, #F5C566 75%, #F0607A 100%);
+  --glow-rgb: 232, 176, 75;
+  --glow2-rgb: 240, 96, 122;
+  --week-hdr: #F7DDB0;
+  --week-date: #F5B8C4;
+}
+html[data-season="thanksgiving"]:not([data-mode="dark"]),
+html[data-season="thanksgiving"] [data-mode="light"] {
+  --bg: #F6EEE6; --surface: #FFFCF9; --surface2: #F1E5DA; --border: #E2D0C2; --border2: #C9AC98;
+  --text: #22121A; --text2: #402A34; --muted: #6A5560;
+  --accent: #A8283F; --accent-ink: #86182E; --accent-text: #FFFFFF; --coral: #A8283F;
+  --pos: #2F7A3A; --neg: #C2410C; --proj: #3D5BA8; --live: #8A5A00;
+  --afc: #A8283F; --nfc: #8A5E0E;
+  --sand-dunes:
+    radial-gradient(120% 55% at 50% 105%, rgba(220, 150, 90, 0.26) 0%, transparent 65%),
+    radial-gradient(70% 40% at 8% 0%, rgba(200, 90, 110, 0.12) 0%, transparent 70%),
+    linear-gradient(180deg, #F9F3ED 0%, #F4E8DD 55%, #EDD9C6 100%);
+}
+html[data-season="thanksgiving"][data-mode="dark"],
+html[data-season="thanksgiving"] [data-mode="dark"] {
+  --bg: #120A10; --surface: #1C1119; --surface2: #261823; --border: #3A2535; --border2: #573A50;
+  --text: #FBF3F5; --text2: #E4D2D9; --muted: #B59AA6;
+  --accent: #E8B04B; --accent-ink: #F5C566; --accent-text: #1A1000; --coral: #F0607A;
+  --pos: #8FD47E; --neg: #FF8A5C; --proj: #A9BCFF; --live: #FFD166;
+  --afc: #F0607A; --nfc: #E8B04B;
+  --sand-dunes:
+    radial-gradient(90% 40% at 50% 100%, rgba(232, 140, 75, 0.12) 0%, transparent 70%),
+    radial-gradient(60% 35% at 10% 30%, rgba(168, 40, 63, 0.12) 0%, transparent 70%),
+    linear-gradient(180deg, #0A0609 0%, #140B12 45%, #1E1019 80%, #261420 100%);
+}
+
+/* ---- First Frost: icy blue and silver; snowy pines, a frozen pond and light snowfall. ---- */
+html[data-season="frost"] {
+  --scene-day: url("/seasons/frost-day.svg");
+  --scene-night: url("/seasons/frost-night.svg");
+  --sky-day: var(--sun-day), var(--snow-day-a), var(--snow-day-b);
+  --sky-night: var(--moon-night), var(--snow-a), var(--snow-b);
+  --title-day: linear-gradient(110deg, #2F67A3 0%, #6E9CC9 25%, #6B4FA8 50%, #6E9CC9 75%, #2F67A3 100%);
+  --title-night: linear-gradient(110deg, #7CC4FF 0%, #E6F2FF 25%, #C9B8FF 50%, #E6F2FF 75%, #7CC4FF 100%);
+  --glow-rgb: 124, 196, 255;
+  --glow2-rgb: 201, 184, 255;
+  --week-hdr: #CFE6FF;
+  --week-date: #DCD2FF;
+}
+html[data-season="frost"]:not([data-mode="dark"]),
+html[data-season="frost"] [data-mode="light"] {
+  --bg: #EEF3F8; --surface: #FFFFFF; --surface2: #E6EEF6; --border: #D0DCE8; --border2: #A9BCD1;
+  --text: #0F1A2A; --text2: #2A3A50; --muted: #56677E;
+  --accent: #2F67A3; --accent-ink: #1F4F85; --accent-text: #FFFFFF; --coral: #2F67A3;
+  --pos: #2F7A3A; --neg: #B3261E; --proj: #5B6B8A; --live: #8A5A00;
+  --afc: #2F67A3; --nfc: #6B4FA8;
+  --sand-dunes:
+    radial-gradient(120% 55% at 50% 105%, rgba(170, 200, 230, 0.35) 0%, transparent 65%),
+    radial-gradient(70% 40% at 8% 0%, rgba(190, 180, 240, 0.15) 0%, transparent 70%),
+    linear-gradient(180deg, #F3F7FB 0%, #EAF1F8 55%, #DDE8F3 100%);
+}
+html[data-season="frost"][data-mode="dark"],
+html[data-season="frost"] [data-mode="dark"] {
+  --bg: #060C16; --surface: #0E1726; --surface2: #142035; --border: #1F2F4A; --border2: #33476B;
+  --text: #F1F7FF; --text2: #CBDBF0; --muted: #93A7C4;
+  --accent: #7CC4FF; --accent-ink: #9DD3FF; --accent-text: #04121F; --coral: #FF8FA3;
+  --pos: #7EE0B0; --neg: #FF7A8A; --proj: #C3CCFF; --live: #FFD166;
+  --afc: #7CC4FF; --nfc: #C9B8FF;
+  --sand-dunes:
+    radial-gradient(90% 40% at 50% 100%, rgba(124, 196, 255, 0.10) 0%, transparent 70%),
+    radial-gradient(60% 35% at 10% 30%, rgba(120, 100, 200, 0.10) 0%, transparent 70%),
+    linear-gradient(180deg, #04080F 0%, #08101D 45%, #0D182B 80%, #122036 100%);
+}
+
+/* ---- Snow Game: field green under stadium lights; snowfall. ---- */
+html[data-season="snowgame"] {
+  --scene-day: url("/seasons/snowgame-day.svg");
+  --scene-night: url("/seasons/snowgame-night.svg");
+  --sky-day: none, var(--snow-day-a), var(--snow-day-b);
+  --sky-night: none, var(--snow-a), var(--snow-b);
+  --title-day: linear-gradient(110deg, #1F7A45 0%, #3E8A5A 25%, #2F67A3 50%, #3E8A5A 75%, #1F7A45 100%);
+  --title-night: linear-gradient(110deg, #5FD38D 0%, #E6F7EC 25%, #8FC8FF 50%, #E6F7EC 75%, #5FD38D 100%);
+  --glow-rgb: 95, 211, 141;
+  --glow2-rgb: 143, 200, 255;
+  --week-hdr: #CFF2DC;
+  --week-date: #CFE6FF;
+}
+html[data-season="snowgame"]:not([data-mode="dark"]),
+html[data-season="snowgame"] [data-mode="light"] {
+  --bg: #EEF2EF; --surface: #FFFFFF; --surface2: #E5ECE7; --border: #CEDAD2; --border2: #A7BBAE;
+  --text: #0F1A14; --text2: #2A3A30; --muted: #566A5D;
+  --accent: #1F7A45; --accent-ink: #155C33; --accent-text: #FFFFFF; --coral: #B5541A;
+  --pos: #2F7A3A; --neg: #B3261E; --proj: #3D5BA8; --live: #8A5A00;
+  --afc: #B5541A; --nfc: #2F67A3;
+  --sand-dunes:
+    radial-gradient(120% 55% at 50% 105%, rgba(170, 200, 210, 0.30) 0%, transparent 65%),
+    radial-gradient(70% 40% at 8% 0%, rgba(140, 200, 160, 0.15) 0%, transparent 70%),
+    linear-gradient(180deg, #F3F6F4 0%, #EAF0EC 55%, #DFE8E3 100%);
+}
+html[data-season="snowgame"][data-mode="dark"],
+html[data-season="snowgame"] [data-mode="dark"] {
+  --bg: #070D0A; --surface: #0F1814; --surface2: #15221C; --border: #213429; --border2: #34503F;
+  --text: #F2F8F4; --text2: #CFE0D5; --muted: #97AE9F;
+  --accent: #5FD38D; --accent-ink: #7EE0A5; --accent-text: #04140A; --coral: #FF8A65;
+  --pos: #7EE0A5; --neg: #FF7A7A; --proj: #A9C1FF; --live: #FFD166;
+  --afc: #FFB347; --nfc: #8FC8FF;
+  --sand-dunes:
+    radial-gradient(90% 40% at 60% 100%, rgba(255, 233, 176, 0.08) 0%, transparent 70%),
+    radial-gradient(60% 35% at 10% 30%, rgba(95, 211, 141, 0.06) 0%, transparent 70%),
+    linear-gradient(180deg, #05080A 0%, #0A1014 45%, #0F181E 80%, #132028 100%);
+}
+
+/* ---- Holiday: evergreen, cranberry red and gold; cabin with string lights; snowfall. ---- */
+html[data-season="holiday"] {
+  --scene-day: url("/seasons/holiday-day.svg");
+  --scene-night: url("/seasons/holiday-night.svg");
+  --sky-day: none, var(--snow-day-a), var(--snow-day-b);
+  --sky-night: var(--moon-night), var(--snow-a), var(--snow-b);
+  --title-day: linear-gradient(110deg, #B3202E 0%, #C9A23A 25%, #1F6B45 50%, #C9A23A 75%, #B3202E 100%);
+  --title-night: linear-gradient(110deg, #FF5E5E 0%, #F5D27A 25%, #6FD39A 50%, #F5D27A 75%, #FF5E5E 100%);
+  --glow-rgb: 232, 194, 91;
+  --glow2-rgb: 255, 94, 94;
+  --week-hdr: #F7E4B0;
+  --week-date: #BFEBD0;
+}
+html[data-season="holiday"]:not([data-mode="dark"]),
+html[data-season="holiday"] [data-mode="light"] {
+  --bg: #F4F1EA; --surface: #FFFEFB; --surface2: #EEE9DE; --border: #DCD5C4; --border2: #BDB29A;
+  --text: #14201A; --text2: #2E3A33; --muted: #5D675F;
+  --accent: #1F6B45; --accent-ink: #155234; --accent-text: #FFFFFF; --coral: #B3202E;
+  --pos: #2F7A3A; --neg: #B3261E; --proj: #3D5BA8; --live: #8A5A00;
+  --afc: #B3202E; --nfc: #1F6B45;
+  --sand-dunes:
+    radial-gradient(120% 55% at 50% 105%, rgba(200, 215, 205, 0.35) 0%, transparent 65%),
+    radial-gradient(70% 40% at 8% 0%, rgba(220, 120, 120, 0.10) 0%, transparent 70%),
+    linear-gradient(180deg, #F8F6F1 0%, #F2EEE5 55%, #E8E3D6 100%);
+}
+html[data-season="holiday"][data-mode="dark"],
+html[data-season="holiday"] [data-mode="dark"] {
+  --bg: #06100B; --surface: #0D1A13; --surface2: #13241B; --border: #1E3528; --border2: #31503D;
+  --text: #F7F5EE; --text2: #DCD8C8; --muted: #A9AE9C;
+  --accent: #E8C25B; --accent-ink: #F5D27A; --accent-text: #1A1300; --coral: #FF6B6B;
+  --pos: #8FE0A8; --neg: #FF8A65; --proj: #A9C1FF; --live: #FFD166;
+  --afc: #FF5E5E; --nfc: #6FD39A;
+  --sand-dunes:
+    radial-gradient(90% 40% at 70% 100%, rgba(255, 193, 90, 0.08) 0%, transparent 70%),
+    radial-gradient(60% 35% at 10% 30%, rgba(111, 211, 154, 0.06) 0%, transparent 70%),
+    linear-gradient(180deg, #040A07 0%, #08130D 45%, #0C1C14 80%, #10241A 100%);
+}
+
+/* ---- New Year's / Championship: black, champagne gold and silver; skyline with fireworks. ---- */
+html[data-season="newyear"] {
+  --scene-day: url("/seasons/newyear-day.svg");
+  --scene-night: url("/seasons/newyear-night.svg");
+  --sky-day: none, none, none;
+  --sky-night: none, var(--stars-a), radial-gradient(circle, rgba(230, 196, 106, 0.6) 0 1px, transparent 1.6px);
+  --title-day: linear-gradient(110deg, #8A6A12 0%, #C9A23A 25%, #3C4656 50%, #C9A23A 75%, #8A6A12 100%);
+  --title-night: linear-gradient(110deg, #E6C46A 0%, #FFF1C9 25%, #B8C4D6 50%, #FFF1C9 75%, #E6C46A 100%);
+  --glow-rgb: 230, 196, 106;
+  --glow2-rgb: 184, 196, 214;
+  --week-hdr: #F5E3B0;
+  --week-date: #D5DCE6;
+}
+html[data-season="newyear"]:not([data-mode="dark"]),
+html[data-season="newyear"] [data-mode="light"] {
+  --bg: #F6F3EC; --surface: #FFFEFA; --surface2: #EFEADF; --border: #DED6C5; --border2: #C2B596;
+  --text: #1A1814; --text2: #36322B; --muted: #645E52;
+  --accent: #8A6A12; --accent-ink: #6E540C; --accent-text: #FFFFFF; --coral: #8A6A12;
+  --pos: #2F7A3A; --neg: #B3261E; --proj: #3D5BA8; --live: #8A5A00;
+  --afc: #8A6A12; --nfc: #3C4656;
+  --sand-dunes:
+    radial-gradient(120% 55% at 50% 105%, rgba(220, 190, 110, 0.25) 0%, transparent 65%),
+    radial-gradient(70% 40% at 8% 0%, rgba(160, 170, 190, 0.15) 0%, transparent 70%),
+    linear-gradient(180deg, #F9F7F2 0%, #F3EFE5 55%, #EAE3D2 100%);
+}
+html[data-season="newyear"][data-mode="dark"],
+html[data-season="newyear"] [data-mode="dark"] {
+  --bg: #08080A; --surface: #121214; --surface2: #1A1A1D; --border: #2A2A2F; --border2: #403F46;
+  --text: #FAF7EE; --text2: #DEDACE; --muted: #A7A398;
+  --accent: #E6C46A; --accent-ink: #F2D488; --accent-text: #1A1300; --coral: #FF8C8C;
+  --pos: #8FD9A8; --neg: #FF7A7A; --proj: #A9C1FF; --live: #FFD166;
+  --afc: #E6C46A; --nfc: #B8C4D6;
+  --sand-dunes:
+    radial-gradient(90% 40% at 50% 100%, rgba(230, 196, 106, 0.08) 0%, transparent 70%),
+    radial-gradient(60% 35% at 10% 30%, rgba(242, 140, 160, 0.05) 0%, transparent 70%),
+    linear-gradient(180deg, #050506 0%, #0A0A0D 45%, #0F0F14 80%, #14141A 100%);
+}
+
+/* Playoff mode (App sets data-playoffs once the regular season is over): your conference's color
+   takes over the accent. Kept last so it wins over the season colors. */
+html[data-playoffs="afc"][data-mode],
+html[data-playoffs="afc"] [data-mode] { --accent: var(--afc); --accent-ink: var(--afc); --coral: var(--afc); }
+html[data-playoffs="nfc"][data-mode],
+html[data-playoffs="nfc"] [data-mode] { --accent: var(--nfc); --accent-ink: var(--nfc); --coral: var(--nfc); }

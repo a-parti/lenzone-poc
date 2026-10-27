@@ -1,19 +1,16 @@
-import React, { useMemo } from 'react';
-import { TrendingUp, Rocket, Skull, Target, Compass, ShoppingCart } from 'lucide-react';
-import { computePlayerHighlights, playerLabel } from '../lib/players';
-import { usePlayerModal } from '../context/PlayerModalContext';
+import React from 'react';
+import { playerLabel } from '../lib/players';
 import { PositionBadge, NflTeamTag } from './shared';
 import PlayerAvatar from './PlayerAvatar';
-import { useNameDisplay } from '../context/NameDisplayContext';
 
-// Explicit sign rather than a hardcoded "+" prefix -- a hardcoded prefix reads as "+-2.97" for a
-// negative value, which is exactly the kind of value this shows for a miss.
 // On a phone a run of trophy cards becomes one sideways-swipe row instead of a long stack of
 // full-width cards; from sm up it is the usual grid. -mx-4/px-4 lets the row run to the screen edge
 // past the page gutter.
 export const SWIPE_ROW = "-mx-4 px-4 scroll-px-4 flex gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-none [scrollbar-width:none] pb-1 sm:mx-0 sm:px-0 sm:pb-0 sm:grid sm:overflow-visible";
 export const SWIPE_ITEM = "w-[15rem] shrink-0 snap-start sm:w-full";
 
+// Explicit sign rather than a hardcoded "+" prefix -- a hardcoded prefix reads as "+-2.97" for a
+// negative value, which is exactly the kind of value this shows for a miss.
 export function signed(n) {
   return `${n >= 0 ? "+" : ""}${n.toFixed(2)}`;
 }
@@ -68,83 +65,3 @@ export function PlayerCard({ icon: Icon, label, entry, playersDB, value, accent,
   );
 }
 
-// Player-level "trophies" alongside the team-level WeeklyHighlights -- highest pregame projection,
-// highest actual once posted, and the biggest beat/miss vs projection (a real player's own
-// over/underperformance, not a fantasy team total). Shared by Home "This Week" and the Matchups
-// tab's "This Week" view, same as WeeklyHighlights, so the two never drift.
-export default function PlayerHighlights({ afcData, nfcData, afcSeason, nfcSeason, week, weekProjections, playersDB, waiverWireMvp }) {
-  const { openPlayer } = usePlayerModal();
-  const { displayName } = useNameDisplay();
-  const highlights = useMemo(
-    () => computePlayerHighlights(afcData, nfcData, afcSeason, nfcSeason, week, weekProjections),
-    [afcData, nfcData, afcSeason, nfcSeason, week, weekProjections]
-  );
-  const { highestProjected, highestActual, biggestRiser, biggestBust, mostReliable } = highlights;
-  if (!highestProjected && !highestActual && !biggestRiser && !biggestBust && !mostReliable && !waiverWireMvp) return null;
-
-  const openFor = (entry) => {
-    const { position } = playerLabel(playersDB, entry.id);
-    openPlayer(entry.id, position);
-  };
-
-  return (
-    <div className={`${SWIPE_ROW} sm:grid-cols-2 lg:grid-cols-4`}>
-      <PlayerCard
-        icon={Target} label="Highest Projected" entry={highestProjected} playersDB={playersDB}
-        value={highestProjected ? `${highestProjected.projected.toFixed(2)} proj` : ""}
-        accent="text-[var(--proj)]" onClick={() => openFor(highestProjected)}
-      />
-      <PlayerCard
-        icon={TrendingUp} label="Top Actual Score" entry={highestActual} playersDB={playersDB}
-        value={highestActual ? <ActualVsProjected actual={highestActual.actual} projected={highestActual.projected} accent="text-[var(--pos)]" /> : ""}
-        accent="text-[var(--pos)]" onClick={() => openFor(highestActual)}
-      />
-      <PlayerCard
-        icon={Rocket} label="Biggest Riser" entry={biggestRiser} playersDB={playersDB}
-        value={biggestRiser ? (
-          <div className="flex flex-col leading-tight">
-            <ActualVsProjected actual={biggestRiser.actual} projected={biggestRiser.projected} accent="text-[var(--pos)]" />
-            <span className="text-xs font-mono text-[var(--pos)]">{signed(biggestRiser.actual - biggestRiser.projected)} vs proj</span>
-          </div>
-        ) : ""}
-        accent="text-[var(--pos)]" onClick={() => openFor(biggestRiser)}
-      />
-      <PlayerCard
-        icon={Skull} label="Biggest Bust" entry={biggestBust} playersDB={playersDB}
-        value={biggestBust ? (
-          <div className="flex flex-col leading-tight">
-            <ActualVsProjected actual={biggestBust.actual} projected={biggestBust.projected} accent="text-[var(--neg)]" />
-            <span className="text-xs font-mono text-[var(--neg)]">{signed(biggestBust.actual - biggestBust.projected)} vs proj</span>
-          </div>
-        ) : ""}
-        accent="text-[var(--neg)]" onClick={() => openFor(biggestBust)}
-      />
-      {mostReliable && (
-        <PlayerCard
-          icon={Compass} label="Mr./Ms. Reliable" entry={mostReliable} playersDB={playersDB}
-          value={(
-            <div className="flex flex-col leading-tight">
-              <ActualVsProjected actual={mostReliable.actual} projected={mostReliable.projected} accent="text-[var(--accent)]" />
-              <span className="text-xs font-mono text-[var(--accent)]">{signed(mostReliable.actual - mostReliable.projected)} vs proj</span>
-            </div>
-          )}
-          accent="text-[var(--accent)]" onClick={() => openFor(mostReliable)}
-        />
-      )}
-      {waiverWireMvp && (
-        <PlayerCard
-          icon={ShoppingCart} label="Waiver Wire MVP" entry={waiverWireMvp} playersDB={playersDB}
-          value={(
-            <div className="flex flex-col leading-tight">
-              <span className="text-sm font-mono font-bold text-[var(--pos)]">{waiverWireMvp.points.toFixed(2)} pts</span>
-              <span className="text-[10px] text-[var(--muted)]">
-                picked up by {displayName(waiverWireMvp.manager, afcData?.rosters?.some(r => r.manager === waiverWireMvp.manager) ? 'AFC' : 'NFC')}
-              </span>
-            </div>
-          )}
-          accent="text-[var(--pos)]" onClick={() => openFor(waiverWireMvp)}
-        />
-      )}
-    </div>
-  );
-}

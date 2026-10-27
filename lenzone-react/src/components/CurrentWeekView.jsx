@@ -1,11 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { playerLabel, projectedPoints } from '../lib/players';
 import { useTeamLogo } from '../context/TeamLogoContext';
 import { Zoomable } from '../context/ImageLightboxContext';
 import WeeklyHighlights from './WeeklyHighlights';
-import PlayerHighlights from './PlayerHighlights';
 import MyPlayerHighlights from './MyPlayerHighlights';
-import ManagerMatchupRow from './ManagerMatchupRow';
+import MyMatchups from './MyMatchups';
 import NflGamesPanel from './NflGamesPanel';
 import YourPlayerNews from './YourPlayerNews';
 import { STANDINGS_PTS } from '../lib/terms';
@@ -35,18 +34,16 @@ function summarizeWeek(intra, inter) {
   return `${record} · +${lp} ${STANDINGS_PTS.short}`;
 }
 
-// My Week, top to bottom: your two matchups and your player news, player
-// trophies (yours or the league's), the league's weekly highlights, and the NFL games with your
+// My Week, top to bottom: your two matchups and your player news, your
+// player trophies, the league's weekly highlights, and the NFL games with your
 // players in them.
 export default function CurrentWeekView({
   onGoToMatchup, selectedWeek, onSelectWeek, currentNflWeek, seasonWeeks, isWeekFinal, weeklyAwards, nflGames, myTeamNflTeams,
   myTeamManager, myTeamIntra, myTeamInter, myTeamConf, myTeamRoster, myTeamConfData, myTeamFallbackField, myTeamPlayersPoints,
-  playersDB, weekProjections, byTeamWeek, afcSlots, nfcSlots, afcData, nfcData, afcSeason, nfcSeason,
-  weekBigPlays, waiverWireMvp,
+  playersDB, weekProjections, byTeamWeek, afcSlots, nfcSlots, afcData, nfcData, afcSeason, nfcSeason, standingByManager,
   myPlayerNotes, myPlayerHeadlines, onRefreshPlayerNews
 }) {
   const logoUrl = useTeamLogo(myTeamManager);
-  const [trophyScope, setTrophyScope] = useState(myTeamManager ? 'me' : 'league');
   const myPlayersByNflTeam = useMemo(() => {
     const map = new Map();
     (myTeamRoster?.players || []).forEach(pid => {
@@ -64,7 +61,6 @@ export default function CurrentWeekView({
     });
     return map;
   }, [myTeamRoster, playersDB, myTeamPlayersPoints, weekProjections, myTeamConfData, myTeamFallbackField]);
-  const scope = myTeamManager ? trophyScope : 'league';
   const weekResult = summarizeWeek(myTeamIntra, myTeamInter);
 
   return (
@@ -96,11 +92,10 @@ export default function CurrentWeekView({
 
         {myTeamManager ? (
           <>
-            <ManagerMatchupRow
+            <MyMatchups
               manager={myTeamManager} conf={myTeamConf} intra={myTeamIntra} inter={myTeamInter}
-              afcSlots={afcSlots} nfcSlots={nfcSlots} playersDB={playersDB}
+              afcSlots={afcSlots} nfcSlots={nfcSlots} standings={standingByManager} playersDB={playersDB}
               weekProjections={weekProjections} byTeamWeek={byTeamWeek} week={selectedWeek}
-              hideHeader
             />
             <div className="flex justify-end">
               <button
@@ -122,40 +117,16 @@ export default function CurrentWeekView({
         )}
       </section>
 
-      <section className="space-y-3">
-        <SectionTitle
-          right={myTeamManager && (
-            <div className="inline-flex rounded-lg bg-[var(--bg)] p-1 border border-[var(--border)]" role="group" aria-label="Player trophies scope">
-              {[['me', 'Mine'], ['league', 'League']].map(([id, label]) => (
-                <button
-                  key={id} type="button" onClick={() => setTrophyScope(id)} aria-pressed={scope === id}
-                  className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors duration-150 ${
-                    scope === id ? 'bg-[var(--accent)] text-[var(--accent-text)]' : 'text-[var(--text2)] hover:text-[var(--text)]'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-        >
-          Player Trophies
-        </SectionTitle>
-        {scope === 'me' ? (
+      {myTeamManager && (
+        <section className="space-y-3">
+          <SectionTitle>Your Player Trophies</SectionTitle>
           <MyPlayerHighlights
             myTeamRoster={myTeamRoster} myTeamPlayersPoints={myTeamPlayersPoints} weekProjections={weekProjections}
             myTeamConfData={myTeamConfData} myTeamFallbackField={myTeamFallbackField} playersDB={playersDB}
             nflGames={nflGames} week={selectedWeek} myPlayersByNflTeam={myPlayersByNflTeam}
-            weekBigPlays={weekBigPlays}
           />
-        ) : (
-          <PlayerHighlights
-            afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
-            week={selectedWeek} weekProjections={weekProjections} playersDB={playersDB}
-            waiverWireMvp={waiverWireMvp}
-          />
-        )}
-      </section>
+        </section>
+      )}
 
       <section className="space-y-3">
         <SectionTitle>League Highlights</SectionTitle>
@@ -164,7 +135,6 @@ export default function CurrentWeekView({
           afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason} playersDB={playersDB}
         />
       </section>
-
 
       <NflGamesPanel
         games={nflGames} week={selectedWeek} myTeamNflTeams={myTeamNflTeams} myPlayersByNflTeam={myPlayersByNflTeam}

@@ -75,7 +75,7 @@ function ChartPanel({ conf, title, series, weeks, yMin, yMax, formatY, zeroLine 
   })() : null;
 
   return (
-    <div className="min-w-0">
+    <div className="min-w-0 w-full max-w-2xl mx-auto lg:max-w-none">
       <div className="flex items-center gap-3 mb-1">
         <span className={`text-xs font-black tracking-[0.2em] ${conf === 'AFC' ? 'text-[var(--afc)]' : 'text-[var(--nfc)]'}`}>{conf}</span>
         <span className="h-px flex-1 bg-[var(--border)]" />

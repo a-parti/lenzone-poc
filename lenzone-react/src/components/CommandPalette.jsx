@@ -35,7 +35,7 @@ export default function CommandPalette({ tabs, onSelect, open, setOpen, playersD
 
   const q = query.trim().toLowerCase();
 
-  const matchedTabs = tabs.filter(t => t.label.toLowerCase().includes(q));
+  const matchedTabs = tabs.filter(t => `${t.label} ${t.ariaLabel || ''} ${t.keywords || ''}`.toLowerCase().includes(q));
 
   const managers = useMemo(() => [
     ...(afcManagers || []).map(m => ({ manager: m, conf: 'AFC' })),

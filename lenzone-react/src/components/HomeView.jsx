@@ -119,7 +119,7 @@ function ConferenceGrid({ conf, managers, standings, myTeamManager, onPick }) {
 }
 
 // Home is just "who are you?": tap your team's logo and you're taken straight to My Week.
-export default function HomeView({ afcManagers, nfcManagers, afcStandings, nfcStandings, myTeamManager, onChooseMyTeam, teamBurst, settingsMenu }) {
+export default function HomeView({ afcManagers, nfcManagers, afcStandings, nfcStandings, myTeamManager, onChooseMyTeam, onGuest, teamBurst, settingsMenu }) {
   return (
     <div className="relative min-h-[80vh] flex flex-col items-center gap-6 text-center">
       {/* The regular header is hidden on Home, so the same controls sit in the corner. */}
@@ -132,6 +132,12 @@ export default function HomeView({ afcManagers, nfcManagers, afcStandings, nfcSt
         <AnimatedLogo sizeClass="w-24 h-24 sm:w-28 sm:h-28" showGlow />
         <h1 className="lenzone-title font-display text-4xl sm:text-5xl font-extrabold tracking-tight bg-clip-text text-transparent">LENZONE 2026</h1>
         <p className="font-display text-lg sm:text-xl text-[var(--text2)]">Who are you?</p>
+        {onGuest && (
+          <button type="button" onClick={onGuest}
+            className="rounded-full border border-[var(--border2)] bg-[var(--surface)] px-4 py-1.5 text-sm font-bold text-[var(--text2)] hover:text-[var(--text)] hover:border-[var(--accent)] transition-colors">
+            Continue as guest
+          </button>
+        )}
       </div>
       {/* AFC and NFC side by side, as equals, with a divider between them. */}
       <div className="w-full max-w-6xl grid grid-cols-[1fr_auto_1fr] gap-3 sm:gap-6 px-1 items-start">

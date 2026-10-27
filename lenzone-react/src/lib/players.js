@@ -272,7 +272,8 @@ export function computePlayerHighlights(afcData, nfcData, afcSeason, nfcSeason, 
   const ingest = (confData, season) => {
     (confData?.rosters || []).forEach(r => {
       const snapshot = season?.rosterSnapshotByWeek?.[week]?.[r.manager];
-      (r.starters || []).forEach((id, i) => {
+      // That week's starters (not today's), so each id lines up with its startersPoints entry.
+      (snapshot?.starters || r.starters || []).forEach((id, i) => {
         if (!id || id === '0' || seen.has(id)) return;
         const real = snapshot?.startersPoints?.[i];
         const projected = projectedPoints(weekProjections, id, scoringSettings, fallbackField);

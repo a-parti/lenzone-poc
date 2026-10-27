@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { CONF_STYLES } from '../lib/theme';
 import { ConfFilterToggle, PositionBadge, InjuryBadge, NflTeamTag, SkeletonRows } from './shared';
 import { playerLabel } from '../lib/players';
@@ -25,6 +25,14 @@ function normalize(txns, rosterIdMap, confLabel, types) {
       // anything" is always visible at a glance instead of only sometimes.
       if (t.type === 'waiver' || t.type === 'free_agent') {
         Object.values(byManager).forEach(team => { team.faab = t.type === 'waiver' ? (t.settings?.waiver_bid || 0) : 0; });
+      }
+
+      // Trades can include FAAB too (Sleeper's waiver_budget: who sent how many dollars to whom).
+      if (t.type === 'trade') {
+        (t.waiver_budget || []).forEach(b => {
+          bump(b.receiver).faabNet = (bump(b.receiver).faabNet || 0) + b.amount;
+          bump(b.sender).faabNet = (bump(b.sender).faabNet || 0) - b.amount;
+        });
       }
 
       return {
@@ -74,13 +82,10 @@ function relativeTime(ms) {
   return new Date(ms).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-export default function ActivityTab({ afcTransactions, nfcTransactions, afcRosterIdMap, nfcRosterIdMap, playersDB, loading, focusConf }) {
-  const [conf, setConf] = useState(focusConf || 'ALL');
+export default function ActivityTab({ afcTransactions, nfcTransactions, afcRosterIdMap, nfcRosterIdMap, playersDB, loading }) {
+  const [conf, setConf] = useState('ALL');
   const [typeFilter, setTypeFilter] = useState('ALL');
 
-  useEffect(() => {
-    if (focusConf) setConf(focusConf);
-  }, [focusConf]);
   const types = TYPE_FILTERS[typeFilter];
   const emptyLabel = typeFilter === 'TRADES' ? "No trades yet this season." : "No add/drop activity found yet.";
 
@@ -123,6 +128,16 @@ export default function ActivityTab({ afcTransactions, nfcTransactions, afcRoste
                     {team.faab > 0 && (
                       <span className="text-[11px] font-bold font-mono px-1.5 py-0.5 rounded shrink-0 bg-[var(--live)]/15 text-[var(--live)]">
                         ${team.faab} FAAB
+                      </span>
+                    )}
+                    {team.faabNet > 0 && (
+                      <span className="text-[11px] font-bold font-mono px-1.5 py-0.5 rounded shrink-0 bg-[var(--pos)]/15 text-[var(--pos)]">
+                        +${team.faabNet} FAAB
+                      </span>
+                    )}
+                    {team.faabNet < 0 && (
+                      <span className="text-[11px] font-bold font-mono px-1.5 py-0.5 rounded shrink-0 bg-[var(--neg)]/15 text-[var(--neg)]">
+                        -${-team.faabNet} FAAB
                       </span>
                     )}
                   </div>

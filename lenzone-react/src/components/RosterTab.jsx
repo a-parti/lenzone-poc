@@ -14,7 +14,7 @@ const SORT_OPTIONS = {
 
 // Always opens on every roster in both conferences -- no filter pre-applied from "I am".
 export default function RosterTab({ afcData, nfcData, afcSeason, nfcSeason, playersDB, playersLoading, weekProjections, selectedWeek, setSelectedWeek, seasonWeeks, byTeamWeek }) {
-  const { displayName } = useNameDisplay();
+  const { mode, displayName, managerName } = useNameDisplay();
   const [conf, setConf] = useState('ALL');
   const [team, setTeam] = useState('ALL');
   const [sortKey, setSortKey] = useState('DEFAULT');
@@ -101,21 +101,40 @@ export default function RosterTab({ afcData, nfcData, afcSeason, nfcSeason, play
         <div className="text-sm text-[var(--muted)] italic">Rosters aren't available yet. Try again in a minute.</div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {sorted.map(r => (
-          <div key={r.manager} className={`bg-[var(--surface)]/60 backdrop-blur-md border ${CONF_STYLES[r.conf].border} rounded-xl p-4`}>
-            <div className="flex items-center gap-2 mb-3">
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${CONF_STYLES[r.conf].badge}`}>{r.conf}</span>
-              <TeamName manager={r.manager} conf={r.conf} className="font-bold" />
+      {['AFC', 'NFC'].map(c => {
+        const rows = sorted.filter(r => r.conf === c);
+        if (!rows.length) return null;
+        return (
+          <section key={c} className="space-y-4">
+            <div className={`flex items-center gap-3 border-b-2 pb-2 ${CONF_STYLES[c].border}`}>
+              <span className={`text-sm font-black px-3 py-1 rounded-full ${CONF_STYLES[c].badge}`}>{c}</span>
+              <span className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">{rows.length} teams</span>
             </div>
-            <RosterList
-              roster={r} startingSlots={r.startingSlots} irSlotCount={r.irSlotCount} playersDB={playersDB}
-              weekProjections={weekProjections} scoringSettings={r.scoringSettings} fallbackField={r.fallbackField}
-              playersPoints={r.playersPoints} byTeamWeek={byTeamWeek} week={selectedWeek}
-            />
-          </div>
-        ))}
-      </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {rows.map(r => {
+                const real = managerName(r.manager, r.conf);
+                const secondary = mode === 'managers' ? (real ? r.manager : null) : real;
+                return (
+                  <div key={r.manager} className={`bg-[var(--surface)]/60 backdrop-blur-md border ${CONF_STYLES[r.conf].border} rounded-xl p-4`}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${CONF_STYLES[r.conf].badge}`}>{r.conf}</span>
+                      <div className="min-w-0 leading-tight">
+                        <TeamName manager={r.manager} conf={r.conf} className="font-bold" />
+                        {secondary && <div className="text-xs font-medium text-[var(--muted)]">{secondary}</div>}
+                      </div>
+                    </div>
+                    <RosterList
+                      roster={r} startingSlots={r.startingSlots} irSlotCount={r.irSlotCount} playersDB={playersDB}
+                      weekProjections={weekProjections} scoringSettings={r.scoringSettings} fallbackField={r.fallbackField}
+                      playersPoints={r.playersPoints} byTeamWeek={byTeamWeek} week={selectedWeek}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })}
     </div>
   );
 }

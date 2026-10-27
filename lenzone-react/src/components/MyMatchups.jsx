@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { SCORE_COLOR, scoreState } from '../lib/theme';
+import { SCORE_COLOR, scoreState, positionStyle } from '../lib/theme';
 import { playerLabel, projectedPoints } from '../lib/players';
 import { STANDINGS_PTS } from '../lib/terms';
 import { useNameDisplay } from '../context/NameDisplayContext';
@@ -45,8 +45,11 @@ function TeamSide({ manager, conf, standing, align, score, scoreClass, proj }) {
   const { openRoster } = useRosterModal();
   const { displayName, managerName } = useNameDisplay();
   const right = align === 'right';
-  const owner = managerName?.(manager);
+  // The team name, with the other name in parentheses: the manager's real name, or the team name
+  // when the site is set to show managers.
   const name = displayName(manager, conf);
+  const realName = managerName?.(manager, conf);
+  const aside = name === manager ? realName : manager;
   return (
     <div className={`flex flex-col gap-1.5 min-w-0 ${right ? 'items-end text-right' : 'items-start'}`}>
       <button
@@ -57,8 +60,9 @@ function TeamSide({ manager, conf, standing, align, score, scoreClass, proj }) {
         <TeamMiniLogo manager={manager} size={40} className="shrink-0" />
         <span className="min-w-0 max-w-full">
           <span className="block font-bold text-sm text-[var(--text)] truncate">{name}</span>
+          {aside && aside !== name && <span className="block text-xs font-semibold text-[var(--text2)] truncate">({aside})</span>}
           <span className="block text-[11px] text-[var(--muted)] truncate">
-            {standing ? `${standing.overallRecord} · #${standing.rank} ${conf}` : (owner && owner !== name ? owner : conf)}
+            {standing ? `${standing.overallRecord} · #${standing.rank} ${conf}` : conf}
           </span>
         </span>
       </button>
@@ -137,20 +141,21 @@ function PlayerCell({ id, pts, proj, playersDB, byTeamWeek, week, align }) {
   const color = SCORE_COLOR[scoreState({ hasActual, isLive, actual, projected: proj })];
   return (
     <div className={`flex items-center gap-2 min-w-0 ${right ? 'flex-row-reverse text-right' : ''}`}>
-      <PlayerAvatar playerId={id} position={p.position} className="hidden sm:block w-9 h-9 shrink-0" />
+      <PlayerAvatar playerId={id} position={p.position} className="hidden sm:block w-11 h-11 shrink-0" />
       <div className="min-w-0 flex-1">
         <PlayerNameButton
-          playerId={id} position={p.position} className={`block max-w-full font-semibold text-[13px] text-[var(--text)] truncate ${right ? 'ml-auto text-right' : ''}`}
+          playerId={id} position={p.position} className={`block max-w-full font-semibold text-[13px] sm:text-base text-[var(--text)] truncate ${right ? 'ml-auto text-right' : ''}`}
           name={<><span className="sm:hidden">{shortName(p.name, p.position)}</span><span className="hidden sm:inline">{p.name}</span></>}
         />
-        <div className={`flex items-center gap-1 min-w-0 text-[11px] text-[var(--muted)] ${right ? 'justify-end' : ''}`}>
+        <div className={`flex items-center gap-1 min-w-0 text-[11px] sm:text-[13px] text-[var(--muted)] ${right ? 'justify-end' : ''}`}>
           <span className="truncate">{p.position}{p.team ? ` · ${p.team}` : ''}</span>
           <InjuryBadge status={p.injuryStatus} />
         </div>
       </div>
+      {/* Points scored (big; "--" before kickoff), with the projection labeled underneath. */}
       <div className={`shrink-0 font-mono leading-tight flex flex-col ${right ? 'items-start' : 'items-end'}`}>
-        <span className={`text-sm font-bold ${hasActual ? color : 'text-[var(--muted)]'}`}>{hasActual ? actual.toFixed(2) : '--'}</span>
-        {proj != null && <span className="text-[10px] text-[var(--proj)]">{proj.toFixed(1)}</span>}
+        <span className={`text-sm sm:text-xl font-extrabold tabular-nums ${hasActual ? color : 'text-[var(--muted)]'}`}>{hasActual ? actual.toFixed(2) : '--'}</span>
+        {proj != null && <span className="text-[10px] sm:text-[13px] font-semibold text-[var(--proj)] whitespace-nowrap"><span className="hidden sm:inline">proj </span>{proj.toFixed(1)}</span>}
       </div>
     </div>
   );
@@ -158,9 +163,9 @@ function PlayerCell({ id, pts, proj, playersDB, byTeamWeek, week, align }) {
 
 function LineupRow({ slot, left, right, shared }) {
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_2.5rem_minmax(0,1fr)] items-center gap-2 py-2">
+    <div className="grid grid-cols-[minmax(0,1fr)_2.5rem_minmax(0,1fr)] sm:grid-cols-[minmax(0,1fr)_3.25rem_minmax(0,1fr)] items-center gap-2 sm:gap-4 py-2 sm:py-3">
       <PlayerCell {...left} {...shared} />
-      <span className="justify-self-center text-[10px] font-bold uppercase rounded-full bg-[var(--surface2)] text-[var(--text2)] px-1.5 py-0.5">
+      <span className={`justify-self-center text-[11px] sm:text-[13px] font-extrabold uppercase rounded-md px-1.5 sm:px-2 py-0.5 sm:py-1 ${positionStyle(slot)}`}>
         {SLOT_SHORT[slot] || slot}
       </span>
       <PlayerCell {...right} {...shared} align="right" />
@@ -182,6 +187,10 @@ function Lineups({ info, mySlots, playersDB, weekProjections, byTeamWeek, week }
   const benchSlot = (list, i) => ((list === myBench ? info.myIrIds : info.oppIrIds) || []).includes(list[i]) ? 'IR' : 'BN';
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 sm:px-4 py-1">
+      <p className="pt-2 pb-1 text-[11px] sm:text-[13px] text-[var(--muted)] text-center">
+        Points scored, with the <span className="text-[var(--proj)] font-semibold">projection</span> underneath ·
+        <span className="text-[var(--pos)] font-semibold"> green</span> beat it, <span className="text-[var(--neg)] font-semibold">red</span> fell short
+      </p>
       <div className="divide-y divide-[var(--border)]/60">
         {Array.from({ length: starters }).map((_, i) => {
           const a = me?.starters?.[i], b = opp?.starters?.[i];

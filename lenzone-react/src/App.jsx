@@ -230,7 +230,7 @@ const FORM_RESULT_STYLE = {
   T: 'bg-[var(--surface2)] text-[var(--text2)]'
 };
 
-// Last 3 weeks: in-conference W/L chips, then points per game over that stretch with the change
+// Last 4 weeks: in-conference W/L chips, then points per game over that stretch with the change
 // vs. the team's own season average (only colored when it's a swing of 5+ points).
 function RecentForm({ form }) {
   if (!form) return <span className="text-[var(--muted)]">—</span>;
@@ -444,7 +444,7 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek, hea
               <SortHeader label="Record" sortKey="overall" activeKey={sortKey} dir={sortDir} onClick={handleSort} title="Overall W-L-T, with in-conference and cross-conference records underneath" />
               <SortHeader label="Playoff Odds" sortKey="playoffPct" activeKey={sortKey} dir={sortDir} onClick={handleSort} title="From 2,500 simulations of the rest of the season; updates after each completed week. Hover a team for the exact %." />
               <th className="py-2 px-2 whitespace-nowrap font-semibold" title="Where each team would be seeded if the season ended today">{latestCompletedWeek >= 14 ? 'Postseason' : 'Seed Today'}</th>
-              <SortHeader label="Last 3" sortKey="form" activeKey={sortKey} dir={sortDir} onClick={handleSort} title="Last 3 in-conference results, and points per game over those weeks vs. the team's season average" />
+              <SortHeader label="Last 4" sortKey="form" activeKey={sortKey} dir={sortDir} onClick={handleSort} title="Last 4 in-conference results, and points per game over those weeks vs. the team's season average" />
               {latestCompletedWeek < 14 && <th className="py-2 px-2 whitespace-nowrap font-semibold" title="Next week's in-conference and cross-conference opponents">Week {latestCompletedWeek + 1}</th>}
             </tr>
           </thead>
@@ -2012,7 +2012,7 @@ export default function App() {
             <WeekGames
               week={selectedWeek} afcSeason={afcSeason} nfcSeason={nfcSeason} crossPairs={weekCrossPairs}
               projected={projectedScoreByManager} isFinal={isSelectedWeekFinal}
-              myTeam={resolvedMyTeamManager} myConf={myTeamConf}
+              myTeam={resolvedMyTeamManager}
             />
 
             <WeeklyScoresBarChart

@@ -475,8 +475,21 @@ function resultFor(myScore, oppScore) {
   if (!(myScore > 0 && oppScore > 0)) return null;
   return myScore > oppScore ? 'W' : myScore < oppScore ? 'L' : 'T';
 }
-const RESULT_TEXT = { W: 'text-[var(--pos)]', L: 'text-[var(--neg)]', T: 'text-[var(--muted)]' };
-const RESULT_BG = { W: 'bg-[var(--pos)]/10', L: 'bg-[var(--neg)]/10', T: '' };
+// Text in the surface color: dark on the bright night-mode greens/reds, light on the deeper
+// day-mode ones.
+const RESULT_BADGE = {
+  W: 'bg-[var(--pos)] text-[var(--surface)]',
+  L: 'bg-[var(--neg)] text-[var(--surface)]',
+  T: 'bg-[var(--muted)] text-[var(--surface)]'
+};
+// One filled W/L/T square per game; an empty slot keeps the names aligned before results post.
+function ResultBadge({ result }) {
+  return (
+    <span className={`w-4 h-4 shrink-0 grid place-items-center rounded text-[10px] font-black leading-none ${result ? RESULT_BADGE[result] : ''}`}>
+      {result || ''}
+    </span>
+  );
+}
 
 function GridRow({ manager, conf, season, oppSeason, weeks, crossSchedule, currentWeek, highlightWeek, latestCompletedWeek, displayName, isConferenceStart, showConfBadge }) {
   const isMe = useIsMyTeam(manager);
@@ -502,15 +515,12 @@ function GridRow({ manager, conf, season, oppSeason, weeks, crossSchedule, curre
         const { intraOpponent, interOpponent, intraResult, interResult, interConf } = gridCellData({
           manager, conf, season, oppSeason, crossSchedule, week: w, latestCompletedWeek
         });
-        // A completed week's W/L tint takes priority visually over the plain highlight-week tint,
-        // but only when there isn't already a highlight -- highlighting a week is a deliberate user
-        // action ("show me week X specifically"), so it should still read clearly on top. The
-        // current week gets a light accent tint of its own (not frozen/sticky -- just a normal
-        // translucent tint, since nothing scrolls underneath a non-sticky cell).
-        const resultBg = !isHighlighted && intraResult ? RESULT_BG[intraResult] : "";
-        // The current week is a solid accent-edged column so it reads at a glance.
+        // No whole-cell W/L tint: a cell holds two games, and tinting it by one of them made a split
+        // week (won one, lost the other) look like a clean win or loss. Each line carries its own
+        // filled W/L badge instead. The current week is a solid accent-edged column so it reads at
+        // a glance; a highlighted week gets a light tint.
         const currentBg = isCurrent && !isHighlighted ? "bg-[var(--accent)]/20 border-x-2 border-x-[var(--accent)] font-bold" : "";
-        const bgClass = `${isHighlighted ? "bg-[var(--coral)]/15" : ""} ${currentBg} ${isCurrent ? "" : resultBg}`;
+        const bgClass = `${isHighlighted ? "bg-[var(--coral)]/15" : ""} ${currentBg}`;
         return (
           <td
             key={w}
@@ -518,14 +528,14 @@ function GridRow({ manager, conf, season, oppSeason, weeks, crossSchedule, curre
             onClick={() => openPreview(manager, conf, w)}
             title={`${displayName(manager, conf)} -- Week ${w}`}
           >
-            <div className="max-w-full font-semibold flex items-center gap-1">
-              <span className={`w-3 shrink-0 text-center text-xs font-black ${intraResult ? RESULT_TEXT[intraResult] : ''}`}>{intraResult || ''}</span>
+            <div className="max-w-full font-semibold flex items-center gap-1.5 text-[13px] sm:text-sm">
+              <ResultBadge result={intraResult} />
               <span className="w-4 shrink-0 grid place-items-center"><TeamMiniLogo manager={intraOpponent} size={16} /></span>
               <span className="truncate min-w-0">{displayName(intraOpponent, conf)}</span>
             </div>
-            <div className="max-w-full text-[var(--muted)] flex items-center gap-1">
-              <span className={`w-3 shrink-0 text-center text-xs font-black ${interResult ? RESULT_TEXT[interResult] : ''}`}>{interResult || ''}</span>
-              <span className="w-4 shrink-0 grid place-items-center"><TeamMiniLogo manager={interOpponent} size={14} className="opacity-80" /></span>
+            <div className="max-w-full mt-0.5 text-[var(--text2)] flex items-center gap-1.5 text-xs sm:text-[13px]">
+              <ResultBadge result={interResult} />
+              <span className="w-4 shrink-0 grid place-items-center"><TeamMiniLogo manager={interOpponent} size={14} /></span>
               <span className="truncate min-w-0">{displayName(interOpponent, interConf)}</span>
             </div>
           </td>

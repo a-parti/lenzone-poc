@@ -1,5 +1,6 @@
 // All network access to the Sleeper public API lives here.
 import { getStartingSlots } from './players';
+import { formatRecord } from './statsMath';
 
 export async function fetchSleeperLeague(leagueId) {
   if (!leagueId || leagueId.trim().length < 10) return null;
@@ -44,7 +45,7 @@ export async function fetchSleeperLeague(leagueId) {
         wins,
         losses,
         ties,
-        inConfRecord: `${wins}-${losses}-${ties}`,
+        inConfRecord: formatRecord(wins, losses, ties),
         inConfPts: (wins * 2.0) + (ties * 1.0),
         pf: isNaN(pf) ? 0 : pf,
         faabLeft: 100 - (settings.waiver_budget_used || 0),

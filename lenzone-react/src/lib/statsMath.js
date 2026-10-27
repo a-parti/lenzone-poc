@@ -475,6 +475,11 @@ export function computeProjectedTrophies(awards, matchupRecord, afcManagers) {
 // crossPointsAgainstByManager/intraGamesByManager/interGamesByManager (optional): pass these to
 // also get a `paAvg` that accounts for BOTH intra and inter opponents (a manager plays one of each
 // most weeks) -- without them, `paAvg` falls back to intra-only, same as `pa`.
+// "11-3", or "10-3-1" only when there's a tie.
+export function formatRecord(wins, losses, ties) {
+  return ties ? `${wins}-${losses}-${ties}` : `${wins}-${losses}`;
+}
+
 export function buildConferenceList(managers, confData, crossRecordByManager, pointsAgainstByManager = {}, inConfRecordByManager = {}, crossPointsAgainstByManager = null, intraGamesByManager = null, interGamesByManager = null) {
   return managers.map(mgr => {
     const r = confData.rosters.find(ros => ros.manager === mgr);
@@ -488,10 +493,10 @@ export function buildConferenceList(managers, confData, crossRecordByManager, po
     const paGames = crossPointsAgainstByManager ? (intraGames + interGames) : intraGames;
     return {
       manager: mgr,
-      inConfRecord: `${inConf.wins}-${inConf.losses}-${inConf.ties}`,
-      interConfRecord: `${cross.wins}-${cross.losses}-${cross.ties}`,
+      inConfRecord: formatRecord(inConf.wins, inConf.losses, inConf.ties),
+      interConfRecord: formatRecord(cross.wins, cross.losses, cross.ties),
       // Overall = in-conference + cross-conference games combined.
-      overallRecord: `${inConf.wins + cross.wins}-${inConf.losses + cross.losses}-${inConf.ties + cross.ties}`,
+      overallRecord: formatRecord(inConf.wins + cross.wins, inConf.losses + cross.losses, inConf.ties + cross.ties),
       overallWins: inConf.wins + cross.wins,
       totalPts: inConfPts + cross.pts,
       pf: inConf.pf,
@@ -660,7 +665,7 @@ export function computeManagerStreaks(afcManagers, nfcManagers, afcSeason, nfcSe
 // Each manager's last `n` completed weeks: in-conference results (oldest first) and real points per
 // game over that stretch vs. their full-season average, so the standings can show who's trending.
 // Display only -- the playoff simulation deliberately uses the whole season (see computeStats).
-export function computeRecentForm(managers, season, latestCompletedWeek, n = 3) {
+export function computeRecentForm(managers, season, latestCompletedWeek, n = 4) {
   const form = {};
   managers.forEach(m => {
     const weeks = [];

@@ -90,23 +90,24 @@ export function buildHistory(scoreByWeek, maxWeek) {
 // extremes a single week of data can't actually support this early.
 const SHRINKAGE_PHANTOM_GAMES = 12;
 
-// A 6-of-12 conference starts at a neutral 50% chance for everyone. Raw Monte Carlo output is
-// useful immediately, but it is far too confident after only one or two completed weeks, when a
-// single boom/bust score can dominate both the standings and the estimated team strength. Blend
-// the raw result toward that neutral baseline early, then let the simulation speak for itself
-// from Week 8 onward. In Week 1 the 10% weight guarantees a tight 45-55% range even if the raw
-// simulation says 0 or 100; each subsequent completed week deliberately opens the range smoothly.
-// Linear blending also preserves the conference total (six playoff spots = 600 percentage points).
-const EARLY_SEASON_ODDS_WEIGHT = [0, 0.10, 0.20, 0.35, 0.50, 0.65, 0.80, 0.90];
+// A displayed 100% / 0% must mean mathematically settled, not "every simulation happened to agree".
+// Clinched = fewer than `lockedSpots` conference rivals can still reach this team's current LP (a rival
+// that can only TIE on LP still counts, since the PF tiebreak could go either way): 5 for a playoff
+// spot, 2 for a bye. Nobody is eliminated from the playoffs while games remain: the seed-6 wildcard is
+// a PF race and PF has no ceiling. Every other team stays strictly inside (0, 100).
+const UNSETTLED_ODDS_FLOOR = 0.1;
+const UNSETTLED_ODDS_CEILING = 99.9;
 
-export function calibratePlayoffOdds(rawOdds, latestCompletedWeek, playoffSpots = 6, teamCount = 12) {
-  const baseline = teamCount > 0 ? (playoffSpots / teamCount) * 100 : 0;
-  const week = Math.max(0, Math.floor(latestCompletedWeek || 0));
-  const weight = EARLY_SEASON_ODDS_WEIGHT[week] ?? 1;
-  return Object.fromEntries(Object.entries(rawOdds).map(([manager, raw]) => [
-    manager,
-    baseline + (raw - baseline) * weight
-  ]));
+function settlePlayoffOdds(rawOdds, managers, state, maxGainByManager, gamesRemain, lockedSpots = 5) {
+  if (!gamesRemain) return rawOdds;
+  const settled = {};
+  managers.forEach(m => {
+    const threats = managers.filter(o => o !== m && state[o].pts + (maxGainByManager[o] || 0) >= state[m].pts).length;
+    settled[m] = threats < lockedSpots
+      ? 100
+      : Math.min(UNSETTLED_ODDS_CEILING, Math.max(UNSETTLED_ODDS_FLOOR, rawOdds[m]));
+  });
+  return settled;
 }
 
 export function computeStats(history, managers) {
@@ -136,7 +137,8 @@ export function computeStats(history, managers) {
 
 // Locks seeds 1-5 by total Standings Pts, then awards seed 6 to the highest-PF team among the
 // remaining 7 -- the same rule as seedConference()/rankConference(), applied to simulated end-states.
-function tallyPlayoffTeams(managers, state, counts) {
+// Seeds 1-2 (the top two by Standings Pts) also count toward byeCounts, matching buildPostseasonSeeds.
+function tallyPlayoffTeams(managers, state, counts, byeCounts) {
   const sorted = managers
     .map(m => ({ manager: m, pts: state[m].pts, pf: state[m].pf }))
     .sort((a, b) => b.pts - a.pts || b.pf - a.pf);
@@ -144,6 +146,7 @@ function tallyPlayoffTeams(managers, state, counts) {
   const remaining = sorted.slice(5);
   const wildcard = [...remaining].sort((a, b) => b.pf - a.pf)[0];
   [...locked, ...(wildcard ? [wildcard] : [])].forEach(t => counts[t.manager]++);
+  sorted.slice(0, 2).forEach(t => byeCounts[t.manager]++);
 }
 
 // Monte Carlo playoff odds for BOTH conferences at once. Each remaining week's intra-conference
@@ -167,6 +170,8 @@ export function simulateCombinedPlayoffOdds(
 
   const afcCounts = {}; afcManagers.forEach(m => afcCounts[m] = 0);
   const nfcCounts = {}; nfcManagers.forEach(m => nfcCounts[m] = 0);
+  const afcByeCounts = {}; afcManagers.forEach(m => afcByeCounts[m] = 0);
+  const nfcByeCounts = {}; nfcManagers.forEach(m => nfcByeCounts[m] = 0);
 
   for (let sim = 0; sim < simulations; sim++) {
     const state = {};
@@ -204,15 +209,26 @@ export function simulateCombinedPlayoffOdds(
       });
     });
 
-    tallyPlayoffTeams(afcManagers, state, afcCounts);
-    tallyPlayoffTeams(nfcManagers, state, nfcCounts);
+    tallyPlayoffTeams(afcManagers, state, afcCounts, afcByeCounts);
+    tallyPlayoffTeams(nfcManagers, state, nfcCounts, nfcByeCounts);
   }
 
-  const rawAfcOdds = {}; afcManagers.forEach(m => rawAfcOdds[m] = (afcCounts[m] / simulations) * 100);
-  const rawNfcOdds = {}; nfcManagers.forEach(m => rawNfcOdds[m] = (nfcCounts[m] / simulations) * 100);
+  // Most LP each team could still add: 2.0 per remaining intra game + 1.0 per remaining cross game.
+  const maxGain = {};
+  remainingWeeks.forEach(({ afcPairs, nfcPairs, crossPairs }) => {
+    [...afcPairs, ...nfcPairs].flat().forEach(m => { maxGain[m] = (maxGain[m] || 0) + 2.0; });
+    crossPairs.forEach(m => [m.afcTeam, m.nfcTeam].forEach(t => { maxGain[t] = (maxGain[t] || 0) + 1.0; }));
+  });
+  const current = {};
+  [...afcBaseList, ...nfcBaseList].forEach(t => current[t.manager] = { pts: t.totalPts });
+  const gamesRemain = remainingWeeks.some(w => w.afcPairs.length || w.nfcPairs.length || w.crossPairs.length);
+
+  const pct = (managers, counts) => Object.fromEntries(managers.map(m => [m, (counts[m] / simulations) * 100]));
   return {
-    afcOdds: calibratePlayoffOdds(rawAfcOdds, latestCompletedWeek, 6, afcManagers.length),
-    nfcOdds: calibratePlayoffOdds(rawNfcOdds, latestCompletedWeek, 6, nfcManagers.length)
+    afcOdds: settlePlayoffOdds(pct(afcManagers, afcCounts), afcManagers, current, maxGain, gamesRemain),
+    nfcOdds: settlePlayoffOdds(pct(nfcManagers, nfcCounts), nfcManagers, current, maxGain, gamesRemain),
+    afcByeOdds: settlePlayoffOdds(pct(afcManagers, afcByeCounts), afcManagers, current, maxGain, gamesRemain, 2),
+    nfcByeOdds: settlePlayoffOdds(pct(nfcManagers, nfcByeCounts), nfcManagers, current, maxGain, gamesRemain, 2)
   };
 }
 
@@ -639,6 +655,46 @@ export function computeManagerStreaks(afcManagers, nfcManagers, afcSeason, nfcSe
   build(afcManagers, afcSeason);
   build(nfcManagers, nfcSeason);
   return streaks;
+}
+
+// Each manager's last `n` completed weeks: in-conference results (oldest first) and real points per
+// game over that stretch vs. their full-season average, so the standings can show who's trending.
+// Display only -- the playoff simulation deliberately uses the whole season (see computeStats).
+export function computeRecentForm(managers, season, latestCompletedWeek, n = 3) {
+  const form = {};
+  managers.forEach(m => {
+    const weeks = [];
+    for (let w = 1; w <= latestCompletedWeek; w++) {
+      const score = season.scoreByWeek[w]?.[m];
+      if (!(score > 0)) continue;
+      const pair = (season.scheduleByWeek[w] || []).find(([a, b]) => a === m || b === m);
+      const oppScore = pair ? season.scoreByWeek[w]?.[pair[0] === m ? pair[1] : pair[0]] : null;
+      const result = oppScore > 0 ? (score > oppScore ? 'W' : score < oppScore ? 'L' : 'T') : null;
+      weeks.push({ week: w, score, result });
+    }
+    if (weeks.length === 0) { form[m] = null; return; }
+    const recent = weeks.slice(-n);
+    const recentAvg = avg(recent.map(x => x.score));
+    const seasonAvg = avg(weeks.map(x => x.score));
+    form[m] = { recent, recentAvg, seasonAvg, delta: recentAvg - seasonAvg };
+  });
+  return form;
+}
+
+// Each manager's real scheduled opponents for `week`: the in-conference matchup from Sleeper's
+// schedule and the cross-conference pairing from the rotation. null when that week has no games.
+export function computeOpponentsForWeek(afcManagers, nfcManagers, afcSeason, nfcSeason, crossSchedule, week) {
+  const opponents = {};
+  const fill = (managers, season, isAfc) => managers.forEach(m => {
+    const pair = (season.scheduleByWeek[week] || []).find(([a, b]) => a === m || b === m);
+    const crossPair = crossSchedule.find(c => c.week === week && (isAfc ? c.afcTeam === m : c.nfcTeam === m));
+    const intra = pair ? (pair[0] === m ? pair[1] : pair[0]) : null;
+    const cross = crossPair ? (isAfc ? crossPair.nfcTeam : crossPair.afcTeam) : null;
+    opponents[m] = intra || cross ? { week, intra, cross } : null;
+  });
+  fill(afcManagers, afcSeason, true);
+  fill(nfcManagers, nfcSeason, false);
+  return opponents;
 }
 
 // Real "revenge game" detection: does this week's matchup (intra or cross) repeat an EARLIER

@@ -10,8 +10,8 @@ import {
   computeStats, buildHistory, simulateCombinedPlayoffOdds, computeCrossRecords, computeCrossWeekRecord,
   computeWeeklyAwards, buildConferenceList, rankConference, winProbability, roughWinProbability, computePointsAgainst, computeInConfRecord,
   computeCrossPointsAgainst, computeIntraGamesPlayed, computeInterGamesPlayed, buildStandingsHistory,
-  buildWeeklyPfPaHistory, 
-  buildPostseasonSeeds
+  buildWeeklyPfPaHistory,
+  buildPostseasonSeeds, computeRecentForm, computeOpponentsForWeek
 } from './lib/statsMath';
 const RosterTab = lazy(() => import('./components/RosterTab'));
 const ActivityTab = lazy(() => import('./components/ActivityTab'));
@@ -147,13 +147,108 @@ function parseFaab(faab) {
   return isNaN(n) ? 0 : n;
 }
 
+// The standings show the playoff-odds label; the exact % lives in its tooltip. Exact 100 / 0 only
+// arrive when a result is mathematically settled (see settlePlayoffOdds), so those two read as
+// Clinched / Eliminated. A still-alive team at the bottom stays "Long Shot", never red.
+// `short` is the narrow-screen wording for the compact mobile standings.
 function playoffPulse(pct) {
-  if (pct == null) return { label: 'Waiting', color: 'text-[var(--muted)]' };
-  if (pct >= 80) return { label: 'Cruising', color: 'text-[var(--pos)]' };
-  if (pct >= 65) return { label: 'Looking Good', color: 'text-[var(--pos)]' };
-  if (pct >= 45) return { label: 'Bubble', color: 'text-[var(--live)]' };
-  if (pct >= 25) return { label: 'Needs a Run', color: 'text-[var(--live)]' };
-  return { label: 'Needs Chaos', color: 'text-[var(--neg)]' };
+  if (pct == null) return { label: 'Waiting', short: '—', color: 'text-[var(--muted)]' };
+  if (pct >= 100) return { label: 'Clinched', short: 'Clinched', color: 'text-[var(--pos)]' };
+  if (pct <= 0) return { label: 'Eliminated', short: 'Out', color: 'text-[var(--muted)]' };
+  if (pct >= 85) return { label: 'Strong Favorite', short: 'Favorite', color: 'text-[var(--pos)]' };
+  if (pct >= 65) return { label: 'Good Shape', short: 'Good', color: 'text-[var(--pos)]' };
+  if (pct >= 40) return { label: 'On the Bubble', short: 'Bubble', color: 'text-[var(--live)]' };
+  if (pct >= 15) return { label: 'Underdog', short: 'Underdog', color: 'text-[var(--live)]' };
+  return { label: 'Long Shot', short: 'Long Shot', color: 'text-[var(--muted)]' };
+}
+
+function formatPlayoffPct(pct) {
+  if (pct == null) return '—';
+  if (pct >= 100) return '100%';
+  if (pct <= 0) return '0%';
+  if (pct < 5) return 'under 5%';
+  const rounded = Math.round(pct);
+  return rounded >= 100 ? '>99%' : `${rounded}%`;
+}
+
+// Bye = a top-2 seed. Only mentioned for teams with a real shot, in words like the playoff label.
+function byeOutlook(pct) {
+  if (pct == null || pct < 10) return null;
+  if (pct >= 100) return 'Bye clinched';
+  if (pct >= 65) return 'Bye likely';
+  if (pct >= 25) return 'Bye in reach';
+  return 'Bye possible';
+}
+
+// Playoff-odds label, an arrow when it changed tier since last week, and (full size) the bye outlook.
+// Exact numbers stay in the tooltip.
+function PlayoffOddsCell({ item, compact = false }) {
+  const pulse = playoffPulse(item.playoffPct);
+  const prev = item.prevPlayoffPct != null ? playoffPulse(item.prevPlayoffPct) : null;
+  const moved = prev && prev.label !== pulse.label ? (item.playoffPct > item.prevPlayoffPct ? 'up' : 'down') : null;
+  const bye = byeOutlook(item.byePct);
+  const title = [
+    `Playoff odds: ${formatPlayoffPct(item.playoffPct)}`,
+    prev ? `Last week: ${prev.label} (${formatPlayoffPct(item.prevPlayoffPct)})` : null,
+    item.byePct != null ? `Bye odds: ${formatPlayoffPct(item.byePct)}` : null
+  ].filter(Boolean).join('\n');
+  return (
+    <div title={title} className={compact ? 'text-right' : ''}>
+      <div className={`font-extrabold whitespace-nowrap ${pulse.color} ${compact ? 'text-[11px] leading-tight' : ''}`}>
+        {compact ? pulse.short : pulse.label}
+        {moved && <span className={`ml-1 text-[10px] ${moved === 'up' ? 'text-[var(--pos)]' : 'text-[var(--neg)]'}`}>{moved === 'up' ? '▲' : '▼'}</span>}
+      </div>
+      {!compact && (bye || moved) && (
+        <div className="text-[11px] text-[var(--muted)] whitespace-nowrap">
+          {bye || `was ${prev.label}`}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NextOpponents({ next, conf }) {
+  if (!next) return <span className="text-[var(--muted)]">—</span>;
+  const otherConf = conf === 'AFC' ? 'NFC' : 'AFC';
+  return (
+    <div className="whitespace-nowrap text-[13px]">
+      {next.intra && <div className="flex items-center gap-1"><span className="text-[var(--muted)]">vs</span><TeamName manager={next.intra} conf={conf} showLogo={false} className="font-semibold" /></div>}
+      {next.cross && <div className="flex items-center gap-1 text-[11px]"><span className="text-[var(--muted)]">cross</span><TeamName manager={next.cross} conf={otherConf} showLogo={false} /></div>}
+    </div>
+  );
+}
+
+// Shared column template for the compact phone standings header and rows: rank, team, LP, odds.
+// (Seed, record and last-3 chips ride on the team cell's second line to leave room for names.)
+const MOBILE_STANDINGS_GRID = 'grid grid-cols-[1rem_minmax(0,1fr)_2.5rem_4rem] items-center gap-x-2 px-3';
+
+const FORM_RESULT_STYLE = {
+  W: 'bg-[var(--pos)]/15 text-[var(--pos)]',
+  L: 'bg-[var(--neg)]/15 text-[var(--neg)]',
+  T: 'bg-[var(--surface2)] text-[var(--text2)]'
+};
+
+// Last 3 weeks: in-conference W/L chips, then points per game over that stretch with the change
+// vs. the team's own season average (only colored when it's a swing of 5+ points).
+function RecentForm({ form, compact = false }) {
+  if (!form) return <span className="text-[var(--muted)]">—</span>;
+  const { recent, recentAvg, seasonAvg, delta } = form;
+  const trendColor = delta >= 5 ? 'text-[var(--pos)]' : delta <= -5 ? 'text-[var(--neg)]' : 'text-[var(--muted)]';
+  const title = `Last ${recent.length}: ${recent.map(r => `Wk ${r.week} ${r.result || '–'} ${r.score.toFixed(1)}`).join(', ')} · season avg ${seasonAvg.toFixed(1)}`;
+  return (
+    <div title={title} className="whitespace-nowrap">
+      <div className="flex gap-0.5">
+        {recent.map(r => (
+          <span key={r.week} className={`inline-flex w-4 h-4 items-center justify-center rounded text-[10px] font-bold ${FORM_RESULT_STYLE[r.result] || FORM_RESULT_STYLE.T}`}>{r.result || '–'}</span>
+        ))}
+      </div>
+      {!compact && (
+        <div className="text-[11px] text-[var(--muted)]">
+          {recentAvg.toFixed(1)}/gm <span className={`font-bold ${trendColor}`}>{delta >= 0 ? '▲' : '▼'}{Math.abs(delta).toFixed(1)}</span>
+        </div>
+      )}
+    </div>
+  );
 }
 
 const STANDINGS_SORT_ACCESSORS = {
@@ -166,6 +261,7 @@ const STANDINGS_SORT_ACCESSORS = {
   pf: item => item.pfAvg,
   pa: item => item.paAvg,
   playoffPct: item => item.playoffPct ?? -1,
+  form: item => item.form?.recentAvg ?? -1,
   faab: item => parseFaab(item.faab),
   moves: item => item.moves
 };
@@ -204,6 +300,76 @@ function SeedPill({ postseason }) {
     >
       #{postseason.seed} {pill.label}
     </span>
+  );
+}
+
+// Seed number only, in the same status colors as SeedPill -- for the compact mobile standings.
+function SeedBadge({ postseason }) {
+  if (!postseason) return null;
+  const pill = SEED_PILL[postseason.status] || SEED_PILL.TOILET_BOWL;
+  return (
+    <span title={`#${postseason.seed} ${pill.label}`} className={`inline-flex items-center rounded border px-1 text-[10px] font-bold leading-4 ${pill.className}`}>
+      #{postseason.seed}
+    </span>
+  );
+}
+
+// Seed 6 is a points race, not a record race -- the part of the format people find least obvious.
+// Lists the teams outside the top 5 by total points scored, with each one's gap to the spot.
+function WildcardRace({ rows, conf, latestCompletedWeek }) {
+  const seeds = buildPostseasonSeeds(rows, conf);
+  const topFive = new Set(seeds.slice(0, 5).map(t => t.manager));
+  const contenders = rows.filter(r => !topFive.has(r.manager)).sort((a, b) => b.pf - a.pf).slice(0, 4);
+  if (contenders.length === 0) return null;
+  const leaderPf = contenders[0].pf;
+  const final = latestCompletedWeek >= 14;
+  return (
+    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 shadow-sm">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${CONF_STYLES[conf].badge}`}>{conf}</span>
+          <span className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)]">Wild card race · Seed 6</span>
+        </div>
+        <span className="text-[11px] text-[var(--muted)]">Most total points outside the top 5 · record doesn't matter</span>
+      </div>
+      <ol className="mt-2 divide-y divide-[var(--border)]/60">
+        {contenders.map((team, i) => (
+          <li key={team.manager} className="flex items-center justify-between gap-3 py-1.5 text-sm">
+            <span className="flex items-center gap-2 min-w-0">
+              <span className="w-4 shrink-0 text-[var(--muted)] font-bold tabular-nums">{i + 1}</span>
+              <TeamName manager={team.manager} conf={conf} className="font-semibold" />
+            </span>
+            <span className="shrink-0 text-right tabular-nums leading-tight">
+              <span className="block text-[var(--text2)]">{team.pf.toFixed(1)} pts</span>
+              <span className={`block text-[11px] font-bold ${i === 0 ? 'text-[var(--live)]' : 'text-[var(--muted)]'}`}>
+                {i === 0 ? (final ? 'Won the wild card' : 'Holds the spot') : `${(leaderPf - team.pf).toFixed(1)} back`}
+              </span>
+            </span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+// Plain-language rules for the standings page, collapsed by default so it never crowds the table.
+// Every rule here mirrors the code that computes it (LP in buildConferenceList, seeding in
+// buildPostseasonSeeds, odds in simulateCombinedPlayoffOdds) and the league charter.
+function StandingsExplainer() {
+  return (
+    <details className="group bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 shadow-sm">
+      <summary className="cursor-pointer list-none flex items-center justify-between gap-2 text-sm font-bold">
+        How the standings work
+        <span className="text-xs font-semibold text-[var(--muted)] group-open:hidden">Show</span>
+        <span className="text-xs font-semibold text-[var(--muted)] hidden group-open:inline">Hide</span>
+      </summary>
+      <ul className="mt-3 space-y-2 text-sm text-[var(--text2)] list-disc pl-5">
+        <li><b className="text-[var(--text)]">Every week your one score plays two games:</b> one against a team in your conference (a win is worth 2 {STANDINGS_PTS.short}) and one against a team in the other conference (a win is worth 1 {STANDINGS_PTS.short}). Ties are worth half.</li>
+        <li><b className="text-[var(--text)]">6 of 12 teams in each conference make the playoffs.</b> Seeds 1–5 go to the most {STANDINGS_PTS.short} (total points breaks ties). Seed 6, the wild card, goes to whoever has scored the most total points among everyone else.</li>
+        <li><b className="text-[var(--text)]">Seeds 1 and 2 get a first-round bye.</b> Everyone outside the top 6 plays in the Toilet Bowl.</li>
+        <li><b className="text-[var(--text)]">Playoff odds</b> play out the rest of the season 2,500 times using each team's scoring so far: Strong Favorite (85%+), Good Shape (65%+), On the Bubble (40%+), Underdog (15%+), Long Shot (below that). Clinched means locked in. On a computer, hover a label for the exact number.</li>
+      </ul>
+    </details>
   );
 }
 
@@ -276,23 +442,21 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek, hea
       </div>
 
       <div className="hidden md:block overflow-x-auto">
-        <table className="w-full text-left text-sm font-medium text-[var(--text)] [&_th]:px-4 [&_td]:px-4 [&_td]:py-2.5">
+        <table className="w-full text-left text-sm font-medium text-[var(--text)] [&_th]:px-3 [&_td]:px-3 [&_td]:py-2.5">
           <thead className="bg-[var(--surface2)] text-[11px] text-[var(--text2)] border-b border-[var(--border)]">
             <tr>
               <SortHeader label="#" sortKey="rank" activeKey={sortKey} dir={sortDir} onClick={handleSort} title="Rank" />
               <SortHeader label={nameDisplayMode === 'teams' ? 'Team' : 'Manager'} sortKey="manager" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
-              <SortHeader label={STANDINGS_PTS.short} sortKey="totalPts" activeKey={sortKey} dir={sortDir} onClick={handleSort} title={`${STANDINGS_PTS.long}: 2 per in-conference win, 1 per cross-conference win`} />
+              <SortHeader label={STANDINGS_PTS.short} sortKey="totalPts" activeKey={sortKey} dir={sortDir} onClick={handleSort} title={`${STANDINGS_PTS.long}: 2 per in-conference win, 1 per cross-conference win. Total points scored underneath (the tiebreaker and wild card race).`} />
               <SortHeader label="Record" sortKey="overall" activeKey={sortKey} dir={sortDir} onClick={handleSort} title="Overall W-L-T, with in-conference and cross-conference records underneath" />
-              <SortHeader label="PF / gm" sortKey="pf" activeKey={sortKey} dir={sortDir} onClick={handleSort} title="Points scored per game, with points against underneath" />
-              <SortHeader label="Playoff %" sortKey="playoffPct" activeKey={sortKey} dir={sortDir} onClick={handleSort} title="Estimated from 2,500 simulations; frozen until the next completed week" />
-              <th className="py-2 px-2 whitespace-nowrap font-semibold">{latestCompletedWeek >= 14 ? 'Postseason' : 'Proj. Seed'}</th>
-              <SortHeader label="FAAB" sortKey="faab" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
-              <SortHeader label="Moves" sortKey="moves" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
+              <SortHeader label="Playoff Odds" sortKey="playoffPct" activeKey={sortKey} dir={sortDir} onClick={handleSort} title="From 2,500 simulations of the rest of the season; updates after each completed week. Hover a team for the exact %." />
+              <th className="py-2 px-2 whitespace-nowrap font-semibold" title="Where each team would be seeded if the season ended today">{latestCompletedWeek >= 14 ? 'Postseason' : 'Seed Today'}</th>
+              <SortHeader label="Last 3" sortKey="form" activeKey={sortKey} dir={sortDir} onClick={handleSort} title="Last 3 in-conference results, and points per game over those weeks vs. the team's season average" />
+              {latestCompletedWeek < 14 && <th className="py-2 px-2 whitespace-nowrap font-semibold" title="Next week's in-conference and cross-conference opponents">Week {latestCompletedWeek + 1}</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--border)]/70">
             {sortedRows.map((item) => {
-              const pulse = playoffPulse(item.playoffPct);
               const postseason = postseasonByManager.get(item.manager);
               const other = secondaryName(item.manager, item.conf);
               const style = styleFor(item);
@@ -306,22 +470,18 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek, hea
                   </div>
                   {other && <div className="text-[11px] font-normal text-[var(--muted)]">{other}</div>}
                 </td>
-                <td className={`py-2 px-2 font-bold ${style.text}`}>{item.totalPts.toFixed(1)}</td>
+                <td className="py-2 px-2 whitespace-nowrap">
+                  <div className={`font-bold ${style.text}`}>{item.totalPts.toFixed(1)}</div>
+                  <div className="text-[11px] text-[var(--muted)]">{item.pf.toFixed(1)} pts</div>
+                </td>
                 <td className="py-2 px-2 whitespace-nowrap">
                   <div className="font-semibold">{item.overallRecord}</div>
                   <div className="text-[11px] text-[var(--muted)]">In {item.inConfRecord} · Cross {item.interConfRecord}</div>
                 </td>
-                <td className="py-2 px-2 whitespace-nowrap">
-                  <div>{item.pfAvg.toFixed(2)}</div>
-                  <div className="text-[11px] text-[var(--muted)]">PA {item.paAvg.toFixed(2)}</div>
-                </td>
-                <td className="py-2 px-2">
-                  <div className={`font-extrabold ${pulse.color}`}>{item.playoffPct != null ? `${Math.round(item.playoffPct)}%` : '—'}</div>
-                  <div className={`text-[11px] font-bold whitespace-nowrap ${pulse.color}`}>{pulse.label}</div>
-                </td>
+                <td className="py-2 px-2"><PlayoffOddsCell item={item} /></td>
                 <td className="py-2 px-2"><SeedPill postseason={postseason} /></td>
-                <td className="py-2 px-2">{item.faab}</td>
-                <td className="py-2 px-2 text-[var(--muted)]">{item.moves}</td>
+                <td className="py-2 px-2"><RecentForm form={item.form} /></td>
+                {latestCompletedWeek < 14 && <td className="py-2 px-2"><NextOpponents next={item.next} conf={item.conf} /></td>}
               </tr>
               );
             })}
@@ -329,63 +489,40 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek, hea
         </table>
       </div>
 
-      <div className="md:hidden divide-y divide-[var(--border)]/70">
+      {/* Compact phone standings: one short row per team so the whole conference fits on screen.
+          Tap a team for its roster; the full stat columns stay on the desktop table. */}
+      <div className="md:hidden text-sm">
+        <div className={`${MOBILE_STANDINGS_GRID} bg-[var(--surface2)] border-b border-[var(--border)] py-2 text-[10px] uppercase font-semibold text-[var(--text2)]`}>
+          {[['#', 'rank'], [nameDisplayMode === 'teams' ? 'Team' : 'Manager', 'manager'], [STANDINGS_PTS.short, 'totalPts'], ['Odds', 'playoffPct']].map(([label, key], i) => (
+            <button key={key} type="button" onClick={() => handleSort(key)} className={`font-semibold uppercase ${i >= 2 ? 'text-right' : 'text-left'} ${sortKey === key ? 'text-[var(--text)]' : ''}`}>
+              {label}{sortKey === key && <span className="ml-0.5">{sortDir === 'desc' ? '▼' : '▲'}</span>}
+            </button>
+          ))}
+        </div>
+        <div className="divide-y divide-[var(--border)]/70">
         {sortedRows.map((item) => {
-          const pulse = playoffPulse(item.playoffPct);
           const postseason = postseasonByManager.get(item.manager);
-          const other = secondaryName(item.manager, item.conf);
           const style = styleFor(item);
           return (
-          <div key={item.manager} className={`p-4 border-l-2 ${style.border} ${postseason?.seed <= 6 ? 'standings-playoff-team' : ''}`}>
-            <div className="flex justify-between items-start gap-3 mb-3">
-              <div className="flex items-start gap-2 min-w-0">
-                <span className="text-[var(--muted)] font-bold text-sm pt-0.5">#{item.rank}</span>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <TeamName manager={item.manager} conf={item.conf} className="font-bold" />
-                    {whole && <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${style.badge}`}>{item.conf}</span>}
-                  </div>
-                  {other && <div className="text-xs text-[var(--muted)] truncate">{other}</div>}
-                </div>
+          <div key={item.manager} className={`${MOBILE_STANDINGS_GRID} py-2 border-l-2 ${style.border} ${postseason?.seed <= 6 ? 'standings-playoff-team' : ''}`}>
+            <span className="font-bold text-[var(--text2)] tabular-nums">{item.rank}</span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1 min-w-0">
+                <TeamName manager={item.manager} conf={item.conf} className="font-semibold text-[13px]" />
+                {whole && <span className={`shrink-0 text-[9px] font-bold px-1 rounded-full ${style.badge}`}>{item.conf}</span>}
               </div>
-              <div className="text-right shrink-0">
-                <div className={`text-lg font-extrabold tabular-nums leading-none ${style.text}`}>{item.totalPts.toFixed(1)}</div>
-                <div className="text-[11px] font-semibold text-[var(--muted)]">{STANDINGS_PTS.short}</div>
+              <div className="flex items-center gap-1.5 mt-0.5 text-[11px] whitespace-nowrap overflow-hidden">
+                <SeedBadge postseason={postseason} />
+                <span className="font-semibold text-[var(--text2)] tabular-nums">{item.overallRecord}</span>
+                <RecentForm form={item.form} compact />
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2 mb-3">
-              <SeedPill postseason={postseason} />
-              <span className="text-xs font-semibold text-[var(--text)]">{item.overallRecord}</span>
-            </div>
-            <div className="grid grid-cols-3 gap-2 text-sm">
-              <div>
-                <p className="text-[11px] uppercase font-semibold text-[var(--muted)]">In-Conf</p>
-                <p className="text-[var(--text)] font-semibold">{item.inConfRecord}</p>
-              </div>
-              <div>
-                <p className="text-[11px] uppercase font-semibold text-[var(--muted)]">Cross-Conf</p>
-                <p className="text-[var(--text)] font-semibold">{item.interConfRecord}</p>
-              </div>
-              <div>
-                <p className="text-[11px] uppercase font-semibold text-[var(--muted)]">Playoff %</p>
-                <p className={`font-extrabold ${pulse.color}`}>{item.playoffPct != null ? `${Math.round(item.playoffPct)}%` : '—'}</p>
-              </div>
-              <div>
-                <p className="text-[11px] uppercase font-semibold text-[var(--muted)]">PF / gm</p>
-                <p className="text-[var(--text)]">{item.pfAvg.toFixed(2)}</p>
-              </div>
-              <div>
-                <p className="text-[11px] uppercase font-semibold text-[var(--muted)]">PA / gm</p>
-                <p className="text-[var(--text2)]">{item.paAvg.toFixed(2)}</p>
-              </div>
-              <div>
-                <p className="text-[11px] uppercase font-semibold text-[var(--muted)]">FAAB</p>
-                <p className="text-[var(--text2)]">{item.faab}</p>
-              </div>
-            </div>
+            <span className={`text-right font-extrabold tabular-nums ${style.text}`}>{item.totalPts.toFixed(1)}</span>
+            <PlayoffOddsCell item={item} compact />
           </div>
           );
         })}
+        </div>
       </div>
     </div>
   );
@@ -1247,20 +1384,50 @@ export default function App() {
     const afcStats = computeStats(buildHistory(afcSeason.scoreByWeek, latestCompletedWeek), afcManagers);
     const nfcStats = computeStats(buildHistory(nfcSeason.scoreByWeek, latestCompletedWeek), nfcManagers);
 
-    const { afcOdds, nfcOdds } = hasStandingsData
+    const { afcOdds, nfcOdds, afcByeOdds, nfcByeOdds } = hasStandingsData
       ? simulateCombinedPlayoffOdds(
           afcManagers, nfcManagers, afcBaseList, nfcBaseList, afcStats, nfcStats,
           afcSeason.scheduleByWeek, nfcSeason.scheduleByWeek, schedule, latestCompletedWeek, SEASON_WEEKS
         )
-      : { afcOdds: null, nfcOdds: null };
+      : { afcOdds: null, nfcOdds: null, afcByeOdds: null, nfcByeOdds: null };
+
+    // Same simulation as of one week earlier (its own standings, scoring history and seed), so the
+    // table can show how each team's playoff outlook moved with the latest completed week.
+    const prevWeek = latestCompletedWeek - 1;
+    let prevOdds = {};
+    if (hasStandingsData && prevWeek >= 1) {
+      const prevCross = computeCrossRecords(schedule, afcSeason, nfcSeason, prevWeek);
+      const prevAfcBase = buildConferenceList(afcManagers, afcData, prevCross, {}, computeInConfRecord(afcManagers, afcSeason, prevWeek));
+      const prevNfcBase = buildConferenceList(nfcManagers, nfcData, prevCross, {}, computeInConfRecord(nfcManagers, nfcSeason, prevWeek));
+      const prev = simulateCombinedPlayoffOdds(
+        afcManagers, nfcManagers, prevAfcBase, prevNfcBase,
+        computeStats(buildHistory(afcSeason.scoreByWeek, prevWeek), afcManagers),
+        computeStats(buildHistory(nfcSeason.scoreByWeek, prevWeek), nfcManagers),
+        afcSeason.scheduleByWeek, nfcSeason.scheduleByWeek, schedule, prevWeek, SEASON_WEEKS
+      );
+      prevOdds = { ...prev.afcOdds, ...prev.nfcOdds };
+    }
 
     const afcMoveCounts = computeMoveCounts(afcTransactions, afcData.rosterIdMap);
     const nfcMoveCounts = computeMoveCounts(nfcTransactions, nfcData.rosterIdMap);
-    const withMoves = (list, moveCounts) => list.map(t => ({ ...t, moves: moveCounts[t.manager] || 0 }));
+    const afcForm = computeRecentForm(afcManagers, afcSeason, latestCompletedWeek);
+    const nfcForm = computeRecentForm(nfcManagers, nfcSeason, latestCompletedWeek);
+    const nextOpponents = latestCompletedWeek < SEASON_WEEKS
+      ? computeOpponentsForWeek(afcManagers, nfcManagers, afcSeason, nfcSeason, schedule, latestCompletedWeek + 1)
+      : {};
+    const byeOdds = { ...(afcByeOdds || {}), ...(nfcByeOdds || {}) };
+    const decorate = (list, moveCounts, form) => list.map(t => ({
+      ...t,
+      moves: moveCounts[t.manager] || 0,
+      form: form[t.manager] || null,
+      byePct: byeOdds[t.manager] ?? null,
+      prevPlayoffPct: prevOdds[t.manager] ?? null,
+      next: nextOpponents[t.manager] || null
+    }));
 
     return {
-      afcStandings: withMoves(rankConference(afcBaseList, "AFC", afcOdds), afcMoveCounts),
-      nfcStandings: withMoves(rankConference(nfcBaseList, "NFC", nfcOdds), nfcMoveCounts),
+      afcStandings: decorate(rankConference(afcBaseList, "AFC", afcOdds), afcMoveCounts, afcForm),
+      nfcStandings: decorate(rankConference(nfcBaseList, "NFC", nfcOdds), nfcMoveCounts, nfcForm),
       allStats: { ...afcStats, ...nfcStats }
     };
   }, [afcData, nfcData, afcSeason, nfcSeason, schedule, latestCompletedWeek, afcTransactions, nfcTransactions, hasStandingsData, afcManagers, nfcManagers]);
@@ -1679,8 +1846,21 @@ export default function App() {
 
             {standingsView !== "playoffs" && (
               <>
+                {/* Reading order: the table people came for, the wild card race (the least obvious
+                    rule), then the chart; the rules explainer stays collapsed above. */}
+                <StandingsExplainer />
                 {standingsScope === "league" ? (
                   <section className="space-y-4">
+                    <div data-standings-anchor="table" className="scroll-mt-24">
+                    <StandingsTable conf={null}
+                      headerExtra={<StandingsScopeToggle scope={standingsScope} onChange={chooseStandingsScope} target="table" />}
+                      rows={[...afcStandings, ...nfcStandings].sort((a, b) => b.totalPts - a.totalPts || b.pfAvg - a.pfAvg).map((row, i) => ({ ...row, rank: i + 1 }))}
+                      afcData={afcData} nfcData={nfcData} latestCompletedWeek={latestCompletedWeek} />
+                    </div>
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      <WildcardRace rows={afcStandings} conf="AFC" latestCompletedWeek={latestCompletedWeek} />
+                      <WildcardRace rows={nfcStandings} conf="NFC" latestCompletedWeek={latestCompletedWeek} />
+                    </div>
                     <div data-standings-anchor="chart" className="scroll-mt-24">
                       <StandingsBarChart
                         afcStandings={afcStandings} nfcStandings={nfcStandings}
@@ -1688,25 +1868,20 @@ export default function App() {
                         headerExtra={<StandingsScopeToggle scope={standingsScope} onChange={chooseStandingsScope} target="chart" />}
                       />
                     </div>
-                    <div data-standings-anchor="table" className="scroll-mt-24">
-                    <StandingsTable conf={null}
-                      headerExtra={<StandingsScopeToggle scope={standingsScope} onChange={chooseStandingsScope} target="table" />}
-                      rows={[...afcStandings, ...nfcStandings].sort((a, b) => b.totalPts - a.totalPts || b.pfAvg - a.pfAvg).map((row, i) => ({ ...row, rank: i + 1 }))}
-                      afcData={afcData} nfcData={nfcData} latestCompletedWeek={latestCompletedWeek} />
-                    </div>
                   </section>
                 ) : ["AFC", "NFC"].map(conf => (
                   <section key={conf} className="space-y-4">
+                    <div data-standings-anchor={conf === "AFC" ? "table" : undefined} className="scroll-mt-24">
+                      <StandingsTable conf={conf} rows={conf === "AFC" ? afcStandings : nfcStandings} afcData={afcData} nfcData={nfcData} latestCompletedWeek={latestCompletedWeek}
+                        headerExtra={<StandingsScopeToggle scope={standingsScope} onChange={chooseStandingsScope} target="table" />} />
+                    </div>
+                    <WildcardRace rows={conf === "AFC" ? afcStandings : nfcStandings} conf={conf} latestCompletedWeek={latestCompletedWeek} />
                     <div data-standings-anchor={conf === "AFC" ? "chart" : undefined} className="scroll-mt-24">
                       <StandingsBarChart
                         afcStandings={afcStandings} nfcStandings={nfcStandings} confFilter={conf}
                         logoMap={teamLogoMap} mode="segregated"
                         headerExtra={<StandingsScopeToggle scope={standingsScope} onChange={chooseStandingsScope} target="chart" />}
                       />
-                    </div>
-                    <div data-standings-anchor={conf === "AFC" ? "table" : undefined} className="scroll-mt-24">
-                      <StandingsTable conf={conf} rows={conf === "AFC" ? afcStandings : nfcStandings} afcData={afcData} nfcData={nfcData} latestCompletedWeek={latestCompletedWeek}
-                        headerExtra={<StandingsScopeToggle scope={standingsScope} onChange={chooseStandingsScope} target="table" />} />
                     </div>
                   </section>
                 ))}

@@ -252,9 +252,8 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
   const oppBigColor = isLive ? "text-[var(--live)]" : "text-[var(--text)]";
   const myProjColor = "text-[var(--proj)]";
   const oppProjColor = "text-[var(--proj)]";
-  // Shown post-final too (not just live/pregame) -- "what was it projected to be" stays a useful
-  // reference point even once the real result is known, not just while the outcome's in doubt.
-  const showCaption = showScores && (isLive || isFinal);
+  // Only while a game is live -- once it is final the W/L badge and the real score say it all.
+  const showCaption = showScores && isLive;
   const result = isFinal && myScore != null && oppScore != null
     ? (myScore > oppScore ? "W" : myScore < oppScore ? "L" : "T")
     : null;
@@ -269,7 +268,13 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
     <div className={`bg-[var(--bg)]/60 border ${accentBorder} rounded-lg p-3`}>
       <div className="flex items-center justify-between mb-1.5">
         <span className="tracking-wider text-xs uppercase font-semibold text-[var(--muted)]">{label}</span>
-        {isFinal && <span className="text-[10px] font-semibold text-[var(--pos)]">Final</span>}
+        {/* On a phone the LP gain lives up here instead of inside the W/L badge, so the badge stays
+            short and the team names next to it have room. */}
+        {isFinal && (
+          <span className="text-[10px] font-semibold text-[var(--pos)]">
+            Final{result && <span className="sm:hidden"> &middot; +{myStandingsPts} {STANDINGS_PTS.short}</span>}
+          </span>
+        )}
         {!isFinal && !isLive && showScores && <span className="text-[10px] font-semibold text-[var(--proj)]">Projected</span>}
       </div>
 
@@ -281,7 +286,7 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
           <div className="flex items-center gap-1.5 min-w-0 sm:w-full sm:justify-end">
             {result && (
               <span className={`text-sm font-black px-2 py-0.5 rounded shrink-0 whitespace-nowrap ${RESULT_STYLE[result]}`}>
-                {result} +{myStandingsPts} {STANDINGS_PTS.short}
+                {result}<span className="hidden sm:inline"> +{myStandingsPts} {STANDINGS_PTS.short}</span>
               </span>
             )}
             <TeamName manager={myTeam} conf={myConf} className="font-semibold truncate" />
@@ -340,7 +345,7 @@ function MatchupPill({ label, myTeam, myConf, oppConf, info, accentBorder, mySlo
               const oppStandingsPts = oppResult === "W" ? (isInConf ? 2 : 1) : oppResult === "T" ? (isInConf ? 1 : 0.5) : 0;
               return (
                 <span className={`text-sm font-black px-2 py-0.5 rounded shrink-0 whitespace-nowrap ${RESULT_STYLE[oppResult]}`}>
-                  {oppResult} +{oppStandingsPts} {STANDINGS_PTS.short}
+                  {oppResult}<span className="hidden sm:inline"> +{oppStandingsPts} {STANDINGS_PTS.short}</span>
                 </span>
               );
             })()}

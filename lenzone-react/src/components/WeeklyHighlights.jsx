@@ -5,6 +5,7 @@ import { useTeamLogo } from '../context/TeamLogoContext';
 import { useMatchupPreview } from '../context/MatchupPreviewContext';
 import { computeWorstLineupDecision } from '../lib/players';
 import { useNameDisplay } from '../context/NameDisplayContext';
+import { SWIPE_ROW, SWIPE_ITEM } from './PlayerHighlights';
 
 // nameManager is the one real manager this card is "about" for logo purposes -- for the two-team
 // cards (Closest Game, Biggest Blowout) that's just the first team listed, since showing both
@@ -16,7 +17,7 @@ function HighlightCard({ icon: Icon, label, name, nameManager, value, accent, on
     <button
       type="button"
       onClick={onClick}
-      className="text-left bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-4 hover:border-[var(--border2)] hover:scale-[1.01] transition-all duration-200 w-full"
+      className={`text-left bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-4 hover:border-[var(--border2)] hover:scale-[1.01] transition-all duration-200 ${SWIPE_ITEM}`}
     >
       <div className="flex items-center gap-2 mb-2">
         <Icon className={`w-4 h-4 ${accent}`} />
@@ -48,7 +49,7 @@ function MatchupHighlightCard({ icon: Icon, label, teamA, teamB, teamALabel = te
     <button
       type="button"
       onClick={onClick}
-      className="text-left bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-4 hover:border-[var(--border2)] hover:scale-[1.01] transition-all duration-200 w-full"
+      className={`text-left bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-4 hover:border-[var(--border2)] hover:scale-[1.01] transition-all duration-200 ${SWIPE_ITEM}`}
     >
       <div className="flex items-center gap-2 mb-2">
         <Icon className={`w-4 h-4 ${accent}`} />
@@ -116,7 +117,7 @@ export default function WeeklyHighlights({
   const prefix = isWeekFinal ? "" : "Projected ";
   const icon = isWeekFinal ? Trophy : Award;
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-3">
+    <div className={`${SWIPE_ROW} sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(11rem,1fr))]`}>
       <HighlightCard
         icon={icon} label={`${prefix}High Score`} name={visibleName(high.manager)} nameManager={high.manager} value={`${high.points.toFixed(2)} pts`} accent="text-[var(--live)]"
         onClick={() => showMatchup(high.manager)}

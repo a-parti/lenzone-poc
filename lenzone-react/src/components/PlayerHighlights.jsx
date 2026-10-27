@@ -8,6 +8,12 @@ import { useNameDisplay } from '../context/NameDisplayContext';
 
 // Explicit sign rather than a hardcoded "+" prefix -- a hardcoded prefix reads as "+-2.97" for a
 // negative value, which is exactly the kind of value this shows for a miss.
+// On a phone a run of trophy cards becomes one sideways-swipe row instead of a long stack of
+// full-width cards; from sm up it is the usual grid. -mx-4/px-4 lets the row run to the screen edge
+// past the page gutter.
+export const SWIPE_ROW = "-mx-4 px-4 scroll-px-4 flex gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-none [scrollbar-width:none] pb-1 sm:mx-0 sm:px-0 sm:pb-0 sm:grid sm:overflow-visible";
+export const SWIPE_ITEM = "w-[15rem] shrink-0 snap-start sm:w-full";
+
 export function signed(n) {
   return `${n >= 0 ? "+" : ""}${n.toFixed(2)}`;
 }
@@ -39,7 +45,7 @@ export function PlayerCard({ icon: Icon, label, entry, playersDB, value, accent,
       tabIndex={0}
       onClick={onClick}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(); } }}
-      className="text-left bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-4 hover:border-[var(--border2)] hover:scale-[1.01] transition-all duration-200 w-full cursor-pointer"
+      className={`text-left bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-4 hover:border-[var(--border2)] hover:scale-[1.01] transition-all duration-200 ${SWIPE_ITEM} cursor-pointer`}
     >
       <div className="flex items-center gap-2 mb-2">
         <Icon className={`w-4 h-4 ${accent}`} />
@@ -82,7 +88,7 @@ export default function PlayerHighlights({ afcData, nfcData, afcSeason, nfcSeaso
   };
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+    <div className={`${SWIPE_ROW} sm:grid-cols-2 lg:grid-cols-4`}>
       <PlayerCard
         icon={Target} label="Highest Projected" entry={highestProjected} playersDB={playersDB}
         value={highestProjected ? `${highestProjected.projected.toFixed(2)} proj` : ""}

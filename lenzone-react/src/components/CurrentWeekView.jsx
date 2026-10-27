@@ -7,8 +7,8 @@ import PlayerHighlights from './PlayerHighlights';
 import MyPlayerHighlights from './MyPlayerHighlights';
 import ManagerMatchupRow from './ManagerMatchupRow';
 import NflGamesPanel from './NflGamesPanel';
-import WeeklyScoresBarChart from './WeeklyScoresBarChart';
 import YourPlayerNews from './YourPlayerNews';
+import { STANDINGS_PTS } from '../lib/terms';
 
 function SectionTitle({ children, right }) {
   return (
@@ -19,15 +19,29 @@ function SectionTitle({ children, right }) {
   );
 }
 
-// My Week, top to bottom: your matchup, your player news, player trophies (yours or the league's),
-// the league's weekly highlights, the whole-league scores chart, and the NFL games with your
+// "Won both · +3 LP" once both of your games are final; nothing while either is still to be decided.
+// An in-conference game is worth 2 LP, a cross-conference game 1 (half for a tie).
+function summarizeWeek(intra, inter) {
+  const games = [[intra, 2], [inter, 1]].filter(([g]) => g);
+  if (!games.length || games.some(([g]) => !g.isFinal || g.myScore == null || g.oppScore == null)) return null;
+  let wins = 0, losses = 0, lp = 0;
+  games.forEach(([g, worth]) => {
+    if (g.myScore > g.oppScore) { wins++; lp += worth; }
+    else if (g.myScore < g.oppScore) losses++;
+    else lp += worth / 2;
+  });
+  const both = games.length === 2;
+  const record = both && wins === 2 ? "Won both" : both && losses === 2 ? "Lost both" : `${wins}-${losses}${wins + losses < games.length ? "-1" : ""}`;
+  return `${record} · +${lp} ${STANDINGS_PTS.short}`;
+}
+
+// My Week, top to bottom: your two matchups and your player news, player
+// trophies (yours or the league's), the league's weekly highlights, and the NFL games with your
 // players in them.
 export default function CurrentWeekView({
   onGoToMatchup, selectedWeek, onSelectWeek, currentNflWeek, seasonWeeks, isWeekFinal, weeklyAwards, nflGames, myTeamNflTeams,
   myTeamManager, myTeamIntra, myTeamInter, myTeamConf, myTeamRoster, myTeamConfData, myTeamFallbackField, myTeamPlayersPoints,
   playersDB, weekProjections, byTeamWeek, afcSlots, nfcSlots, afcData, nfcData, afcSeason, nfcSeason,
-  afcManagers, nfcManagers, schedule, logoMap,
-  projectedScoreByManager, pregameScoreByManager,
   weekBigPlays, waiverWireMvp,
   myPlayerNotes, myPlayerHeadlines, onRefreshPlayerNews
 }) {
@@ -51,74 +65,62 @@ export default function CurrentWeekView({
     return map;
   }, [myTeamRoster, playersDB, myTeamPlayersPoints, weekProjections, myTeamConfData, myTeamFallbackField]);
   const scope = myTeamManager ? trophyScope : 'league';
+  const weekResult = summarizeWeek(myTeamIntra, myTeamInter);
 
   return (
-    <div className="space-y-10 max-w-7xl mx-auto w-full">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          <label htmlFor="my-week-select" className="tracking-wider text-xs uppercase font-semibold text-[var(--muted)]">Week</label>
+    <div className="space-y-8 max-w-7xl mx-auto w-full">
+      {/* Your own two games come first, under one header that also holds the week picker. */}
+      <section className="space-y-3 w-full">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0" style={{ perspective: '500px' }}>
+            {myTeamManager && logoUrl && (
+              <Zoomable key={myTeamManager} src={logoUrl} alt={myTeamManager} className="coin-flip w-12 h-12 rounded-full object-cover border-2 border-[var(--accent)]/60 shrink-0" />
+            )}
+            <div className="min-w-0">
+              <h2 className="tracking-wider text-xs uppercase font-semibold text-[var(--muted)]">Your Matchups</h2>
+              {weekResult && <p className="text-sm font-bold text-[var(--text)] whitespace-nowrap">{weekResult}</p>}
+            </div>
+          </div>
           <select
             id="my-week-select"
+            aria-label="Week"
             value={selectedWeek}
             onChange={(e) => onSelectWeek(Number(e.target.value))}
-            className="bg-[var(--bg)] border border-[var(--border)]/80 text-sm font-bold rounded-lg px-3 py-2 text-[var(--text)]"
+            className="bg-[var(--bg)] border border-[var(--border)]/80 text-sm font-bold rounded-lg px-3 py-2 text-[var(--text)] shrink-0"
           >
             {Array.from({ length: seasonWeeks }, (_, i) => i + 1).map(w => (
-              <option key={w} value={w}>Week {w}{w === currentNflWeek ? " (current)" : ""}</option>
+              <option key={w} value={w}>Week {w}{w === currentNflWeek ? " (now)" : ""}</option>
             ))}
           </select>
         </div>
-      </div>
 
-      {/* You vs. your two opponents (then everyone else) -- the first thing on My Week. */}
-      {myTeamManager && (
-        <WeeklyScoresBarChart
-          afcManagers={afcManagers} nfcManagers={nfcManagers} afcSeason={afcSeason} nfcSeason={nfcSeason}
-          schedule={schedule} week={selectedWeek} logoMap={logoMap}
-          afcData={afcData} nfcData={nfcData} playersDB={playersDB}
-          projectedScores={projectedScoreByManager} pregameScores={pregameScoreByManager} isWeekFinal={isWeekFinal}
-          focusManager={myTeamManager}
-          focusOpponents={[myTeamIntra?.opponent, myTeamInter?.opponent].filter(Boolean)}
-        />
-      )}
-
-      {!myTeamManager && (
-        <div className="bg-[var(--surface)]/60 border border-[var(--border)] rounded-xl p-4 text-sm text-[var(--text2)]">
-          Pick your team at the top of the page to see your matchup here.
-        </div>
-      )}
-
-      {myTeamManager && (
-        <section className="space-y-3 w-full">
-          <SectionTitle
-            right={(
+        {myTeamManager ? (
+          <>
+            <ManagerMatchupRow
+              manager={myTeamManager} conf={myTeamConf} intra={myTeamIntra} inter={myTeamInter}
+              afcSlots={afcSlots} nfcSlots={nfcSlots} playersDB={playersDB}
+              weekProjections={weekProjections} byTeamWeek={byTeamWeek} week={selectedWeek}
+              hideHeader
+            />
+            <div className="flex justify-end">
               <button
                 type="button"
                 onClick={() => onGoToMatchup(myTeamManager)}
-                className="text-sm font-semibold text-[var(--accent)] hover:text-[var(--accent-ink)] shrink-0"
+                className="text-sm font-semibold text-[var(--accent)] hover:text-[var(--accent-ink)]"
               >
-                All matchups &rarr;
+                See every matchup &rarr;
               </button>
-            )}
-          >
-            <span className="inline-flex items-center gap-3" style={{ perspective: '500px' }}>
-              {logoUrl && (
-                <Zoomable key={myTeamManager} src={logoUrl} alt={myTeamManager} className="coin-flip w-12 h-12 rounded-full object-cover border-2 border-[var(--accent)]/60 shrink-0" />
-              )}
-              Your Matchup
-            </span>
-          </SectionTitle>
-          <ManagerMatchupRow
-            manager={myTeamManager} conf={myTeamConf} intra={myTeamIntra} inter={myTeamInter}
-            afcSlots={afcSlots} nfcSlots={nfcSlots} playersDB={playersDB}
-            weekProjections={weekProjections} byTeamWeek={byTeamWeek} week={selectedWeek}
-            hideHeader
-          />
-          <YourPlayerNews
-            manager={myTeamManager} notes={myPlayerNotes} headlines={myPlayerHeadlines} onRefresh={onRefreshPlayerNews}
-          />
-        </section>
-      )}
+            </div>
+            <YourPlayerNews
+              manager={myTeamManager} notes={myPlayerNotes} headlines={myPlayerHeadlines} onRefresh={onRefreshPlayerNews}
+            />
+          </>
+        ) : (
+          <div className="bg-[var(--surface)]/60 border border-[var(--border)] rounded-xl p-4 text-sm text-[var(--text2)]">
+            Pick your team at the top of the page to see your matchups here.
+          </div>
+        )}
+      </section>
 
       <section className="space-y-3">
         <SectionTitle

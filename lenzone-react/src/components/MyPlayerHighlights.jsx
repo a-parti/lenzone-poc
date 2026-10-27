@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { TrendingUp, Rocket, Skull, Target, Users, Zap, Footprints, Goal } from 'lucide-react';
 import { computeMyPlayerHighlights, playerLabel, findMyBigPlay } from '../lib/players';
 import { usePlayerModal } from '../context/PlayerModalContext';
-import { PlayerCard, signed, ActualVsProjected } from './PlayerHighlights';
+import { PlayerCard, signed, ActualVsProjected, SWIPE_ROW, SWIPE_ITEM } from './PlayerHighlights';
 
 function MyBigPlayCard({ icon: Icon, label, play, accent, onClick }) {
   if (!play) return null;
@@ -10,7 +10,7 @@ function MyBigPlayCard({ icon: Icon, label, play, accent, onClick }) {
     <div
       role="button" tabIndex={0} onClick={onClick}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(); } }}
-      className="text-left bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-4 hover:border-[var(--border2)] hover:scale-[1.01] transition-all duration-200 w-full cursor-pointer"
+      className={`text-left bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-4 hover:border-[var(--border2)] hover:scale-[1.01] transition-all duration-200 ${SWIPE_ITEM} cursor-pointer`}
     >
       <div className="flex items-center gap-2 mb-2">
         <Icon className={`w-4 h-4 ${accent}`} />
@@ -71,7 +71,7 @@ export default function MyPlayerHighlights({
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className={`${SWIPE_ROW} sm:grid-cols-2 lg:grid-cols-4`}>
         <PlayerCard
           icon={Target} label="Highest Projected" entry={highestProjected} playersDB={playersDB}
           value={highestProjected ? `${highestProjected.projected.toFixed(2)} proj` : ""}
@@ -106,7 +106,7 @@ export default function MyPlayerHighlights({
           <button
             type="button"
             onClick={() => onSelectGame?.({ home: busiest.game.home, away: busiest.game.away })}
-            className="text-left bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-4 hover:border-[var(--border2)] hover:scale-[1.01] transition-all duration-200 w-full"
+            className={`text-left bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-4 hover:border-[var(--border2)] hover:scale-[1.01] transition-all duration-200 ${SWIPE_ITEM}`}
           >
             <div className="flex items-center gap-2 mb-2">
               <Users className="w-4 h-4 text-[var(--accent)]" />

@@ -12,16 +12,15 @@ function MyPlayersLine({ team, players, isLive }) {
         const ptsColor = hasActual ? SCORE_COLOR[scoreState({ hasActual: true, isLive, actual: p.realPts, projected: p.projPts })] : "text-[var(--proj)]";
         return (
           <React.Fragment key={p.playerId}>
-            <span className={`inline-flex items-center gap-1 ${p.isBench ? "opacity-60" : ""}`}>
+            <span className={`inline-flex items-center gap-1 whitespace-nowrap ${p.isBench ? "opacity-60" : ""}`}>
               {p.isBench && (
                 <span className="text-[9px] font-bold uppercase px-1 rounded bg-[var(--surface2)] text-[var(--muted)] border border-[var(--border)]">Bench</span>
               )}
               <PlayerNameButton playerId={p.playerId} name={p.name} position={p.position} className={`font-bold ${p.isBench ? "text-[var(--text2)]" : "text-[var(--accent)]"}`} />
-              <span className="text-[var(--muted)]">({p.position}{p.number != null ? ` - #${p.number}` : ""} - </span>
+              <span className="text-[var(--muted)]">{p.position}</span>
               {(hasActual || p.projPts != null) && (
                 <span className={`font-semibold ${ptsColor}`}>{hasActual ? p.realPts.toFixed(2) : `${p.projPts.toFixed(2)} proj`}</span>
               )}
-              <span className="text-[var(--muted)]">)</span>
               <InjuryBadge status={p.injuryStatus} />
             </span>
             {i < players.length - 1 && <span className="text-[var(--muted)]">&middot;</span>}
@@ -90,7 +89,7 @@ export default function NflGamesPanel({ games, week, myTeamNflTeams, myPlayersBy
     return !g.kickoff || new Date(g.kickoff).getTime() >= now;
   });
   return (
-    <div className="bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)] rounded-2xl p-6">
+    <div className="bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)] rounded-2xl p-4 sm:p-6">
       <div className="flex items-center justify-between mb-1">
         <p className="tracking-wider text-xs uppercase font-semibold text-[var(--muted)]">NFL Games &middot; Week {week}</p>
         {selectedGames?.length > 0 && (
@@ -126,7 +125,7 @@ export default function NflGamesPanel({ games, week, myTeamNflTeams, myPlayersBy
               tabIndex={onToggleGame ? 0 : undefined}
               onClick={onToggleGame ? () => onToggleGame({ home: g.home, away: g.away }) : undefined}
               onKeyDown={onToggleGame ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggleGame({ home: g.home, away: g.away }); } } : undefined}
-              className={`rounded-xl px-4 py-3 border-2 transition-all duration-150 ${onToggleGame ? "cursor-pointer" : ""} ${
+              className={`rounded-xl px-3 sm:px-4 py-3 border-2 transition-all duration-150 ${onToggleGame ? "cursor-pointer" : ""} ${
                 // A game with one of your players gets a different color per status -- amber while
                 // it's actually live (most urgent), accent while it just hasn't kicked off yet, a
                 // plain neutral surface once it's final (nothing left to watch there) -- so glancing
@@ -147,18 +146,18 @@ export default function NflGamesPanel({ games, week, myTeamNflTeams, myPlayersBy
               }`}
             >
               <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-sm">
-                <div className="flex items-center gap-1 min-w-0 flex-wrap" onClick={(e) => e.stopPropagation()}>
-                  <NflTeamLogo team={g.away} />
+                <div className="flex items-center gap-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+                  <NflTeamLogo team={g.away} logoSize="w-7 h-7 sm:w-9 sm:h-9" />
                   {awayCount > 0 && (
                     <span className="text-xs font-semibold text-[var(--accent)] shrink-0" title={`${awayCount} of your players are on ${g.away}`}>
-                      {compactCounts ? `(${awayCount})` : `(${awayCount} of yours)`}
+                      {compactCounts ? `(${awayCount})` : <>({awayCount}<span className="hidden sm:inline"> of yours</span>)</>}
                     </span>
                   )}
                   <span className="text-[var(--muted)] shrink-0 text-xs">@</span>
-                  <NflTeamLogo team={g.home} />
+                  <NflTeamLogo team={g.home} logoSize="w-7 h-7 sm:w-9 sm:h-9" />
                   {homeCount > 0 && (
                     <span className="text-xs font-semibold text-[var(--accent)] shrink-0" title={`${homeCount} of your players are on ${g.home}`}>
-                      {compactCounts ? `(${homeCount})` : `(${homeCount} of yours)`}
+                      {compactCounts ? `(${homeCount})` : <>({homeCount}<span className="hidden sm:inline"> of yours</span>)</>}
                     </span>
                   )}
                 </div>
@@ -181,7 +180,7 @@ export default function NflGamesPanel({ games, week, myTeamNflTeams, myPlayersBy
                 </div>
               </div>
               {(awayPlayers?.length > 0 || homePlayers?.length > 0) && (
-                <div className="mt-1.5 pl-11 space-y-0.5" onClick={(e) => e.stopPropagation()}>
+                <div className="mt-1.5 sm:pl-11 space-y-0.5" onClick={(e) => e.stopPropagation()}>
                   {awayPlayers?.length > 0 && <MyPlayersLine team={g.away} players={awayPlayers} isLive={isLive} />}
                   {homePlayers?.length > 0 && <MyPlayersLine team={g.home} players={homePlayers} isLive={isLive} />}
                 </div>

@@ -1809,8 +1809,6 @@ export default function App() {
             byTeamWeek={enrichedByTeamWeek}
             afcSlots={afcData.startingSlots || []} nfcSlots={nfcData.startingSlots || []}
             afcData={afcData} nfcData={nfcData} afcSeason={afcSeason} nfcSeason={nfcSeason}
-            afcManagers={afcManagers} nfcManagers={nfcManagers} schedule={schedule} logoMap={teamLogoMap} hexColorMap={teamHexColorMap}
-            projectedScoreByManager={projectedScoreByManager} pregameScoreByManager={pregameScoreByManager}
             weekBigPlays={weekBigPlays} waiverWireMvp={waiverWireMvp}
             myPlayerNotes={myPlayerNotes} myPlayerHeadlines={myPlayerHeadlines}
             onRefreshPlayerNews={() => Promise.all([refreshHeadlines(), refreshPlayerNotes()])}

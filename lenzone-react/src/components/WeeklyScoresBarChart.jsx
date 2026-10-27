@@ -723,7 +723,7 @@ export default function WeeklyScoresBarChart({ afcManagers, nfcManagers, afcSeas
           className="min-w-0 tracking-wide text-base text-[var(--text)]"
           style={{ fontFamily: SERIF_FONT, fontWeight: 700 }}
         >
-          Week {week} Scores {focusManager ? (showEveryoneElse ? "-- You, Your Opponents & Everyone Else" : "-- You & Your Opponents") : "-- All Teams"}
+          Week {week} Scores
           <span className="ml-2 text-xs font-bold uppercase tracking-wide text-[var(--proj)]">{reportCard ? "Final" : scoreTypeLabel}</span>
         </p>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">

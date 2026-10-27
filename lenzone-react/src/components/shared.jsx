@@ -205,6 +205,7 @@ export function TeamPicker({ afcManagers, nfcManagers, value, onChange, prefix =
       <div className={isBlend ? "relative inline-block" : "contents"}>
         <select
           value={value || ""}
+          aria-label={prefix ? undefined : "Pick your team"}
           onChange={(e) => onChange?.(e.target.value || null)}
           className={
             isBlend

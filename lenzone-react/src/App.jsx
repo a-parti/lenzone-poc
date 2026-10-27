@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
-import { Trophy, Swords, Megaphone, RefreshCw, X, Activity, ListOrdered, Users, Calendar, Search, GitBranch, Copy, Check } from 'lucide-react';
+import { Trophy, Swords, Megaphone, RefreshCw, X, Activity, ListOrdered, Users, Calendar, Search, GitBranch, Copy, Check, Info } from 'lucide-react';
 import AnimatedLogo from './components/AnimatedLogo';
 import { CONF_STYLES } from './lib/theme';
 import {
@@ -27,6 +27,7 @@ import HomeView from './components/HomeView';
 import WeeklyScoresBarChart from './components/WeeklyScoresBarChart';
 import CurrentWeekView from './components/CurrentWeekView';
 import CommandPalette from './components/CommandPalette';
+import WeekGames from './components/WeekGames';
 import GrabbableFootball from './components/GrabbableFootball';
 import DancingStickmen from './components/DancingStickmen';
 import SettingsMenu, { ModeToggle } from './components/SettingsMenu';
@@ -216,9 +217,9 @@ function NextOpponents({ next, conf }) {
   );
 }
 
-// Shared column template for the compact phone standings header and rows: rank, team, LP, odds.
-// (Seed, record and last-3 chips ride on the team cell's second line to leave room for names.)
-const MOBILE_STANDINGS_GRID = 'grid grid-cols-[1rem_minmax(0,1fr)_2.5rem_4rem] items-center gap-x-2 px-3';
+// Shared column template for the compact standings (phones, and the side-by-side conference view):
+// one line per team -- rank, team, record (from sm up), LP, odds.
+const MOBILE_STANDINGS_GRID = 'grid grid-cols-[1.25rem_minmax(0,1fr)_2.75rem_4.25rem] sm:grid-cols-[1.25rem_minmax(0,1fr)_3.5rem_3rem_5.5rem] items-center gap-x-2 px-3';
 
 const FORM_RESULT_STYLE = {
   W: 'bg-[var(--pos)]/15 text-[var(--pos)]',
@@ -228,7 +229,7 @@ const FORM_RESULT_STYLE = {
 
 // Last 3 weeks: in-conference W/L chips, then points per game over that stretch with the change
 // vs. the team's own season average (only colored when it's a swing of 5+ points).
-function RecentForm({ form, compact = false }) {
+function RecentForm({ form }) {
   if (!form) return <span className="text-[var(--muted)]">—</span>;
   const { recent, recentAvg, seasonAvg, delta } = form;
   const trendColor = delta >= 5 ? 'text-[var(--pos)]' : delta <= -5 ? 'text-[var(--neg)]' : 'text-[var(--muted)]';
@@ -240,11 +241,9 @@ function RecentForm({ form, compact = false }) {
           <span key={r.week} className={`inline-flex w-4 h-4 items-center justify-center rounded text-[10px] font-bold ${FORM_RESULT_STYLE[r.result] || FORM_RESULT_STYLE.T}`}>{r.result || '–'}</span>
         ))}
       </div>
-      {!compact && (
-        <div className="text-[11px] text-[var(--muted)]">
-          {recentAvg.toFixed(1)}/gm <span className={`font-bold ${trendColor}`}>{delta >= 0 ? '▲' : '▼'}{Math.abs(delta).toFixed(1)}</span>
-        </div>
-      )}
+      <div className="text-[11px] text-[var(--muted)]">
+        {recentAvg.toFixed(1)}/gm <span className={`font-bold ${trendColor}`}>{delta >= 0 ? '▲' : '▼'}{Math.abs(delta).toFixed(1)}</span>
+      </div>
     </div>
   );
 }
@@ -301,17 +300,6 @@ function SeedPill({ postseason }) {
   );
 }
 
-// Seed number only, in the same status colors as SeedPill -- for the compact mobile standings.
-function SeedBadge({ postseason }) {
-  if (!postseason) return null;
-  const pill = SEED_PILL[postseason.status] || SEED_PILL.TOILET_BOWL;
-  return (
-    <span title={`#${postseason.seed} ${pill.label}`} className={`inline-flex items-center rounded border px-1 text-[10px] font-bold leading-4 ${pill.className}`}>
-      #{postseason.seed}
-    </span>
-  );
-}
-
 // Seed 6 is a points race, not a record race -- the part of the format people find least obvious.
 // Lists the teams outside the top 5 by total points scored, with each one's gap to the spot.
 function WildcardRace({ rows, conf, latestCompletedWeek }) {
@@ -350,44 +338,48 @@ function WildcardRace({ rows, conf, latestCompletedWeek }) {
   );
 }
 
-// Plain-language rules for the standings page, collapsed by default so it never crowds the table.
+// Plain-language rules for the standings page, opened from the toolbar's "How it works" button.
 // Every rule here mirrors the code that computes it (LP in buildConferenceList, seeding in
 // buildPostseasonSeeds, odds in simulateCombinedPlayoffOdds) and the league charter.
-function StandingsExplainer() {
+function StandingsRules() {
   return (
-    <details className="group bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 shadow-sm">
-      <summary className="cursor-pointer list-none flex items-center justify-between gap-2 text-sm font-bold">
-        How the standings work
-        <span className="text-xs font-semibold text-[var(--muted)] group-open:hidden">Show</span>
-        <span className="text-xs font-semibold text-[var(--muted)] hidden group-open:inline">Hide</span>
-      </summary>
-      <ul className="mt-3 space-y-2 text-sm text-[var(--text2)] list-disc pl-5">
+    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 shadow-sm">
+      <ul className="space-y-2 text-sm text-[var(--text2)] list-disc pl-5">
         <li><b className="text-[var(--text)]">Every week your one score plays two games:</b> one against a team in your conference (a win is worth 2 {STANDINGS_PTS.short}) and one against a team in the other conference (a win is worth 1 {STANDINGS_PTS.short}). Ties are worth half.</li>
         <li><b className="text-[var(--text)]">6 of 12 teams in each conference make the playoffs.</b> Seeds 1–5 go to the most {STANDINGS_PTS.short} (total points breaks ties). Seed 6, the wild card, goes to whoever has scored the most total points among everyone else.</li>
         <li><b className="text-[var(--text)]">Seeds 1 and 2 get a first-round bye.</b> Everyone outside the top 6 plays in the Toilet Bowl.</li>
         <li><b className="text-[var(--text)]">Playoff odds</b> play out the rest of the season 2,500 times using each team's scoring so far: Strong Favorite (85%+), Good Shape (65%+), On the Bubble (40%+), Underdog (15%+), Long Shot (below that). Clinched means locked in. On a computer, hover a label for the exact number.</li>
       </ul>
-    </details>
+    </div>
   );
 }
 
-function StandingsScopeToggle({ scope, onChange, target }) {
+function PillToggle({ label, options, value, onChange, className = "" }) {
   return (
-    <div role="group" aria-label="Standings view" className="inline-flex rounded-full border border-[var(--border2)] bg-[var(--surface)] p-0.5">
-      {[["conference", "By conference"], ["league", "Whole league"]].map(([key, label]) => (
-        <button key={key} type="button" aria-pressed={scope === key} onClick={() => onChange(key, target)}
-          className={`rounded-full px-3 py-1 text-xs font-bold transition-colors ${scope === key ? "bg-[var(--accent)] text-[var(--accent-text)]" : "text-[var(--text2)] hover:text-[var(--text)]"}`}>
-          {label}
+    <div role="group" aria-label={label} className={`inline-flex rounded-full border border-[var(--border2)] bg-[var(--surface)] p-0.5 ${className}`}>
+      {options.map(([key, text]) => (
+        <button key={key} type="button" aria-pressed={value === key} onClick={() => onChange(key)}
+          className={`rounded-full px-3 py-1 text-xs font-bold transition-colors ${value === key ? "bg-[var(--accent)] text-[var(--accent-text)]" : "text-[var(--text2)] hover:text-[var(--text)]"}`}>
+          {text}
         </button>
       ))}
     </div>
   );
 }
 
-function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek, headerExtra = null }) {
+function StandingsScopeToggle({ scope, onChange, target }) {
+  return (
+    <PillToggle label="Standings view" options={[["conference", "By conference"], ["league", "Whole league"]]}
+      value={scope} onChange={(key) => onChange(key, target)} />
+  );
+}
+
+// `compact` shows the one-line-per-team layout at every width (the side-by-side AFC/NFC view);
+// otherwise desktop gets the full stat table and phones the compact rows.
+function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek, headerExtra = null, compact = false }) {
   const whole = conf == null;
   const exportRef = useRef(null);
-  const imageExport = useElementPngExport(exportRef, `lenzone-standings-table-${whole ? 'league' : conf.toLowerCase()}`, { minWidth: 1100 });
+  const imageExport = useElementPngExport(exportRef, `lenzone-standings-table-${whole ? 'league' : conf.toLowerCase()}`, { minWidth: compact ? 560 : 1100 });
   const styleFor = (item) => CONF_STYLES[item.conf] || CONF_STYLES[conf];
   // Whole-league rank is by LP, then PF; seeds still come from each team's own conference.
   const { mode: nameDisplayMode } = useNameDisplay();
@@ -418,7 +410,7 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek, hea
       <div className="px-4 py-3 border-b border-[var(--border)] flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           {!whole && <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${CONF_STYLES[conf].badge}`}>{conf}</span>}
-          <span className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)]">{whole ? 'League Standings' : 'Conference Standings'}</span>
+          <span className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)]">{whole ? 'League Standings' : compact ? 'Standings' : 'Conference Standings'}</span>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <div data-export-ignore="true" className="flex flex-wrap items-center gap-2">
@@ -439,7 +431,7 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek, hea
         </div>
       </div>
 
-      <div className="hidden md:block overflow-x-auto">
+      {!compact && <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-left text-sm font-medium text-[var(--text)] [&_th]:px-3 [&_td]:px-3 [&_td]:py-2.5">
           <thead className="bg-[var(--surface2)] text-[11px] text-[var(--text2)] border-b border-[var(--border)]">
             <tr>
@@ -485,14 +477,14 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek, hea
             })}
           </tbody>
         </table>
-      </div>
+      </div>}
 
-      {/* Compact phone standings: one short row per team so the whole conference fits on screen.
+      {/* Compact standings: one short row per team so the whole conference fits on screen.
           Tap a team for its roster; the full stat columns stay on the desktop table. */}
-      <div className="md:hidden text-sm">
+      <div className={`${compact ? '' : 'md:hidden'} text-sm`}>
         <div className={`${MOBILE_STANDINGS_GRID} bg-[var(--surface2)] border-b border-[var(--border)] py-2 text-[10px] uppercase font-semibold text-[var(--text2)]`}>
-          {[['#', 'rank'], [nameDisplayMode === 'teams' ? 'Team' : 'Manager', 'manager'], [STANDINGS_PTS.short, 'totalPts'], ['Odds', 'playoffPct']].map(([label, key], i) => (
-            <button key={key} type="button" onClick={() => handleSort(key)} className={`font-semibold uppercase ${i >= 2 ? 'text-right' : 'text-left'} ${sortKey === key ? 'text-[var(--text)]' : ''}`}>
+          {[['#', 'rank'], [nameDisplayMode === 'teams' ? 'Team' : 'Manager', 'manager'], ['Record', 'overall', 'hidden sm:block'], [STANDINGS_PTS.short, 'totalPts'], ['Odds', 'playoffPct']].map(([label, key, extra = ''], i) => (
+            <button key={key} type="button" onClick={() => handleSort(key)} className={`font-semibold uppercase ${extra} ${i >= 2 ? 'text-right' : 'text-left'} ${sortKey === key ? 'text-[var(--text)]' : ''}`}>
               {label}{sortKey === key && <span className="ml-0.5">{sortDir === 'desc' ? '▼' : '▲'}</span>}
             </button>
           ))}
@@ -502,19 +494,14 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek, hea
           const postseason = postseasonByManager.get(item.manager);
           const style = styleFor(item);
           return (
-          <div key={item.manager} className={`${MOBILE_STANDINGS_GRID} py-2 border-l-2 ${style.border} ${postseason?.seed <= 6 ? 'standings-playoff-team' : ''}`}>
+          <div key={item.manager} className={`${MOBILE_STANDINGS_GRID} py-2.5 border-l-2 ${style.border} ${postseason?.seed <= 6 ? 'standings-playoff-team' : ''}`}
+            title={postseason ? `#${postseason.seed} seed today` : undefined}>
             <span className="font-bold text-[var(--text2)] tabular-nums">{item.rank}</span>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1 min-w-0">
-                <TeamName manager={item.manager} conf={item.conf} className="font-semibold text-[13px]" />
-                {whole && <span className={`shrink-0 text-[9px] font-bold px-1 rounded-full ${style.badge}`}>{item.conf}</span>}
-              </div>
-              <div className="flex items-center gap-1.5 mt-0.5 text-[11px] whitespace-nowrap overflow-hidden">
-                <SeedBadge postseason={postseason} />
-                <span className="font-semibold text-[var(--text2)] tabular-nums">{item.overallRecord}</span>
-                <RecentForm form={item.form} compact />
-              </div>
+            <div className="flex items-center gap-1 min-w-0">
+              <TeamName manager={item.manager} conf={item.conf} className="font-semibold text-[13px]" />
+              {whole && <span className={`shrink-0 text-[9px] font-bold px-1 rounded-full ${style.badge}`}>{item.conf}</span>}
             </div>
+            <span className="hidden sm:block text-right tabular-nums font-semibold text-[var(--text2)]">{item.overallRecord}</span>
             <span className={`text-right font-extrabold tabular-nums ${style.text}`}>{item.totalPts.toFixed(1)}</span>
             <PlayoffOddsCell item={item} compact />
           </div>
@@ -744,6 +731,17 @@ export default function App() {
     try { localStorage.setItem('lenzone_standings_scope', scope); } catch { /* per-viewer convenience only */ }
   };
   const [standingsView, setStandingsView] = useState(() => rawTabFromHash() === "playoffs" ? "playoffs" : "overview");
+  // By-conference standings: AFC and NFC side by side as compact tables, or the full stat tables.
+  const [standingsDetail, setStandingsDetail] = useState(() => {
+    try { return localStorage.getItem('lenzone_standings_detail') === 'full' ? 'full' : 'compact'; } catch { return 'compact'; }
+  });
+  const chooseStandingsDetail = (detail) => {
+    setStandingsDetail(detail);
+    try { localStorage.setItem('lenzone_standings_detail', detail); } catch { /* per-viewer convenience only */ }
+  };
+  // Below lg only one conference shows at a time; null means "your conference" (AFC if none).
+  const [standingsConfPick, setStandingsConfPick] = useState(null);
+  const [showStandingsRules, setShowStandingsRules] = useState(false);
   // Back/forward browser navigation updates both the page and the bracket mode.
   useEffect(() => {
     const handler = () => {
@@ -1176,6 +1174,7 @@ export default function App() {
   const nfcManagers = nfcData.rosters.length > 0 ? nfcData.rosters.map(r => r.manager) : NFC_DEFAULT;
   const myTeamConf = myTeamManager && afcManagers.includes(myTeamManager) ? "AFC" : myTeamManager && nfcManagers.includes(myTeamManager) ? "NFC" : null;
   const resolvedMyTeamManager = myTeamConf ? myTeamManager : null;
+  const standingsConf = standingsConfPick || myTeamConf || "AFC";
   // Playoff mode: once the regular season is over, your conference's color becomes the site accent
   // (see the end of index.css).
   const inPlayoffs = latestCompletedWeek >= SEASON_WEEKS;
@@ -1670,35 +1669,44 @@ export default function App() {
           manager, conf, schedule.filter(m => m.week === week), afcSeason, nfcSeason, allStats, week,
           afcData, nfcData, weekProjections, latestCompletedWeek, playersDB, enrichedByTeamWeek
         )}
-        afcSlots={afcData.startingSlots || []} nfcSlots={nfcData.startingSlots || []}
+        afcSlots={afcData.startingSlots || []} nfcSlots={nfcData.startingSlots || []} standings={standingByManager}
         playersDB={playersDB} weekProjections={weekProjections} byTeamWeek={enrichedByTeamWeek}
         onOpenFullMatchup={goToMatchup}
       />
 
       {/* Header Banner -- hidden on Home, which is deliberately just the "I am" picker + radial menu */}
       {activeTab !== "home" && (
-        <header className="relative z-40 max-w-7xl mx-auto bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-2xl px-5 py-3 mb-8 shadow-xl">
-          <div ref={headerRowRef} className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <div className="group flex items-center gap-2.5 shrink-0">
-              <AnimatedLogo sizeClass="w-16 h-16 sm:w-[4.5rem] sm:h-[4.5rem]" onClick={() => setActiveTab("home")} />
+        <header className="relative z-40 max-w-7xl mx-auto bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-2xl px-3 sm:px-5 py-2 sm:py-3 mb-6 sm:mb-8 shadow-xl">
+          <div ref={headerRowRef} className="flex items-center gap-x-3 sm:gap-x-4">
+            <div className="group flex items-center gap-2 sm:gap-2.5 shrink-0">
+              <AnimatedLogo sizeClass="w-9 h-9 sm:w-[4.5rem] sm:h-[4.5rem]" onClick={() => setActiveTab("home")} />
               <button type="button" onClick={() => setActiveTab("home")} className="text-left">
-                <h1 className="lenzone-title font-display text-2xl sm:text-[1.75rem] font-extrabold tracking-tight bg-clip-text text-transparent">
+                <h1 className="lenzone-title font-display text-base min-[400px]:text-lg sm:text-[1.75rem] font-extrabold tracking-tight bg-clip-text text-transparent">
                   LENZONE 2026
                 </h1>
               </button>
             </div>
             {isAdmin && (
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/25 uppercase tracking-wider shrink-0">
+              <span className="hidden sm:inline text-[11px] font-bold px-2 py-0.5 rounded-full bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/25 uppercase tracking-wider shrink-0">
                 Admin
               </span>
             )}
 
-            {/* Header is just: logo, "I am" picker, search, settings. Everything else lives in the
-                settings menu so this stays one row on a phone. */}
-            <div className="flex items-center gap-2 ml-auto min-w-0">
-              {resolvedMyTeamManager && <TeamMiniLogo manager={resolvedMyTeamManager} size={36} ringColor="var(--accent)" className="hidden sm:inline-block" />}
+            {/* Header is just: logo, "I am" picker, search, settings -- one row, phones included.
+                On a phone the picker is your team's logo: tapping it opens the same team list (an
+                invisible select laid over it). Light/dark lives in the settings menu there. */}
+            <div className="flex items-center gap-1.5 sm:gap-2 ml-auto min-w-0">
+              {resolvedMyTeamManager && <span className="hidden sm:inline-flex"><TeamMiniLogo manager={resolvedMyTeamManager} size={36} ringColor="var(--accent)" /></span>}
               <div className="hidden sm:block min-w-0">
                 <TeamPicker afcManagers={afcManagers} nfcManagers={nfcManagers} value={myTeamManager} onChange={chooseMyTeam} />
+              </div>
+              <div className="sm:hidden relative w-10 h-10 shrink-0 grid place-items-center" title="Pick your team">
+                {resolvedMyTeamManager
+                  ? <TeamMiniLogo manager={resolvedMyTeamManager} size={34} ringColor="var(--accent)" />
+                  : <span className="grid place-items-center w-10 h-10 rounded-lg bg-[var(--surface2)] text-[var(--text2)]"><Users className="w-5 h-5" /></span>}
+                <div className="absolute inset-0 opacity-0 [&>div]:w-full [&>div]:h-full [&_select]:w-full [&_select]:h-full [&_select]:max-w-none">
+                  <TeamPicker afcManagers={afcManagers} nfcManagers={nfcManagers} value={myTeamManager} onChange={chooseMyTeam} prefix={null} />
+                </div>
               </div>
               <button
                 type="button" onClick={() => setCommandPaletteOpen(true)}
@@ -1707,11 +1715,8 @@ export default function App() {
               >
                 <Search className="w-5 h-5" />
               </button>
-              <ModeToggle />
+              <div className="hidden sm:block"><ModeToggle /></div>
               {settingsMenu}
-            </div>
-            <div className="sm:hidden w-full">
-              <TeamPicker afcManagers={afcManagers} nfcManagers={nfcManagers} value={myTeamManager} onChange={chooseMyTeam} />
             </div>
           </div>
         </header>
@@ -1825,14 +1830,31 @@ export default function App() {
 
             {standingsView !== "playoffs" && (
               <>
-                {/* Reading order: the table people came for, the wild card race (the least obvious
-                    rule), then the chart; the rules explainer stays collapsed above. */}
-                <StandingsExplainer />
+                {/* One toolbar: scope, table detail (wider screens), which conference (narrower
+                    screens, one at a time), and the rules. Then the table, the wild card race (the
+                    least obvious rule) and the chart. */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <StandingsScopeToggle scope={standingsScope} onChange={chooseStandingsScope} target="table" />
+                  {standingsScope === "conference" && (
+                    <>
+                      <PillToggle label="Conference" className="lg:hidden" value={standingsConf} onChange={setStandingsConfPick}
+                        options={[["AFC", "AFC"], ["NFC", "NFC"]]} />
+                      <PillToggle label="Table detail" className="hidden md:inline-flex" value={standingsDetail} onChange={chooseStandingsDetail}
+                        options={[["compact", "Compact"], ["full", "Full table"]]} />
+                    </>
+                  )}
+                  <button
+                    type="button" onClick={() => setShowStandingsRules(v => !v)} aria-expanded={showStandingsRules}
+                    className="ml-auto inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-semibold text-[var(--text2)] hover:text-[var(--text)]"
+                  >
+                    <Info className="w-4 h-4" /> How it works
+                  </button>
+                </div>
+                {showStandingsRules && <StandingsRules />}
                 {standingsScope === "league" ? (
                   <section className="space-y-4">
                     <div data-standings-anchor="table" className="scroll-mt-24">
                     <StandingsTable conf={null}
-                      headerExtra={<StandingsScopeToggle scope={standingsScope} onChange={chooseStandingsScope} target="table" />}
                       rows={[...afcStandings, ...nfcStandings].sort((a, b) => b.totalPts - a.totalPts || b.pfAvg - a.pfAvg).map((row, i) => ({ ...row, rank: i + 1 }))}
                       afcData={afcData} nfcData={nfcData} latestCompletedWeek={latestCompletedWeek} />
                     </div>
@@ -1848,22 +1870,35 @@ export default function App() {
                       />
                     </div>
                   </section>
-                ) : ["AFC", "NFC"].map(conf => (
-                  <section key={conf} className="space-y-4">
-                    <div data-standings-anchor={conf === "AFC" ? "table" : undefined} className="scroll-mt-24">
-                      <StandingsTable conf={conf} rows={conf === "AFC" ? afcStandings : nfcStandings} afcData={afcData} nfcData={nfcData} latestCompletedWeek={latestCompletedWeek}
-                        headerExtra={<StandingsScopeToggle scope={standingsScope} onChange={chooseStandingsScope} target="table" />} />
+                ) : (
+                  <section className="space-y-4">
+                    <div data-standings-anchor="table" className={`scroll-mt-24 grid gap-4 ${standingsDetail === "compact" ? "lg:grid-cols-2" : ""}`}>
+                      {["AFC", "NFC"].map(conf => (
+                        <div key={conf} className={`min-w-0 ${conf === standingsConf ? "" : "hidden lg:block"}`}>
+                          <StandingsTable conf={conf} compact={standingsDetail === "compact"} rows={conf === "AFC" ? afcStandings : nfcStandings}
+                            afcData={afcData} nfcData={nfcData} latestCompletedWeek={latestCompletedWeek} />
+                        </div>
+                      ))}
                     </div>
-                    <WildcardRace rows={conf === "AFC" ? afcStandings : nfcStandings} conf={conf} latestCompletedWeek={latestCompletedWeek} />
-                    <div data-standings-anchor={conf === "AFC" ? "chart" : undefined} className="scroll-mt-24">
-                      <StandingsBarChart
-                        afcStandings={afcStandings} nfcStandings={nfcStandings} confFilter={conf}
-                        logoMap={teamLogoMap} mode="segregated"
-                        headerExtra={<StandingsScopeToggle scope={standingsScope} onChange={chooseStandingsScope} target="chart" />}
-                      />
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      {["AFC", "NFC"].map(conf => (
+                        <div key={conf} className={conf === standingsConf ? "" : "hidden lg:block"}>
+                          <WildcardRace rows={conf === "AFC" ? afcStandings : nfcStandings} conf={conf} latestCompletedWeek={latestCompletedWeek} />
+                        </div>
+                      ))}
                     </div>
+                    {["AFC", "NFC"].map(conf => (
+                      <div key={conf} data-standings-anchor={conf === standingsConf ? "chart" : undefined}
+                        className={`scroll-mt-24 ${conf === standingsConf ? "" : "hidden lg:block"}`}>
+                        <StandingsBarChart
+                          afcStandings={afcStandings} nfcStandings={nfcStandings} confFilter={conf}
+                          logoMap={teamLogoMap} mode="segregated"
+                          headerExtra={<StandingsScopeToggle scope={standingsScope} onChange={chooseStandingsScope} target="chart" />}
+                        />
+                      </div>
+                    ))}
                   </section>
-                ))}
+                )}
                 {/* The deeper stats stay one tap away so the page itself is just the standings. */}
                 <details className="group">
                   <summary className="cursor-pointer list-none flex items-center justify-between gap-2 bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 text-sm font-bold shadow-sm">
@@ -1903,7 +1938,7 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB: MATCHUPS -- the week's scores chart on top (tap a bar for that matchup), then the
+        {/* TAB: MATCHUPS -- the week's games (tap one for both lineups), the scores chart, then the
             full-season schedule grid, one per conference. */}
         {activeTab === "matchups" && (
           <div className="space-y-8 max-w-7xl mx-auto w-full">
@@ -1933,6 +1968,12 @@ export default function App() {
                 </div>
               )}
             </div>
+
+            <WeekGames
+              week={selectedWeek} afcSeason={afcSeason} nfcSeason={nfcSeason} crossPairs={weekCrossPairs}
+              projected={projectedScoreByManager} isFinal={isSelectedWeekFinal}
+              myTeam={resolvedMyTeamManager} myConf={myTeamConf}
+            />
 
             <WeeklyScoresBarChart
               afcManagers={afcManagers} nfcManagers={nfcManagers} afcSeason={afcSeason} nfcSeason={nfcSeason}

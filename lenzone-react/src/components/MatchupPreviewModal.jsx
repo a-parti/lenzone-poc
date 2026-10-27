@@ -4,17 +4,16 @@ import { useMatchupPreview } from '../context/MatchupPreviewContext';
 import { useEscapeKey } from './shared';
 import { nextModalZ } from '../lib/modalStack';
 import { CONF_STYLES } from '../lib/theme';
-import ManagerMatchupRow from './ManagerMatchupRow';
+import MyMatchups from './MyMatchups';
 import TeamName from './TeamName';
 
-// Global "quick look" card for a matchup clicked from somewhere that isn't already the Matchups
-// tab (currently: the season Grid) -- shows the same scores/W-L-T/"Expand Rosters" card the
-// Matchups tab itself uses (ManagerMatchupRow, so nothing here can drift from what that tab
-// shows), with a button to jump straight into the full Matchups tab for that manager/week.
+// Global "quick look" at one team's week, opened from the Matchups tab's games list, the scores
+// chart, the season grid and trophy cards -- the same scoreboard cards and head-to-head lineups as
+// My Week (MyMatchups), with a button to jump to the Matchups tab for that week.
 // computeIntra/computeInter (functions of (manager, conf, week)): small wrapper closures built in
 // App.jsx around the existing getIntraInfo/getInterInfo builders, which already need afcSeason/
 // nfcSeason/allStats/etc in scope -- this component stays a plain, focused presentational modal.
-export default function MatchupPreviewModal({ computeIntra, computeInter, afcSlots, nfcSlots, playersDB, weekProjections, byTeamWeek, onOpenFullMatchup }) {
+export default function MatchupPreviewModal({ computeIntra, computeInter, afcSlots, nfcSlots, standings, playersDB, weekProjections, byTeamWeek, onOpenFullMatchup }) {
   const { target, closePreview } = useMatchupPreview();
   useEscapeKey(closePreview);
   const [z, setZ] = useState(60);
@@ -37,25 +36,22 @@ export default function MatchupPreviewModal({ computeIntra, computeInter, afcSlo
         <button onClick={closePreview} aria-label="Close" className="absolute top-3 right-3 text-[var(--muted)] hover:text-[var(--text)]">
           <X className="w-4 h-4" />
         </button>
-        {/* The conf badge lives here, once -- ManagerMatchupRow gets hideHeader so it doesn't
-            render its own second copy of the same badge + team name right above its own content. */}
         <div className="flex items-center gap-2 mb-3 pr-6 min-w-0">
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${CONF_STYLES[conf].badge}`}>{conf}</span>
           <TeamName manager={manager} conf={conf} className="font-bold min-w-0" />
           <span className="text-xs text-[var(--muted)] ml-auto shrink-0">Week {week}</span>
         </div>
-        <ManagerMatchupRow
-          manager={manager} conf={conf} intra={intra} inter={inter}
-          afcSlots={afcSlots} nfcSlots={nfcSlots} playersDB={playersDB}
+        <MyMatchups
+          key={`${manager}-${week}`} manager={manager} conf={conf} intra={intra} inter={inter}
+          afcSlots={afcSlots} nfcSlots={nfcSlots} standings={standings} playersDB={playersDB}
           weekProjections={weekProjections} byTeamWeek={byTeamWeek} week={week}
-          hideHeader
         />
         <button
           type="button"
           onClick={() => { onOpenFullMatchup(manager, week); closePreview(); }}
           className="w-full mt-3 flex items-center justify-center gap-2 text-sm font-bold px-4 py-2 rounded-lg bg-[var(--accent)] text-[var(--accent-text)] hover:brightness-110 transition-all duration-200"
         >
-          Open Full Matchup <ExternalLink className="w-3.5 h-3.5" />
+          Open Matchups tab <ExternalLink className="w-3.5 h-3.5" />
         </button>
       </div>
     </div>

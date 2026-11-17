@@ -11,8 +11,9 @@ import {
   computeWeeklyAwards, buildConferenceList, rankConference, winProbability, roughWinProbability, computePointsAgainst, computeInConfRecord,
   computeCrossPointsAgainst, computeIntraGamesPlayed, computeInterGamesPlayed, buildStandingsHistory,
   buildWeeklyPfPaHistory,
-  buildPostseasonSeeds, computeRecentForm, computeOpponentsForWeek
+  buildPostseasonSeeds, computeRecentForm, computeOpponentsForWeek, computePrizeBadges, computeWinAndIn
 } from './lib/statsMath';
+import { HIGH_SCORE_PRIZES } from './lib/highScorePrizes';
 const RosterTab = lazy(() => import('./components/RosterTab'));
 const ActivityTab = lazy(() => import('./components/ActivityTab'));
 const DraftBoardTab = lazy(() => import('./components/DraftBoardTab'));
@@ -23,6 +24,7 @@ import { TeamDepthChartProvider } from './context/TeamDepthChartContext';
 import TeamName from './components/TeamName';
 const SeasonGridTab = lazy(() => import('./components/SeasonGridTab'));
 import PlayoffsTab, { PLAYOFF_WEEKS } from './components/PlayoffsTab';
+import TradeDeadlineBanner from './components/TradeDeadlineBanner';
 import HomeView from './components/HomeView';
 import WeeklyScoresBarChart from './components/WeeklyScoresBarChart';
 import CurrentWeekView from './components/CurrentWeekView';
@@ -72,7 +74,7 @@ const EMPTY_OBJECT = Object.freeze({});
 
 // Fallback rosters, only used if the Sleeper API is unreachable
 const AFC_DEFAULT = ["Kenny", "Grant", "Rob", "Tim", "Ted", "Nikko", "Dan", "Maggie", "Arjun", "Mina", "Mike", "Jaime + Kelsee"];
-const NFC_DEFAULT = ["Alanna", "Kruti", "Mario", "Ahmad", "Melody", "Kris + Mahtab", "David C", "Eric", "Sam", "Jeremy", "Chris", "Melissa"];
+const NFC_DEFAULT = ["Mario", "Melissa", "Melody", "David C.", "Sam", "Jeremy", "Eric", "Kris + Mahtab", "Chris C.", "Clay", "Kruti", "Ahmad"];
 
 const DEFAULT_CHARTER = `Standings
 In-Conference Win = 2.0 League Points (LP) | Cross-Conference Win = 1.0 LP | Ties = 50% value.
@@ -168,10 +170,23 @@ function formatPlayoffPct(pct) {
   if (pct == null) return '—';
   if (pct >= 100) return '100%';
   if (pct <= 0) return '0%';
-  if (pct < 5) return 'under 5%';
   const rounded = Math.round(pct);
+  if (rounded < 1) return '<1%';
   return rounded >= 100 ? '>99%' : `${rounded}%`;
 }
+
+// Hover note for the odds column, so anyone can see how the number is made.
+const PLAYOFF_ODDS_METHOD = [
+  'How this is calculated:',
+  '• The rest of the regular season is played out 10,000 times using the real schedule.',
+  '• Each team\'s weekly score is drawn from its real scoring so far, blended with the league average',
+  '  (weekly fantasy scores swing a lot, and this blend tested as the most accurate on Weeks 5–10).',
+  '• One weekly score decides both games: in-conference win = 2 LP, cross-conference win = 1 LP.',
+  '• Seeds 1–5 by LP, seed 6 = highest PF of the rest (the wildcard), same as the real rules.',
+  '• 100% only once a spot is mathematically clinched. Nobody hits 0% while games remain,',
+  '  because the PF wildcard has no ceiling.',
+  '• Updates once each week is final, not during live games.'
+].join('\n');
 
 // Bye = a top-2 seed. Only mentioned for teams with a real shot, in words like the playoff label.
 function byeOutlook(pct) {
@@ -182,28 +197,32 @@ function byeOutlook(pct) {
   return 'Bye possible';
 }
 
-// Playoff-odds label, an arrow when it changed tier since last week, and (full size) the bye outlook.
-// Exact numbers stay in the tooltip.
+// Playoff odds as a percentage, the change since last week (shown at 1+ point), and a small
+// outlook label (bye outlook when it applies). The hover explains the method.
 function PlayoffOddsCell({ item, compact = false }) {
   const pulse = playoffPulse(item.playoffPct);
-  const prev = item.prevPlayoffPct != null ? playoffPulse(item.prevPlayoffPct) : null;
-  const moved = prev && prev.label !== pulse.label ? (item.playoffPct > item.prevPlayoffPct ? 'up' : 'down') : null;
+  const change = item.playoffPct != null && item.prevPlayoffPct != null ? item.playoffPct - item.prevPlayoffPct : null;
+  const shownChange = change != null && Math.abs(change) >= 1 ? Math.round(change) : null;
   const bye = byeOutlook(item.byePct);
   const title = [
     `Playoff odds: ${formatPlayoffPct(item.playoffPct)}`,
-    prev ? `Last week: ${prev.label} (${formatPlayoffPct(item.prevPlayoffPct)})` : null,
-    item.byePct != null ? `Bye odds: ${formatPlayoffPct(item.byePct)}` : null
-  ].filter(Boolean).join('\n');
+    item.prevPlayoffPct != null ? `Last week: ${formatPlayoffPct(item.prevPlayoffPct)}` : null,
+    item.byePct != null ? `Bye odds: ${formatPlayoffPct(item.byePct)}` : null,
+    '',
+    PLAYOFF_ODDS_METHOD
+  ].filter(v => v != null).join('\n');
+  const changeEl = shownChange != null && shownChange !== 0 && (
+    <span className={`ml-1 text-[10px] font-bold tabular-nums ${shownChange > 0 ? 'text-[var(--pos)]' : 'text-[var(--neg)]'}`}>
+      {shownChange > 0 ? '▲' : '▼'}{Math.abs(shownChange)}
+    </span>
+  );
   return (
-    <div title={title} className={compact ? 'text-right' : ''}>
-      <div className={`font-extrabold whitespace-nowrap ${pulse.color} ${compact ? 'text-[11px] leading-tight' : ''}`}>
-        {compact ? pulse.short : pulse.label}
-        {moved && <span className={`ml-1 text-[10px] ${moved === 'up' ? 'text-[var(--pos)]' : 'text-[var(--neg)]'}`}>{moved === 'up' ? '▲' : '▼'}</span>}
+    <div title={title} className={`cursor-help ${compact ? 'text-right' : ''}`}>
+      <div className={`font-extrabold whitespace-nowrap tabular-nums ${pulse.color} ${compact ? 'text-[13px] leading-tight' : 'text-base'}`}>
+        {formatPlayoffPct(item.playoffPct)}{changeEl}
       </div>
-      {!compact && (bye || moved) && (
-        <div className="text-[11px] text-[var(--muted)] whitespace-nowrap">
-          {bye || `was ${prev.label}`}
-        </div>
+      {!compact && (
+        <div className="text-[11px] text-[var(--muted)] whitespace-nowrap">{bye || pulse.label}</div>
       )}
     </div>
   );
@@ -224,29 +243,43 @@ function NextOpponents({ next, conf }) {
 // one line per team -- rank, team, record (from sm up), LP, odds.
 const MOBILE_STANDINGS_GRID = 'grid grid-cols-[1.25rem_minmax(0,1fr)_2.75rem_4.25rem] sm:grid-cols-[1.25rem_minmax(0,1fr)_3.5rem_3rem_5.5rem] items-center gap-x-2 px-3';
 
-const FORM_RESULT_STYLE = {
-  W: 'bg-[var(--pos)]/15 text-[var(--pos)]',
-  L: 'bg-[var(--neg)]/15 text-[var(--neg)]',
-  T: 'bg-[var(--surface2)] text-[var(--text2)]'
-};
-
-// Last 4 weeks: in-conference W/L chips, then points per game over that stretch with the change
-// vs. the team's own season average (only colored when it's a swing of 5+ points).
+// Last 4 weeks as one record counting both weekly games (so up to 8-0), green when winning and red
+// when losing, 🔥 for the conference's best recent record. Week-by-week detail is in the tooltip.
 function RecentForm({ form }) {
   if (!form) return <span className="text-[var(--muted)]">—</span>;
-  const { recent, recentAvg, seasonAvg, delta } = form;
-  const trendColor = delta >= 5 ? 'text-[var(--pos)]' : delta <= -5 ? 'text-[var(--neg)]' : 'text-[var(--muted)]';
-  const title = `Last ${recent.length}: ${recent.map(r => `Wk ${r.week} ${r.result || '–'} ${r.score.toFixed(1)}`).join(', ')} · season avg ${seasonAvg.toFixed(1)}`;
+  const { recent, wins, losses, ties, recentAvg, seasonAvg, hot } = form;
+  const color = wins > losses ? 'text-[var(--pos)]' : losses > wins ? 'text-[var(--neg)]' : 'text-[var(--text2)]';
+  const title = [
+    `Last ${recent.length} weeks, both games each week (in-conference / cross-conference):`,
+    ...recent.map(r => `Wk ${r.week}: ${r.intra || '–'} / ${r.cross || '–'} · ${r.score.toFixed(1)} pts`),
+    `${recentAvg.toFixed(1)} pts/gm vs ${seasonAvg.toFixed(1)} season avg`,
+    hot ? '🔥 Best recent record in the conference' : null
+  ].filter(Boolean).join('\n');
   return (
     <div title={title} className="whitespace-nowrap">
-      <div className="flex gap-0.5">
-        {recent.map(r => (
-          <span key={r.week} className={`inline-flex w-4 h-4 items-center justify-center rounded text-[10px] font-bold ${FORM_RESULT_STYLE[r.result] || FORM_RESULT_STYLE.T}`}>{r.result || '–'}</span>
-        ))}
-      </div>
-      <div className="text-[11px] text-[var(--muted)]">
-        {recentAvg.toFixed(1)}/gm <span className={`font-bold ${trendColor}`}>{delta >= 0 ? '▲' : '▼'}{Math.abs(delta).toFixed(1)}</span>
-      </div>
+      <span className={`font-extrabold tabular-nums ${color}`}>{wins}-{losses}{ties ? `-${ties}` : ''}</span>
+      {hot && <span className="ml-1" aria-label="Hottest team in the conference">🔥</span>}
+    </div>
+  );
+}
+
+// Season trophy case under a team's name: weekly high-score prizes (wine or cash) and lowest-score
+// weeks. Nothing renders for a team with no badges, so most rows stay clean.
+const PRIZE_BADGES = [
+  ['wine', '🍷', n => `Weekly high score ×${n} (took the wine)`],
+  ['cash', '💰', n => `Weekly high score ×${n} (took the $15)`],
+  ['low', '🪦', n => `Lowest score of the week ×${n}`]
+];
+function PrizeBadges({ prizes, className = '' }) {
+  const shown = prizes ? PRIZE_BADGES.filter(([key]) => prizes[key] > 0) : [];
+  if (shown.length === 0) return null;
+  return (
+    <div className={`flex flex-wrap items-center gap-x-1.5 text-[11px] leading-tight text-[var(--text2)] ${className}`}>
+      {shown.map(([key, emoji, label]) => (
+        <span key={key} title={label(prizes[key])} aria-label={label(prizes[key])} className="whitespace-nowrap">
+          {emoji}{prizes[key] > 1 && <span className="font-bold tabular-nums">×{prizes[key]}</span>}
+        </span>
+      ))}
     </div>
   );
 }
@@ -261,7 +294,7 @@ const STANDINGS_SORT_ACCESSORS = {
   pf: item => item.pfAvg,
   pa: item => item.paAvg,
   playoffPct: item => item.playoffPct ?? -1,
-  form: item => item.form?.recentAvg ?? -1,
+  form: item => item.form ? (item.form.wins - item.form.losses) * 1000 + item.form.recentAvg : -1e9,
   faab: item => parseFaab(item.faab),
   moves: item => item.moves
 };
@@ -341,6 +374,80 @@ function WildcardRace({ rows, conf, latestCompletedWeek }) {
   );
 }
 
+// Playoffs page: each conference in current seed order with playoff and bye odds and clinch status.
+function PlayoffRace({ rows, conf }) {
+  const seeds = buildPostseasonSeeds(rows, conf);
+  const byManager = new Map(rows.map(r => [r.manager, r]));
+  return (
+    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-sm overflow-hidden">
+      <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-[var(--border)] bg-[var(--surface2)]">
+        <div className="flex items-center gap-2">
+          <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${CONF_STYLES[conf].badge}`}>{conf}</span>
+          <span className="tracking-wider text-xs uppercase font-semibold text-[var(--text2)]">Playoff race</span>
+        </div>
+        <span className="text-[10px] uppercase font-semibold text-[var(--muted)] grid grid-cols-[3rem_3rem] text-right gap-2" title={PLAYOFF_ODDS_METHOD}>
+          <span>Playoffs</span><span>Bye</span>
+        </span>
+      </div>
+      <ol className="divide-y divide-[var(--border)]/60">
+        {seeds.map(team => {
+          const row = byManager.get(team.manager) || team;
+          const clinched = row.playoffPct >= 100;
+          const byeClinched = row.byePct >= 100;
+          return (
+            <li key={team.manager} className={`flex items-center justify-between gap-2 px-4 py-2 text-sm ${team.seed === 6 ? 'border-b-2 !border-b-[var(--border2)]' : ''}`}>
+              <span className="flex items-center gap-2 min-w-0">
+                <SeedPill postseason={team} />
+                <span className="min-w-0">
+                  <TeamName manager={team.manager} conf={conf} className="font-semibold" />
+                  <span className="block text-[11px] text-[var(--muted)] tabular-nums">
+                    {row.totalPts.toFixed(1)} LP · {row.pf.toFixed(1)} PF
+                    {byeClinched ? <b className="ml-1.5 text-[var(--pos)]">Bye clinched</b> : clinched ? <b className="ml-1.5 text-[var(--pos)]">Clinched</b> : null}
+                  </span>
+                </span>
+              </span>
+              <span className="shrink-0 grid grid-cols-[3rem_3rem] gap-2 text-right tabular-nums" title={PLAYOFF_ODDS_METHOD}>
+                <span className={`font-extrabold ${playoffPulse(row.playoffPct).color}`}>{formatPlayoffPct(row.playoffPct)}</span>
+                <span className="font-semibold text-[var(--text2)]">{formatPlayoffPct(row.byePct)}</span>
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
+// "Win & In": who clinches a playoff spot or bye by winning both games next week (exact math, see
+// computeWinAndIn). Shows an honest empty state when nobody can clinch yet.
+function WinAndIn({ teams, week }) {
+  return (
+    <div className="bg-[var(--surface)] border-2 border-[var(--live)]/40 rounded-xl px-4 py-3 shadow-sm">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <span className="font-display text-lg font-extrabold">Win &amp; In <span className="text-sm font-semibold text-[var(--muted)]">· Week {week}</span></span>
+        <span className="text-[11px] text-[var(--muted)]">Win both games this week and it's locked, no matter what else happens</span>
+      </div>
+      {teams.length === 0 ? (
+        <p className="mt-2 text-sm text-[var(--text2)]">Nobody can clinch with a win this week yet. The race is still wide open.</p>
+      ) : (
+        <ul className="mt-2 divide-y divide-[var(--border)]/60">
+          {teams.map(t => (
+            <li key={`${t.conf}:${t.manager}`} className="flex flex-wrap items-center justify-between gap-2 py-1.5 text-sm">
+              <span className="flex items-center gap-2 min-w-0">
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${CONF_STYLES[t.conf].badge}`}>{t.conf}</span>
+                <TeamName manager={t.manager} conf={t.conf} className="font-semibold" />
+                <span className="text-[var(--muted)] text-xs">vs</span>
+                <TeamName manager={t.opponent} conf={t.conf} showLogo={false} className="text-xs text-[var(--text2)]" />
+              </span>
+              <span className="text-xs font-extrabold text-[var(--pos)]">{t.bye ? 'Clinches a bye' : 'Clinches a playoff spot'}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // Plain-language rules for the standings page, opened from the toolbar's "How it works" button.
 // Every rule here mirrors the code that computes it (LP in buildConferenceList, seeding in
 // buildPostseasonSeeds, odds in simulateCombinedPlayoffOdds) and the league charter.
@@ -351,7 +458,7 @@ function StandingsRules() {
         <li><b className="text-[var(--text)]">Every week your one score plays two games:</b> one against a team in your conference (a win is worth 2 {STANDINGS_PTS.short}) and one against a team in the other conference (a win is worth 1 {STANDINGS_PTS.short}). Ties are worth half.</li>
         <li><b className="text-[var(--text)]">6 of 12 teams in each conference make the playoffs.</b> Seeds 1–5 go to the most {STANDINGS_PTS.short} (total points breaks ties). Seed 6, the wild card, goes to whoever has scored the most total points among everyone else.</li>
         <li><b className="text-[var(--text)]">Seeds 1 and 2 get a first-round bye.</b> Everyone outside the top 6 plays in the Toilet Bowl.</li>
-        <li><b className="text-[var(--text)]">Playoff odds</b> play out the rest of the season 2,500 times using each team's scoring so far: Strong Favorite (85%+), Good Shape (65%+), On the Bubble (40%+), Underdog (15%+), Long Shot (below that). Clinched means locked in. On a computer, hover a label for the exact number.</li>
+        <li><b className="text-[var(--text)]">Playoff odds</b> play out the rest of the season 10,000 times using each team's scoring so far, shown as a percentage with the change since last week. 100% means clinched. On a computer, hover the number to see how it's calculated.</li>
       </ul>
     </div>
   );
@@ -442,9 +549,9 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek, hea
               <SortHeader label={nameDisplayMode === 'teams' ? 'Team' : 'Manager'} sortKey="manager" activeKey={sortKey} dir={sortDir} onClick={handleSort} />
               <SortHeader label={STANDINGS_PTS.short} sortKey="totalPts" activeKey={sortKey} dir={sortDir} onClick={handleSort} title={`${STANDINGS_PTS.long}: 2 per in-conference win, 1 per cross-conference win. Total points scored underneath (the tiebreaker and wild card race).`} />
               <SortHeader label="Record" sortKey="overall" activeKey={sortKey} dir={sortDir} onClick={handleSort} title="Overall W-L-T, with in-conference and cross-conference records underneath" />
-              <SortHeader label="Playoff Odds" sortKey="playoffPct" activeKey={sortKey} dir={sortDir} onClick={handleSort} title="From 2,500 simulations of the rest of the season; updates after each completed week. Hover a team for the exact %." />
+              <SortHeader label="Playoff Odds" sortKey="playoffPct" activeKey={sortKey} dir={sortDir} onClick={handleSort} title={PLAYOFF_ODDS_METHOD} />
               <th className="py-2 px-2 whitespace-nowrap font-semibold" title="Where each team would be seeded if the season ended today">{latestCompletedWeek >= 14 ? 'Postseason' : 'Seed Today'}</th>
-              <SortHeader label="Last 4" sortKey="form" activeKey={sortKey} dir={sortDir} onClick={handleSort} title="Last 4 in-conference results, and points per game over those weeks vs. the team's season average" />
+              <SortHeader label="Last 4" sortKey="form" activeKey={sortKey} dir={sortDir} onClick={handleSort} title="Record over the last 4 weeks, counting both games each week. Hover a team for week-by-week results." />
               {latestCompletedWeek < 14 && <th className="py-2 px-2 whitespace-nowrap font-semibold" title="Next week's in-conference and cross-conference opponents">Week {latestCompletedWeek + 1}</th>}
             </tr>
           </thead>
@@ -462,6 +569,7 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek, hea
                     {whole && <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${style.badge}`}>{item.conf}</span>}
                   </div>
                   {other && <div className="text-[11px] font-normal text-[var(--muted)]">{other}</div>}
+                  <PrizeBadges prizes={item.prizes} className="mt-0.5" />
                 </td>
                 <td className="py-2 px-2 whitespace-nowrap">
                   <div className={`font-bold ${style.text}`}>{item.totalPts.toFixed(1)}</div>
@@ -500,9 +608,12 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek, hea
           <div key={item.manager} className={`${MOBILE_STANDINGS_GRID} py-2.5 border-l-2 ${style.border} ${postseason?.seed <= 6 ? 'standings-playoff-team' : ''}`}
             title={postseason ? `#${postseason.seed} seed today` : undefined}>
             <span className="font-bold text-[var(--text2)] tabular-nums">{item.rank}</span>
-            <div className="flex items-center gap-1 min-w-0">
-              <TeamName manager={item.manager} conf={item.conf} className="font-semibold text-[13px]" />
-              {whole && <span className={`shrink-0 text-[9px] font-bold px-1 rounded-full ${style.badge}`}>{item.conf}</span>}
+            <div className="min-w-0">
+              <div className="flex items-center gap-1 min-w-0">
+                <TeamName manager={item.manager} conf={item.conf} className="font-semibold text-[13px]" />
+                {whole && <span className={`shrink-0 text-[9px] font-bold px-1 rounded-full ${style.badge}`}>{item.conf}</span>}
+              </div>
+              <PrizeBadges prizes={item.prizes} className="mt-0.5" />
             </div>
             <span className="hidden sm:block text-right tabular-nums font-semibold text-[var(--text2)]">{item.overallRecord}</span>
             <span className={`text-right font-extrabold tabular-nums ${style.text}`}>{item.totalPts.toFixed(1)}</span>
@@ -675,10 +786,9 @@ function mergeMatchupWeek(previous, week, pairs) {
   };
 }
 
-const VALID_TABS = new Set(["home", "currentWeek", "standings", "matchups", "players", "memes", "teams", "charter"]);
+const VALID_TABS = new Set(["home", "currentWeek", "standings", "matchups", "playoffs", "players", "memes", "teams", "charter"]);
 // Old bookmarked hashes keep landing somewhere sensible after the navigation consolidation.
 const LEGACY_TAB_PARENTS = {
-  playoffs: "standings",
   // Graphs and trends live under Standings' "More stats".
   graphs: "standings",
   trends: "standings",
@@ -718,7 +828,7 @@ export default function App() {
   // Switching tabs always lands at the top of the new page, never wherever the previous tab
   // happened to be scrolled to.
   useEffect(() => { window.scrollTo(0, 0); }, [activeTab]);
-  // The playoff bracket is a mode of the Standings page (#playoffs deep-links straight to it).
+  // Playoffs is its own tab (#playoffs); League (#players) is reached from Standings.
   const [standingsScope, setStandingsScope] = useState(() => {
     try { return localStorage.getItem('lenzone_standings_scope') === 'league' ? 'league' : 'conference'; } catch { return 'conference'; }
   });
@@ -735,7 +845,6 @@ export default function App() {
     setStandingsScope(scope);
     try { localStorage.setItem('lenzone_standings_scope', scope); } catch { /* per-viewer convenience only */ }
   };
-  const [standingsView, setStandingsView] = useState(() => rawTabFromHash() === "playoffs" ? "playoffs" : "overview");
   // By-conference standings: AFC and NFC side by side as compact tables, or the full stat tables.
   const [standingsDetail, setStandingsDetail] = useState(() => {
     try { return localStorage.getItem('lenzone_standings_detail') === 'full' ? 'full' : 'compact'; } catch { return 'compact'; }
@@ -931,13 +1040,6 @@ export default function App() {
   // week instead of preserving an older week the viewer browsed. On Tuesdays that is the just-
   // completed week; Sleeper's newer week remains the official current-week ID everywhere else.
   const navigateToTab = (id) => {
-    if (id === 'playoffs') {
-      setStandingsView('playoffs');
-      setActiveTabState('standings');
-      window.history.pushState(null, '', '#playoffs');
-      return;
-    }
-    if (id === 'standings') setStandingsView('overview');
     if (id === 'activity') setPlayersSubTab('activity');
     if (LEGACY_TAB_PARENTS[id]) id = LEGACY_TAB_PARENTS[id];
     if (id === 'currentWeek' || id === 'matchups' || id === 'teams') {
@@ -1005,7 +1107,7 @@ export default function App() {
   // those pairings in Sleeper. While the bracket view is open inside Standings, pull Weeks 15-17 so it becomes a
   // live scoreboard after that handoff without mixing postseason scores into regular-season PF.
   useEffect(() => {
-    if (activeTab !== 'standings' || standingsView !== 'playoffs') return;
+    if (activeTab !== 'playoffs') return;
     const hasAfcMap = Object.keys(afcData.rosterIdMap).length > 0;
     const hasNfcMap = Object.keys(nfcData.rosterIdMap).length > 0;
     if (!hasAfcMap || !hasNfcMap) return;
@@ -1024,7 +1126,7 @@ export default function App() {
       cancelled = true;
       stopPolling();
     };
-  }, [activeTab, standingsView, afcLeagueId, nfcLeagueId, afcData.rosterIdMap, nfcData.rosterIdMap]);
+  }, [activeTab, afcLeagueId, nfcLeagueId, afcData.rosterIdMap, nfcData.rosterIdMap]);
 
   useEffect(() => {
     fetchPlayersDB().then(db => { setPlayersDB(db); setPlayersLoading(false); });
@@ -1402,14 +1504,16 @@ export default function App() {
 
     const afcMoveCounts = computeMoveCounts(afcTransactions, afcData.rosterIdMap);
     const nfcMoveCounts = computeMoveCounts(nfcTransactions, nfcData.rosterIdMap);
-    const afcForm = computeRecentForm(afcManagers, afcSeason, latestCompletedWeek);
-    const nfcForm = computeRecentForm(nfcManagers, nfcSeason, latestCompletedWeek);
+    const afcForm = computeRecentForm(afcManagers, afcSeason, latestCompletedWeek, 4, { crossSchedule: schedule, oppSeason: nfcSeason, isAfc: true });
+    const nfcForm = computeRecentForm(nfcManagers, nfcSeason, latestCompletedWeek, 4, { crossSchedule: schedule, oppSeason: afcSeason, isAfc: false });
     const nextOpponents = latestCompletedWeek < SEASON_WEEKS
       ? computeOpponentsForWeek(afcManagers, nfcManagers, afcSeason, nfcSeason, schedule, latestCompletedWeek + 1)
       : {};
     const byeOdds = { ...(afcByeOdds || {}), ...(nfcByeOdds || {}) };
+    const prizeBadges = computePrizeBadges(afcManagers, nfcManagers, afcSeason, nfcSeason, afcData, nfcData, latestCompletedWeek, HIGH_SCORE_PRIZES);
     const decorate = (list, moveCounts, form) => list.map(t => ({
       ...t,
+      prizes: prizeBadges[`${t.conf}:${t.manager}`] || null,
       moves: moveCounts[t.manager] || 0,
       form: form[t.manager] || null,
       byePct: byeOdds[t.manager] ?? null,
@@ -1423,6 +1527,16 @@ export default function App() {
       allStats: { ...afcStats, ...nfcStats }
     };
   }, [afcData, nfcData, afcSeason, nfcSeason, schedule, latestCompletedWeek, afcTransactions, nfcTransactions, hasStandingsData, afcManagers, nfcManagers]);
+
+  // Playoffs page "Win & In": who clinches by winning both games next week (exact, no simulation).
+  const winAndIn = useMemo(() => {
+    if (!hasStandingsData || latestCompletedWeek >= SEASON_WEEKS) return [];
+    const next = latestCompletedWeek + 1;
+    return [
+      ...computeWinAndIn(nfcStandings, nfcSeason.scheduleByWeek, schedule, next, SEASON_WEEKS),
+      ...computeWinAndIn(afcStandings, afcSeason.scheduleByWeek, schedule, next, SEASON_WEEKS)
+    ];
+  }, [hasStandingsData, latestCompletedWeek, afcStandings, nfcStandings, afcSeason, nfcSeason, schedule]);
 
   // Record and conference rank per team, for the My Week scoreboards.
   const standingByManager = useMemo(
@@ -1641,11 +1755,14 @@ export default function App() {
     { id: "standings", label: "Standings", shortLabel: "Standings", icon: Trophy },
     { id: "currentWeek", label: "My Week", shortLabel: "My Week", icon: Calendar },
     { id: "matchups", label: "Matchups", shortLabel: "Matchups", icon: Swords },
-    { id: "players", label: "League", shortLabel: "League", icon: Users },
+    // League (id "players") lives under Standings now; Playoffs took its nav spot.
+    { id: "playoffs", label: "Playoffs", shortLabel: "Playoffs", icon: GitBranch },
     // Memes is labeled with just the emoji (no icon); ariaLabel and keywords keep it findable.
     ...(MEMES_ENABLED ? [{ id: "memes", label: "🌶️", shortLabel: "🌶️", ariaLabel: "Memes", keywords: "memes gifs spicy" }] : []),
     ...(isAdmin ? [{ id: "teams", label: "MS Teams Broadcast", shortLabel: "Broadcast", icon: Megaphone }] : [])
   ];
+  // League is a sub-page of Standings, so Standings stays highlighted in the nav while it's open.
+  const isNavActive = (id) => activeTab === id || (id === "standings" && activeTab === "players");
 
   const settingsMenu = (
     <SettingsMenu
@@ -1674,7 +1791,7 @@ export default function App() {
         <AdminLoginModal onClose={() => setShowLoginModal(false)} onSuccess={handleLoginSuccess} />
       )}
       <CommandPalette
-        tabs={tabs} onSelect={navigateToTab} open={commandPaletteOpen} setOpen={setCommandPaletteOpen}
+        tabs={[...tabs, { id: "players", label: "League", shortLabel: "League", icon: Users, keywords: "activity rosters draft player search" }]} onSelect={navigateToTab} open={commandPaletteOpen} setOpen={setCommandPaletteOpen}
         playersDB={playersDB} afcManagers={afcManagers} nfcManagers={nfcManagers}
       />
       <RosterModal
@@ -1754,6 +1871,13 @@ export default function App() {
       <GrabbableFootball targetRef={headerRowRef} enabled={funEnabled && activeTab !== "home"} />
       <DancingStickmen enabled={funEnabled && activeTab !== "home"} />
 
+      {activeTab !== "home" && (
+        <TradeDeadlineBanner
+          deadlineWeek={afcData.tradeDeadlineWeek ?? nfcData.tradeDeadlineWeek}
+          nflWeek={nflState.week} seasonYear={SEASON_YEAR} sleeperGames={nflSchedule.games}
+        />
+      )}
+
       {loadError && activeTab !== "home" && (
         <div role="alert" className="max-w-7xl mx-auto mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--neg)]/40 bg-[var(--neg)]/10 px-4 py-3 text-sm">
           <span className="font-semibold text-[var(--text)]">
@@ -1778,7 +1902,7 @@ export default function App() {
                 onClick={() => navigateToTab(tab.id)}
                 aria-label={tab.ariaLabel}
                 className={`flex items-center gap-2 px-5 py-3 font-semibold text-sm border-b-2 transition-all duration-200 ${
-                  activeTab === tab.id ? "border-[var(--accent)] text-[var(--accent)] bg-[var(--surface)]/40" : "border-transparent text-[var(--text2)] hover:text-[var(--text)]"
+                  isNavActive(tab.id) ? "border-[var(--accent)] text-[var(--accent)] bg-[var(--surface)]/40" : "border-transparent text-[var(--text2)] hover:text-[var(--text)]"
                 }`}
               >
                 {tab.label}
@@ -1837,8 +1961,8 @@ export default function App() {
           />
         )}
 
-        {/* TAB: STANDINGS -- chart, tables, then trends at the bottom. The playoff bracket is a
-            separate mode of this page. */}
+        {/* TAB: STANDINGS -- chart, tables, then trends at the bottom. League and Playoffs are
+            linked from its toolbar. */}
         {activeTab === "standings" && (
           <div className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1851,20 +1975,23 @@ export default function App() {
                   {seasonRecord.ties > 0 && <span className="text-[var(--muted)] text-xs ml-2">({seasonRecord.ties} tie{seasonRecord.ties > 1 ? "s" : ""})</span>}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => navigateToTab(standingsView === "playoffs" ? "standings" : "playoffs")}
-                className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-extrabold transition-all ${
-                  standingsView === "playoffs"
-                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-text)]"
-                    : "border-[var(--border2)] bg-[var(--surface)] text-[var(--text)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                }`}
-              >
-                <GitBranch className="w-4 h-4" /> {standingsView === "playoffs" ? "Back to Standings" : "Playoff Bracket"}
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button" onClick={() => navigateToTab("players")}
+                  className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-extrabold transition-all border-[var(--border2)] bg-[var(--surface)] text-[var(--text)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                  title="League activity, player search, rosters and the draft board"
+                >
+                  <Users className="w-4 h-4" /> League
+                </button>
+                <button
+                  type="button" onClick={() => navigateToTab("playoffs")}
+                  className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-extrabold transition-all border-[var(--border2)] bg-[var(--surface)] text-[var(--text)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                >
+                  <GitBranch className="w-4 h-4" /> Playoffs
+                </button>
+              </div>
             </div>
 
-            {standingsView !== "playoffs" && (
               <>
                 {/* One toolbar: scope, table detail (wider screens), which conference (narrower
                     screens, one at a time), and the rules. Then the table, the wild card race (the
@@ -1957,23 +2084,35 @@ export default function App() {
                   </div>
                 </details>
               </>
-            )}
 
-            {standingsView === "playoffs" && (
-              <div className="max-w-7xl mx-auto w-full">
-                {!hasStandingsData ? (
-                  <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
-                    <RefreshCw className="w-7 h-7 animate-spin text-[var(--accent)]" />
-                    <p className="text-sm text-[var(--muted)]">Building the bracket from LENZONE standings&hellip;</p>
-                  </div>
-                ) : (
-                  <PlayoffsTab
-                    afcStandings={afcStandings} nfcStandings={nfcStandings}
-                    afcPostseason={afcPostseason} nfcPostseason={nfcPostseason}
-                    currentWeek={nflState.week || 1} latestCompletedWeek={latestCompletedWeek}
-                  />
-                )}
+          </div>
+        )}
+
+        {/* TAB: PLAYOFFS -- the race (odds, clinches, Win & In, wild card), then the brackets. */}
+        {activeTab === "playoffs" && (
+          <div className="max-w-7xl mx-auto w-full space-y-6">
+            {!hasStandingsData ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
+                <RefreshCw className="w-7 h-7 animate-spin text-[var(--accent)]" />
+                <p className="text-sm text-[var(--muted)]">Building the bracket from LENZONE standings&hellip;</p>
               </div>
+            ) : (
+              <>
+                {latestCompletedWeek < SEASON_WEEKS && <WinAndIn teams={winAndIn} week={latestCompletedWeek + 1} />}
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <PlayoffRace rows={nfcStandings} conf="NFC" />
+                  <PlayoffRace rows={afcStandings} conf="AFC" />
+                </div>
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <WildcardRace rows={nfcStandings} conf="NFC" latestCompletedWeek={latestCompletedWeek} />
+                  <WildcardRace rows={afcStandings} conf="AFC" latestCompletedWeek={latestCompletedWeek} />
+                </div>
+                <PlayoffsTab
+                  afcStandings={afcStandings} nfcStandings={nfcStandings}
+                  afcPostseason={afcPostseason} nfcPostseason={nfcPostseason}
+                  currentWeek={nflState.week || 1} latestCompletedWeek={latestCompletedWeek}
+                />
+              </>
             )}
           </div>
         )}
@@ -2039,6 +2178,10 @@ export default function App() {
         {/* TAB: LEAGUE (id "players") -- league activity, player search, rosters and the draft board. */}
         {activeTab === "players" && (
           <div className="space-y-6">
+              <button type="button" onClick={() => navigateToTab("standings")}
+                className="inline-flex items-center gap-1.5 text-sm font-bold text-[var(--text2)] hover:text-[var(--accent)]">
+                ← Standings <span className="text-[var(--muted)] font-semibold">/ League</span>
+              </button>
               <div className="space-y-6">
                 <div className="inline-flex bg-[var(--surface)]/60 backdrop-blur-md border border-[var(--border)]/80 rounded-xl p-1 gap-1 flex-wrap">
                   {[["activity", "Activity", Activity], ["search", "Player Search", Search], ["rosters", "Rosters", Users], ["draft", "Draft Board", ListOrdered]].map(([key, label, Icon]) => (
@@ -2215,10 +2358,10 @@ export default function App() {
               key={tab.id}
               type="button"
               onClick={() => navigateToTab(tab.id)}
-              aria-current={activeTab === tab.id ? "page" : undefined}
+              aria-current={isNavActive(tab.id) ? "page" : undefined}
               aria-label={tab.ariaLabel}
               className={`flex flex-col items-center gap-0.5 min-w-[3.25rem] text-[11px] font-semibold transition-colors duration-200 shrink-0 px-1.5 py-1 ${
-                activeTab === tab.id ? "text-[var(--accent)]" : "text-[var(--text2)]"
+                isNavActive(tab.id) ? "text-[var(--accent)]" : "text-[var(--text2)]"
               }`}
             >
               {Icon ? <><Icon className="w-5 h-5" />{tab.shortLabel}</> : <span className="text-xl leading-6">{tab.shortLabel}</span>}

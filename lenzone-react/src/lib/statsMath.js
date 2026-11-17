@@ -155,7 +155,7 @@ function tallyPlayoffTeams(managers, state, counts, byeCounts) {
 // so a team's simulated interconference wins (+1.0 pt) are counted, not just intra wins (+2.0 pt).
 export function simulateCombinedPlayoffOdds(
   afcManagers, nfcManagers, afcBaseList, nfcBaseList, afcStats, nfcStats,
-  afcScheduleByWeek, nfcScheduleByWeek, crossSchedule, latestCompletedWeek, seasonWeeks, simulations = 2500
+  afcScheduleByWeek, nfcScheduleByWeek, crossSchedule, latestCompletedWeek, seasonWeeks, simulations = 10000
 ) {
   // Seeded on latestCompletedWeek alone -- identical for every viewer, and only moves when a week finishes.
   const rng = mulberry32(latestCompletedWeek + 1);
@@ -662,28 +662,70 @@ export function computeManagerStreaks(afcManagers, nfcManagers, afcSeason, nfcSe
   return streaks;
 }
 
-// Each manager's last `n` completed weeks: in-conference results (oldest first) and real points per
-// game over that stretch vs. their full-season average, so the standings can show who's trending.
-// Display only -- the playoff simulation deliberately uses the whole season (see computeStats).
-export function computeRecentForm(managers, season, latestCompletedWeek, n = 4) {
+// Each manager's last `n` completed weeks as one record that counts BOTH weekly games (the
+// in-conference matchup and the cross-conference one -- one score decides both), oldest week
+// first, plus points per game over that stretch vs. the full-season average for the tooltip.
+// `hot` marks the conference's best recent record (only when at most two teams share it).
+// Display only -- the playoff simulation uses its own weighting (see computeStats).
+export function computeRecentForm(managers, season, latestCompletedWeek, n = 4, { crossSchedule = [], oppSeason = null, isAfc = true } = {}) {
   const form = {};
+  const outcome = (mine, theirs) => (theirs > 0 ? (mine > theirs ? 'W' : mine < theirs ? 'L' : 'T') : null);
   managers.forEach(m => {
     const weeks = [];
     for (let w = 1; w <= latestCompletedWeek; w++) {
       const score = season.scoreByWeek[w]?.[m];
       if (!(score > 0)) continue;
       const pair = (season.scheduleByWeek[w] || []).find(([a, b]) => a === m || b === m);
-      const oppScore = pair ? season.scoreByWeek[w]?.[pair[0] === m ? pair[1] : pair[0]] : null;
-      const result = oppScore > 0 ? (score > oppScore ? 'W' : score < oppScore ? 'L' : 'T') : null;
-      weeks.push({ week: w, score, result });
+      const intra = pair ? outcome(score, season.scoreByWeek[w]?.[pair[0] === m ? pair[1] : pair[0]]) : null;
+      const crossPair = crossSchedule.find(c => c.week === w && (isAfc ? c.afcTeam === m : c.nfcTeam === m));
+      const crossOpp = crossPair ? (isAfc ? crossPair.nfcTeam : crossPair.afcTeam) : null;
+      const cross = crossOpp ? outcome(score, oppSeason?.scoreByWeek[w]?.[crossOpp]) : null;
+      weeks.push({ week: w, score, intra, cross });
     }
     if (weeks.length === 0) { form[m] = null; return; }
     const recent = weeks.slice(-n);
+    const results = recent.flatMap(x => [x.intra, x.cross]).filter(Boolean);
+    const wins = results.filter(r => r === 'W').length;
+    const losses = results.filter(r => r === 'L').length;
+    const ties = results.filter(r => r === 'T').length;
     const recentAvg = avg(recent.map(x => x.score));
     const seasonAvg = avg(weeks.map(x => x.score));
-    form[m] = { recent, recentAvg, seasonAvg, delta: recentAvg - seasonAvg };
+    form[m] = { recent, wins, losses, ties, recentAvg, seasonAvg, delta: recentAvg - seasonAvg, hot: false };
   });
+  const scored = Object.values(form).filter(Boolean);
+  const best = Math.max(...scored.map(f => f.wins + f.ties / 2));
+  const leaders = scored.filter(f => f.wins + f.ties / 2 === best);
+  if (best > 0 && leaders.length <= 2) leaders.forEach(f => { f.hot = true; });
   return form;
+}
+
+// Season "trophy case" per team, keyed "<CONF>:<manager>":
+//   wine / cash -- weekly high-score prizes from the hand-kept prize log (matched by the stable
+//                  "<CONF>:<owner_id>" key, so a team rename doesn't drop its badges)
+//   low         -- weeks with the lowest real score across BOTH conferences (just for fun, not a
+//                  prize), from posted Sleeper scores for completed weeks only; ties all count.
+export function computePrizeBadges(afcManagers, nfcManagers, afcSeason, nfcSeason, afcData, nfcData, latestCompletedWeek, prizeLog) {
+  const badges = {};
+  const entry = key => badges[key] || (badges[key] = { wine: 0, cash: 0, low: 0 });
+  const ownerToKey = {};
+  afcManagers.forEach(m => { if (afcData?.ownerIdMap?.[m] != null) ownerToKey[`AFC:${afcData.ownerIdMap[m]}`] = `AFC:${m}`; });
+  nfcManagers.forEach(m => { if (nfcData?.ownerIdMap?.[m] != null) ownerToKey[`NFC:${nfcData.ownerIdMap[m]}`] = `NFC:${m}`; });
+
+  Object.values(prizeLog || {}).forEach(p => {
+    const key = ownerToKey[p.owner];
+    if (key && (p.choice === 'wine' || p.choice === 'cash')) entry(key)[p.choice]++;
+  });
+
+  for (let w = 1; w <= latestCompletedWeek; w++) {
+    const scores = [
+      ...afcManagers.map(m => [`AFC:${m}`, afcSeason.scoreByWeek[w]?.[m]]),
+      ...nfcManagers.map(m => [`NFC:${m}`, nfcSeason.scoreByWeek[w]?.[m]])
+    ].filter(([, s]) => s > 0);
+    if (scores.length === 0) continue;
+    const min = Math.min(...scores.map(([, s]) => s));
+    scores.filter(([, s]) => s === min).forEach(([key]) => entry(key).low++);
+  }
+  return badges;
 }
 
 // Each manager's real scheduled opponents for `week`: the in-conference matchup from Sleeper's
@@ -766,4 +808,42 @@ export function rankConference(list, confLabel, oddsByManager) {
     ...t, conf: confLabel, rank: i + 1,
     playoffPct: oddsByManager ? oddsByManager[t.manager] : null
   }));
+}
+
+// "Win & In": teams that clinch a playoff spot (top-5 by LP) or a bye (top 2) by winning BOTH
+// of next week's games, no matter what else happens. Exact, no simulation: give the team its +3 LP,
+// give every conference rival its maximum possible remaining LP (2 per in-conference game, 1 per
+// cross-conference game) -- except the team's own in-conference opponent, which loses that game --
+// and count how many rivals could still reach or tie it (a tie still counts, since PF could go
+// either way). Fewer than 5 such rivals = playoff spot clinched; fewer than 2 = bye clinched.
+// Teams that have already clinched are left out. The seed-6 wildcard is a PF race, so it can't be
+// clinched this way.
+export function computeWinAndIn(conferenceStandings, scheduleByWeek, crossSchedule, nextWeek, seasonWeeks) {
+  if (!nextWeek || nextWeek > seasonWeeks) return [];
+  const maxGain = {};
+  for (let w = nextWeek; w <= seasonWeeks; w++) {
+    (scheduleByWeek[w] || []).flat().forEach(m => { maxGain[m] = (maxGain[m] || 0) + 2; });
+    crossSchedule.filter(c => c.week === w).forEach(c => [c.afcTeam, c.nfcTeam].forEach(t => { maxGain[t] = (maxGain[t] || 0) + 1; }));
+  }
+  const pts = Object.fromEntries(conferenceStandings.map(t => [t.manager, t.totalPts]));
+  const threatsAt = (target, exclude, oppNextWeek) => conferenceStandings.filter(o => {
+    if (o.manager === exclude) return false;
+    const gain = (maxGain[o.manager] || 0) - (o.manager === oppNextWeek ? 2 : 0);
+    return pts[o.manager] + gain >= target;
+  }).length;
+  const results = [];
+  conferenceStandings.forEach(t => {
+    const pair = (scheduleByWeek[nextWeek] || []).find(([a, b]) => a === t.manager || b === t.manager);
+    if (!pair) return;
+    const opp = pair[0] === t.manager ? pair[1] : pair[0];
+    const hasCross = crossSchedule.some(c => c.week === nextWeek && (c.afcTeam === t.manager || c.nfcTeam === t.manager));
+    const after = t.totalPts + 2 + (hasCross ? 1 : 0);
+    const alreadyIn = threatsAt(t.totalPts, t.manager, null) < 5;
+    const alreadyBye = threatsAt(t.totalPts, t.manager, null) < 2;
+    const threats = threatsAt(after, t.manager, opp);
+    const bye = !alreadyBye && threats < 2;
+    const playoff = !alreadyIn && threats < 5;
+    if (bye || playoff) results.push({ manager: t.manager, conf: t.conf, playoff, bye, opponent: opp });
+  });
+  return results;
 }

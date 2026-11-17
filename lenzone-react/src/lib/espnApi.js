@@ -237,6 +237,35 @@ export function filterPlayerNotesForPlayers(notesByName, playerNames) {
   return out;
 }
 
+// Every game in an NFL week as a flat list (teams, real kickoff, live state), for anything that
+// needs "which game is last this week and has it finished" -- e.g. the trade-deadline banner,
+// since Sleeper's deadline is the end of the deadline week's final game. Returns [] on failure.
+export async function fetchWeekGames(week, seasonYear) {
+  try {
+    const res = await fetch(
+      `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=${week}&seasontype=2&year=${seasonYear}`
+    ).then(r => r.json());
+    return (res.events || []).map(e => {
+      const comp = e.competitions?.[0];
+      const homeC = comp?.competitors?.find(c => c.homeAway === 'home');
+      const awayC = comp?.competitors?.find(c => c.homeAway === 'away');
+      return {
+        home: normalizeAbbr(homeC?.team?.abbreviation),
+        away: normalizeAbbr(awayC?.team?.abbreviation),
+        kickoff: comp?.date || e.date || null,
+        state: e.status?.type?.state || null, // 'pre' | 'in' | 'post'
+        period: e.status?.period ?? null,
+        displayClock: e.status?.displayClock ?? null,
+        homeScore: homeC?.score != null ? Number(homeC.score) : null,
+        awayScore: awayC?.score != null ? Number(awayC.score) : null
+      };
+    }).filter(g => g.home && g.away && g.kickoff);
+  } catch (err) {
+    console.error("Failed to fetch ESPN week games:", err);
+    return [];
+  }
+}
+
 export async function fetchWeekKickoffInfo(week, seasonYear) {
   try {
     const res = await fetch(

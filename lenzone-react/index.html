@@ -12,6 +12,25 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&family=Poppins:wght@500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700;800&family=DM+Sans:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Lora:ital,wght@0,500;0,600;0,700;1,600&display=swap" rel="stylesheet" />
     <title>LENZONE 2026</title>
+    <!-- Vercel Web Analytics (plain-HTML setup, vercel.com/docs/analytics/quickstart): cookie-free,
+         aggregate page views, visible only in the Vercel project dashboard. The site's tabs live in
+         the URL hash ("/#playoffs"), which analytics would otherwise lump together as "/", so
+         beforeSend rewrites the hash into the path ("/playoffs") and drops any "?week=N". Only
+         collects on the deployed site once Web Analytics is enabled for the project. -->
+    <script>
+      window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+      window.va('beforeSend', function (event) {
+        try {
+          var url = new URL(event.url);
+          var tab = url.hash.slice(1).split('?')[0];
+          if (tab) { url.pathname = '/' + tab; url.hash = ''; url.search = ''; }
+          return Object.assign({}, event, { url: url.toString() });
+        } catch (e) {
+          return event;
+        }
+      });
+    </script>
+    <script defer src="/_vercel/insights/script.js"></script>
   </head>
   <body>
     <div id="root"></div>

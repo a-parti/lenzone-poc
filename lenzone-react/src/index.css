@@ -1637,3 +1637,11 @@ html[data-playoffs="afc"][data-mode],
 html[data-playoffs="afc"] [data-mode] { --accent: var(--afc); --accent-ink: var(--afc); --coral: var(--afc); }
 html[data-playoffs="nfc"][data-mode],
 html[data-playoffs="nfc"] [data-mode] { --accent: var(--nfc); --accent-ink: var(--nfc); --coral: var(--nfc); }
+
+/* Playoffs on phones: stacked rounds with full-width cards (see MobileBracket). */
+.playoff-mobile .playoff-matchup-card,
+.playoff-mobile .playoff-bye-card { width: 100%; }
+.playoff-mobile .playoff-overall-card { width: 100%; }
+.playoff-mobile-round { display: flex; align-items: baseline; justify-content: space-between; border-bottom: 2px solid color-mix(in srgb, var(--conf) 65%, var(--border)); padding: .2rem .1rem .4rem; }
+.playoff-mobile-round strong { color: var(--conf); font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; }
+.playoff-mobile-round span { color: var(--muted); font-size: .68rem; }

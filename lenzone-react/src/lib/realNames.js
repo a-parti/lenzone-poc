@@ -29,7 +29,7 @@ export const REAL_NAMES = {
   "NFC:1268659673154727936": "Kris + Mahtab", // KrisandMahtab
   "NFC:1398434435048706048": "Chris C.",    // NotSureIWillWin
   "NFC:1398462206726647808": "Clay",        // VizzyYardLine
-  "NFC:1398519292193980416": "Kru",         // Teardrops On My Lamar
+  "NFC:1398519292193980416": "Kruti",       // Teardrops On My Lamar
   "NFC:1398786200331923456": "Ahmad",       // ahmadschaudhri
   "NFC:1127736754682888192": "Arjun",       // nujrap (same Sleeper account as AFC's Daejon Mustard)
   "NFC:1395240810907205632": "Jaime + Kelsee" // JaimeKelsee (same account as AFC)

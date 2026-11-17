@@ -482,6 +482,12 @@ const RESULT_BADGE = {
   L: 'bg-[var(--neg)] text-[var(--surface)]',
   T: 'bg-[var(--muted)] text-[var(--surface)]'
 };
+// Half-cell tints for the split W/L background (see GridRow).
+const RESULT_TINT = {
+  W: 'color-mix(in srgb, var(--pos) 20%, transparent)',
+  L: 'color-mix(in srgb, var(--neg) 20%, transparent)',
+  T: 'color-mix(in srgb, var(--muted) 14%, transparent)'
+};
 // One filled W/L/T square per game; an empty slot keeps the names aligned before results post.
 function ResultBadge({ result }) {
   return (
@@ -515,18 +521,23 @@ function GridRow({ manager, conf, season, oppSeason, weeks, crossSchedule, curre
         const { intraOpponent, interOpponent, intraResult, interResult, interConf } = gridCellData({
           manager, conf, season, oppSeason, crossSchedule, week: w, latestCompletedWeek
         });
-        // No whole-cell W/L tint: a cell holds two games, and tinting it by one of them made a split
-        // week (won one, lost the other) look like a clean win or loss. Each line carries its own
-        // filled W/L badge instead. The current week is a solid accent-edged column so it reads at
-        // a glance; a highlighted week gets a light tint.
+        // A cell holds two games, so it's split in half: the top half is tinted by the
+        // in-conference result and the bottom half by the cross-conference one. A split week (won
+        // one, lost the other) reads as half green, half red instead of a misleading clean W or L.
+        // Each line also keeps its filled W/L badge. The current week is a solid accent-edged
+        // column; a highlighted week gets a light tint.
         const currentBg = isCurrent && !isHighlighted ? "bg-[var(--accent)]/20 border-x-2 border-x-[var(--accent)] font-bold" : "";
         const bgClass = `${isHighlighted ? "bg-[var(--coral)]/15" : ""} ${currentBg}`;
+        const resultStyle = (intraResult || interResult)
+          ? { backgroundImage: `linear-gradient(to bottom, ${RESULT_TINT[intraResult] || 'transparent'} 0 50%, ${RESULT_TINT[interResult] || 'transparent'} 50% 100%)` }
+          : undefined;
         return (
           <td
             key={w}
             className={`schedule-grid-cell ${WEEK_COL_CLASS} border-b border-[var(--border)]/40 px-2 py-1.5 text-left cursor-pointer hover:bg-[var(--surface2)]/60 ${bgClass}`}
+            style={resultStyle}
             onClick={() => openPreview(manager, conf, w)}
-            title={`${displayName(manager, conf)} -- Week ${w}`}
+            title={`${displayName(manager, conf)} -- Week ${w}${intraResult || interResult ? ` · in-conference ${intraResult || '–'}, cross-conference ${interResult || '–'}` : ''}`}
           >
             <div className="max-w-full font-semibold flex items-center gap-1.5 text-[13px] sm:text-sm">
               <ResultBadge result={intraResult} />

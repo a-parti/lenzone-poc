@@ -326,6 +326,55 @@ function WineCalculator({ wineWeeks, knownWineChoices, onChange, overallPrize, w
   );
 }
 
+function MobileRound({ title, week, accent, children }) {
+  return (
+    <div className="space-y-2">
+      <div className="playoff-mobile-round" style={{ '--conf': accent }}>
+        <strong>{title}</strong><span>{week}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// Phone layout: one conference at a time, rounds stacked top to bottom with full-width cards, so
+// nothing needs sideways scrolling. The full bracket stays one tap away (it scrolls sideways).
+function MobileBracket({ afc, nfc, toilet, currentWeek, activeManager, onHover, onSelect, overallPrize }) {
+  const [conf, setConf] = useState('NFC');
+  const bracket = conf === 'NFC' ? nfc : afc;
+  const accent = conf === 'NFC' ? 'var(--playoff-nfc)' : 'var(--playoff-afc)';
+  const advanceWord = toilet ? 'Loser' : 'Winner';
+  const cardProps = { conf, accent, activeManager, onHover, onSelect };
+  return (
+    <div className="playoff-mobile md:hidden space-y-4 px-3 pb-4" data-export-ignore="true">
+      <div className="flex rounded-xl border border-[var(--border)] bg-[var(--surface2)] p-1 gap-1" role="tablist" aria-label="Conference">
+        {['NFC', 'AFC'].map(c => (
+          <button key={c} type="button" role="tab" aria-selected={conf === c} onClick={() => setConf(c)}
+            className={`flex-1 rounded-lg py-1.5 text-sm font-extrabold ${conf === c ? 'bg-[var(--surface)] text-[var(--text)] shadow' : 'text-[var(--text2)]'}`}>
+            {c}
+          </button>
+        ))}
+      </div>
+      <MobileRound accent={accent} title={toilet ? 'Byes (worst two)' : 'First-round byes'} week="Week 15">
+        <ByeCard team={bracket.byes[0]} {...cardProps} />
+        <ByeCard team={bracket.byes[1]} {...cardProps} />
+      </MobileRound>
+      <MobileRound accent={accent} title={`${conf} Quarterfinals`} week="Week 15">
+        <MatchupCard game={bracket.first[0]} {...cardProps} />
+        <MatchupCard game={bracket.first[1]} {...cardProps} />
+      </MobileRound>
+      <MobileRound accent={accent} title={`${conf} Semifinals`} week="Week 16">
+        <MatchupCard game={bracket.second[0]} {...cardProps} placeholders={[`Seed ${bracket.byes[0]?.seed || '—'}`, `${advanceWord} ${bracket.first[0].teamA?.seed || '—'}/${bracket.first[0].teamB?.seed || '—'}`]} />
+        <MatchupCard game={bracket.second[1]} {...cardProps} placeholders={[`Seed ${bracket.byes[1]?.seed || '—'}`, `${advanceWord} ${bracket.first[1].teamA?.seed || '—'}/${bracket.first[1].teamB?.seed || '—'}`]} />
+      </MobileRound>
+      <MobileRound accent={accent} title={`${conf} Final`} week="Week 17">
+        <MatchupCard game={bracket.final} {...cardProps} placeholders={[`${advanceWord} semifinal`, `${advanceWord} semifinal`]} payouts={!toilet} />
+      </MobileRound>
+      <OverallChampion nfc={nfc} afc={afc} toilet={toilet} currentWeek={currentWeek} activeManager={activeManager} onHover={onHover} onSelect={onSelect} overallPrize={overallPrize} />
+    </div>
+  );
+}
+
 function setupText(conf, bracket, toilet) {
   const label = team => team ? `#${team.seed} ${team.manager}` : 'TBD';
   if (toilet) {
@@ -337,6 +386,7 @@ function setupText(conf, bracket, toilet) {
 function BracketSection({ toilet, afc, nfc, currentWeek, activeManager, onHover, onSelect, copied, onCopy, overallPrize }) {
   const exportRef = useRef(null);
   const imageExport = useElementPngExport(exportRef, toilet ? 'lenzone-toilet-bowl' : 'lenzone-playoff-bracket', { minWidth: 1550 });
+  const [showFull, setShowFull] = useState(false);
 
   return (
     <section ref={exportRef} data-mode={imageExport.exportTheme} data-scheme={imageExport.scheme}>
@@ -362,7 +412,12 @@ function BracketSection({ toilet, afc, nfc, currentWeek, activeManager, onHover,
             </button>
           </div>
         </div>
-        <div className="playoff-board-scroll">
+        <MobileBracket afc={afc} nfc={nfc} toilet={toilet} currentWeek={currentWeek} activeManager={activeManager} onHover={onHover} onSelect={onSelect} overallPrize={overallPrize} />
+        <button type="button" data-export-ignore="true" onClick={() => setShowFull(v => !v)}
+          className="md:hidden mx-3 mb-3 w-[calc(100%-1.5rem)] rounded-lg border border-[var(--border)] bg-[var(--surface2)] py-2 text-xs font-bold text-[var(--text2)]">
+          {showFull ? 'Hide full bracket' : 'Show full bracket (scrolls sideways)'}
+        </button>
+        <div className={`playoff-board-scroll ${showFull ? '' : 'hidden'} md:block`}>
           <div className="playoff-board">
             <ConferenceTree conf="NFC" bracket={nfc} toilet={toilet} activeManager={activeManager} onHover={onHover} onSelect={onSelect} />
             <OverallChampion nfc={nfc} afc={afc} toilet={toilet} currentWeek={currentWeek} activeManager={activeManager} onHover={onHover} onSelect={onSelect} overallPrize={overallPrize} />

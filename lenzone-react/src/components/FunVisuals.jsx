@@ -332,22 +332,43 @@ export function LuckMeter({ luck }) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Boom/Bust meter: per team, weeks in the league's top 25% (boom) vs. bottom 25% (bust).
+// Hot & Cold Weeks: per team, weeks in the league's top 25% (hot) vs. bottom 25% (cold).
 // ---------------------------------------------------------------------------------------------
 export function PlayerBoomBustMeter({ rows }) {
   const { displayName } = useNameDisplay();
   const items = (rows || []).map(r => ({
     manager: r.manager, conf: r.conf, value: r.net,
-    detail: `${r.boom} boom · ${r.bust} bust`,
-    title: `${displayName(r.manager, r.conf)}: ${r.boom} boom week${r.boom === 1 ? '' : 's'}${r.boomWeeks.length ? ` (Wk ${r.boomWeeks.join(', ')})` : ''}, ${r.bust} bust week${r.bust === 1 ? '' : 's'}${r.bustWeeks.length ? ` (Wk ${r.bustWeeks.join(', ')})` : ''} out of ${r.weeks}`
+    detail: `${r.boom} hot · ${r.bust} cold`,
+    title: `${displayName(r.manager, r.conf)}: ${r.boom} hot week${r.boom === 1 ? '' : 's'}${r.boomWeeks.length ? ` (Wk ${r.boomWeeks.join(', ')})` : ''}, ${r.bust} cold week${r.bust === 1 ? '' : 's'}${r.bustWeeks.length ? ` (Wk ${r.bustWeeks.join(', ')})` : ''} out of ${r.weeks}`
   }));
   return (
     <FunCard
       chartId="boom-bust-meter"
-      title="Boom/Bust Meter"
-      subtitle="Boom = a top-25% score across the whole league that week. Bust = bottom 25%. Bar = booms minus busts."
+      title="Hot & Cold Weeks"
+      subtitle="Hot = a top-25% score across the whole league that week. Cold = bottom 25%. Bar = hot weeks minus cold weeks."
     >
-      <DivergingMeterBody items={items} posLabel="Boom" negLabel="Bust" digits={0} unit="net" emptyText="No completed weeks yet." />
+      <DivergingMeterBody items={items} posLabel="Hot" negLabel="Cold" digits={0} unit="net" emptyText="No completed weeks yet." />
+    </FunCard>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Season Boom or Bust: the weekly Boom or Bust card (score vs. pregame projection), added up.
+// ---------------------------------------------------------------------------------------------
+export function SeasonBoomOrBustMeter({ rows }) {
+  const { displayName } = useNameDisplay();
+  const items = (rows || []).map(r => ({
+    manager: r.manager, conf: r.conf, value: r.total,
+    detail: `beat it ${r.beat} of ${r.weeks} wks`,
+    title: `${displayName(r.manager, r.conf)}: ${signed(r.total)} pts vs. projections over ${r.weeks} weeks (beat it ${r.beat}, missed ${r.missed})${r.best ? `. Best: Week ${r.best.week} (${signed(r.best.delta)})` : ''}${r.worst ? `. Worst: Week ${r.worst.week} (${signed(r.worst.delta)})` : ''}`
+  }));
+  return (
+    <FunCard
+      chartId="season-boom-bust-meter"
+      title="Season Boom or Bust"
+      subtitle="Every week's Boom or Bust added up: your actual score minus your starters' pregame projection, summed over the season."
+    >
+      <DivergingMeterBody items={items} posLabel="Boom" negLabel="Bust" digits={0} unit="pts" emptyText="Waiting on projections." />
     </FunCard>
   );
 }
@@ -394,18 +415,64 @@ export function SitStartMeter({ rows }) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Fleece meter: net production won or lost in trades, plus every trade, side by side.
+// Trade grades (Fleece meter): real lineup points since each trade, plus each traded player's
+// week-by-week line so you can see how he's done since the deal.
 // ---------------------------------------------------------------------------------------------
-const MIN_FLEECE_WEEKS = 2;
+const GRADE_STYLE = {
+  Fleece: 'bg-[var(--neg)] text-[var(--surface)]',
+  'Clear win': 'bg-[var(--live)] text-[var(--surface)]',
+  'Slight edge': 'bg-[var(--surface2)] text-[var(--text)]',
+  Even: 'bg-[var(--surface2)] text-[var(--muted)]',
+  'Too early': 'border border-dashed border-[var(--border2)] text-[var(--muted)]'
+};
+
+// Weekly points bars for one player, Week 1 to the latest completed week. Bars from the trade week
+// on are solid (accent when the new team started him, grey when benched); weeks before the trade
+// are faint. A dashed line marks the trade; a missing bar means he wasn't on a roster that week.
+function PlayerTradeLine({ player, tradeWeek, manager, maxPts }) {
+  const W = 9, GAP = 2, H = 28;
+  const weeks = player.line.length;
+  return (
+    <svg width={weeks * (W + GAP)} height={H + 2} className="shrink-0 overflow-visible" aria-hidden="true">
+      {player.line.map((wk, i) => {
+        if (wk.points == null) return null;
+        const h = Math.max(1.5, (Math.max(0, wk.points) / maxPts) * H);
+        const after = wk.week >= tradeWeek;
+        const startedForNewTeam = after && wk.manager === manager && wk.started;
+        const fill = !after ? 'var(--border2)' : startedForNewTeam ? 'var(--accent)' : 'var(--muted)';
+        const label = `Wk ${wk.week}: ${wk.points.toFixed(1)} pts${!after ? ' (before the trade)' : startedForNewTeam ? ' (started)' : wk.manager === manager ? ' (on the bench)' : ''}`;
+        return (
+          <rect key={wk.week} x={i * (W + GAP)} y={H - h + 1} width={W} height={h} rx={1.5} fill={fill} opacity={after ? 1 : 0.55}>
+            <title>{label}</title>
+          </rect>
+        );
+      })}
+      {tradeWeek <= weeks && (
+        <line x1={(tradeWeek - 1) * (W + GAP) - GAP / 2} x2={(tradeWeek - 1) * (W + GAP) - GAP / 2} y1={-1} y2={H + 2}
+          stroke="var(--text2)" strokeDasharray="2 2" strokeWidth={1} />
+      )}
+    </svg>
+  );
+}
 
 function TradeCard({ trade }) {
   const { displayName } = useNameDisplay();
-  const small = trade.weeks < MIN_FLEECE_WEEKS;
+  const winnerSide = trade.sides.find(s => s.manager === trade.winner);
+  const projLeader = trade.sides.find(s => s.manager === trade.projectedLeader);
+  const maxPts = Math.max(10, ...trade.sides.flatMap(s => s.got.flatMap(p => p.line.map(w => w.points || 0))));
   return (
     <div className="rounded-lg border border-[var(--border)] p-3">
-      <div className="mb-2 flex items-center justify-between text-[11px] font-semibold text-[var(--muted)]">
-        <span>Week {trade.week} · {trade.conf}</span>
-        <span>{small ? 'Small sample (under 2 weeks)' : `${trade.weeks} weeks measured`}</span>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[11px] font-semibold text-[var(--muted)]">
+        <span className="flex flex-wrap items-center gap-2">
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${GRADE_STYLE[trade.grade]}`}>{trade.grade}</span>
+          {winnerSide && <span className="text-[var(--text2)]">{displayName(winnerSide.manager, winnerSide.conf)} got {Math.round(trade.share * 100)}% of the lineup points</span>}
+          {trade.grade === 'Too early' && (
+            <span className="text-[var(--text2)]">
+              {projLeader ? `Projections favor ${displayName(projLeader.manager, projLeader.conf)} (${Math.round(trade.projShare * 100)}%)` : 'Projections see it as even'}
+            </span>
+          )}
+        </span>
+        <span>Week {trade.week} · {trade.conf} · {trade.weeks} week{trade.weeks === 1 ? '' : 's'} of results</span>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         {trade.sides.map(s => (
@@ -413,26 +480,27 @@ function TradeCard({ trade }) {
             <div className="flex items-center justify-between gap-2">
               <span className="flex min-w-0 items-center gap-1.5 text-xs font-bold text-[var(--text)]">
                 <TeamMiniLogo manager={s.manager} size={18} />
-                <span className="truncate">{displayName(s.manager, s.conf)}</span>
+                <span className="truncate">{displayName(s.manager, s.conf)} got</span>
               </span>
-              <span className={`shrink-0 text-right text-xs font-black ${Math.abs(s.net) < 0.05 ? 'text-[var(--muted)]' : s.net > 0 ? 'text-[var(--pos)]' : 'text-[var(--neg)]'}`}>
-                {signed(s.net)}
-                {trade.weeks > 0 && <span className="block text-[10px] font-semibold text-[var(--muted)]">{signed(s.perWeek)}/wk</span>}
+              <span className={`shrink-0 text-right text-xs font-black ${s.manager === trade.winner ? 'text-[var(--pos)]' : trade.winner ? 'text-[var(--neg)]' : 'text-[var(--text2)]'}`}>
+                {s.points.toFixed(1)} lineup pts
+                <span className="block text-[10px] font-semibold text-[var(--muted)]">{s.projected.toFixed(0)} projected rest of season</span>
               </span>
             </div>
-            <p className="mt-1 text-[11px] text-[var(--text2)]">
-              <span className="font-semibold text-[var(--muted)]">Got </span>
-              {s.got.length ? s.got.map(p => `${p.name}${p.pos ? ` (${p.pos})` : ''} ${signed(p.value)}`).join(', ') : 'nothing'}
-            </p>
-            <p className="text-[11px] text-[var(--text2)]">
-              <span className="font-semibold text-[var(--muted)]">Gave </span>
-              {s.gave.length ? s.gave.map(p => `${p.name}${p.pos ? ` (${p.pos})` : ''} ${signed(p.value)}`).join(', ') : 'nothing'}
-            </p>
+            <ul className="mt-1.5 space-y-1">
+              {s.got.map(p => (
+                <li key={p.id} className="flex items-center justify-between gap-2 text-[11px]">
+                  <span className="min-w-0 truncate text-[var(--text2)]">
+                    <span className="font-semibold text-[var(--text)]">{p.name}</span>{p.pos ? ` ${p.pos}` : ''}
+                    <span className="block text-[10px] text-[var(--muted)]">{p.points.toFixed(1)} pts in {p.starts} start{p.starts === 1 ? '' : 's'} · {p.projected.toFixed(0)} proj.</span>
+                  </span>
+                  <PlayerTradeLine player={p} tradeWeek={trade.week} manager={s.manager} maxPts={maxPts} />
+                </li>
+              ))}
+              {!s.got.length && <li className="text-[11px] text-[var(--muted)]">No players</li>}
+            </ul>
             {s.faab !== 0 && (
-              <p className="text-[11px] font-semibold text-[var(--muted)]">
-                {s.faab > 0 ? `+$${s.faab} FAAB received` : `$${-s.faab} FAAB sent`}
-                {Math.abs(s.faabValue) >= 0.05 && ` (${signed(s.faabValue)} pts)`}
-              </p>
+              <p className="mt-1 text-[11px] font-semibold text-[var(--muted)]">{s.faab > 0 ? `+$${s.faab} FAAB received` : `$${-s.faab} FAAB sent`}</p>
             )}
           </div>
         ))}
@@ -444,31 +512,31 @@ function TradeCard({ trade }) {
 export function FleeceMeter({ data }) {
   const { displayName } = useNameDisplay();
   const [showAll, setShowAll] = useState(false);
-  const byTeam = data?.byTeam || [];
+  const byTeam = (data?.byTeam || []).filter(t => t.trades > t.early);
   const trades = data?.trades || [];
   const items = byTeam.map(t => ({
     manager: t.manager, conf: t.conf, value: t.net,
-    detail: `${t.trades} trade${t.trades === 1 ? '' : 's'}`,
-    title: `${displayName(t.manager, t.conf)}: ${signed(t.net)} net points over replacement across ${t.trades} trade${t.trades === 1 ? '' : 's'}`
+    detail: `${t.won}W ${t.lost}L${t.trades - t.early - t.won - t.lost ? ` ${t.trades - t.early - t.won - t.lost} even` : ''}`,
+    title: `${displayName(t.manager, t.conf)}: ${signed(t.net)} lineup points from trades (won ${t.won}, lost ${t.lost})${t.early ? `; ${t.early} too recent to grade` : ''}`
   }));
   const shown = showAll ? trades : trades.slice(0, 5);
   return (
     <FunCard
       chartId="fleece-meter"
       title="Fleece Meter"
-      subtitle="Since each trade: points over replacement level from the players you got (in weeks you started them), minus the same for the players you gave up. A replacement-level player counts as 0."
+      subtitle="Who actually won each trade? Lineup points = what the players you got scored in weeks you started them, minus what the players you gave up scored for their new team. Byes and injuries count. Graded after 3 weeks: Even under 55% of the points, Slight edge 55–65%, Clear win 65–80%, Fleece 80%+."
     >
-      <DivergingMeterBody items={items} posLabel="Fleecers" negLabel="Fleeced" unit="pts" emptyText="No completed trades yet." />
-      {trades.length > 0 && (
-        <p className="mt-3 text-center text-[11px] text-[var(--muted)]">
-          {data.faabRate > 0
-            ? `FAAB in trades counts at ${data.faabRate.toFixed(2)} pts per $, based on how waiver bids have paid off.`
-            : `FAAB in trades counts as 0 for now. Waiver bids ($${data.claimBid} total) have scored ${signed(data.claimValue)} pts over replacement, so they haven't paid off yet.`}
-        </p>
-      )}
+      <DivergingMeterBody items={items} posLabel="Fleecers" negLabel="Fleeced" digits={0} unit="pts" emptyText="No trades old enough to grade yet." />
       {trades.length > 0 && (
         <div className="mt-4 space-y-2">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text2)]">Trades</h4>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text2)]">Trades</h4>
+            <span className="flex items-center gap-3 text-[10px] text-[var(--muted)]">
+              <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-[var(--accent)]" />started for new team</span>
+              <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-[var(--muted)]" />benched / elsewhere</span>
+              <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-[var(--border2)] opacity-60" />before the trade</span>
+            </span>
+          </div>
           {shown.map(t => <TradeCard key={t.id} trade={t} />)}
           {trades.length > 5 && (
             <div data-export-ignore="true">
@@ -588,14 +656,14 @@ export function WaiverWireMeter({ rows }) {
   const { displayName } = useNameDisplay();
   const items = (rows || []).map(r => ({
     manager: r.manager, conf: r.conf, value: r.net,
-    detail: `${r.pickups} pickup${r.pickups === 1 ? '' : 's'}${r.faab > 0 ? ` · $${r.faab}` : ''}`,
-    title: `${displayName(r.manager, r.conf)}: ${signed(r.net)} pts over replacement from ${r.pickups} pickups, $${r.faab} FAAB${r.best ? `. Best: ${r.best.name} (${signed(r.best.value)})` : ''}`
+    detail: `${r.pickups} pickup${r.pickups === 1 ? '' : 's'}${r.faab > 0 ? ` · $${r.faab} · ${r.perDollar.toFixed(1)} pts/$` : ' · $0'}`,
+    title: `${displayName(r.manager, r.conf)}: ${signed(r.net)} pts over replacement from ${r.pickups} pickups. $${r.faab} FAAB spent${r.perDollar != null ? `, ${r.perDollar.toFixed(1)} pts per $ from paid pickups` : ''}${r.best ? `. Best: ${r.best.name} (${signed(r.best.value)}${r.best.bid ? `, $${r.best.bid}` : ', free'})` : ''}`
   }));
   return (
     <FunCard
       chartId="waiver-wire-meter"
       title="Waiver Wire"
-      subtitle="Points your pickups scored over replacement level in the weeks you started them. A replacement-level player counts as 0."
+      subtitle="Points your pickups scored over replacement level in the weeks you started them. pts/$ = what your paid pickups returned per FAAB dollar (free pickups not included)."
     >
       <DivergingMeterBody items={items} posLabel="Hot wire" negLabel="Cold wire" unit="pts" emptyText="No pickups yet." />
     </FunCard>
@@ -623,13 +691,13 @@ export function DraftValueMeter({ data }) {
   const { displayName } = useNameDisplay();
   const items = (data?.byTeam || []).map(t => ({
     manager: t.manager, conf: t.conf, value: t.net,
-    title: `${displayName(t.manager, t.conf)}: ${signed(t.net)} pts vs. what those rounds usually return, across ${t.picks} picks${t.best ? `. Best: ${t.best.name}, Rd ${t.best.round} (${signed(t.best.value)})` : ''}`
+    title: `${displayName(t.manager, t.conf)}: ${signed(t.net)} pts vs. what those draft slots usually return, across ${t.picks} picks${t.best ? `. Best: ${t.best.name}, pick #${t.best.pickNo} (${signed(t.best.value)})` : ''}`
   }));
   return (
     <FunCard
       chartId="draft-value-meter"
       title="Draft Value"
-      subtitle="Did your picks beat their round? Each pick's points over replacement (weeks you started him) minus the average for that round across both drafts. A 1st-rounder playing like a 1st-rounder is about 0."
+      subtitle="Did your picks beat their draft slot? Each pick's points over replacement (weeks you started him) minus the average of the picks made within 6 spots of it in both drafts. A 3rd overall pick playing like a 3rd overall pick is about 0."
     >
       <DivergingMeterBody items={items} posLabel="Good drafts" negLabel="Bad drafts" unit="pts" emptyText="No completed weeks yet." />
       {data?.best?.length > 0 && (

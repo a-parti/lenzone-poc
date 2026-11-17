@@ -1,5 +1,5 @@
 import React, { useState, lazy, Suspense } from 'react';
-import { LuckOfTheWeek, BoomOrBust, LuckMeter, SeasonHeatMap, FleeceMeter, SitStartMeter, PlayerBoomBustMeter, WaiverWireMeter, DraftValueMeter } from './FunVisuals';
+import { LuckOfTheWeek, BoomOrBust, LuckMeter, SeasonHeatMap, FleeceMeter, SitStartMeter, PlayerBoomBustMeter, SeasonBoomOrBustMeter, WaiverWireMeter, DraftValueMeter } from './FunVisuals';
 import { SkeletonRows } from './shared';
 
 const StandingsTrendChart = lazy(() => import('./StandingsTrendChart'));
@@ -21,7 +21,7 @@ function groupFromHash() {
 }
 
 export default function GraphsTab({
-  luck, heat, completedWeeks, fleece, sitStart, boomBust, waiver, draft, playersLoading,
+  luck, heat, completedWeeks, fleece, sitStart, boomBust, seasonBoom, waiver, draft, playersLoading,
   standingsHistory, weeklyPfPaHistory, afcManagers, nfcManagers, hexColorMap, latestCompletedWeek,
   selectedWeek, onSelectWeek, seasonWeeks, currentWeek, isWeekFinal, weekRows, logoMap, pregameScores
 }) {
@@ -49,6 +49,7 @@ export default function GraphsTab({
       {group === 'lineups' && (
         <div className="space-y-6">
           {loading || <SitStartMeter rows={sitStart} />}
+          <SeasonBoomOrBustMeter rows={seasonBoom} />
           <PlayerBoomBustMeter rows={boomBust} />
         </div>
       )}
@@ -90,6 +91,7 @@ export default function GraphsTab({
             <>
               <LuckOfTheWeek week={selectedWeek} rows={weekRows} logoMap={logoMap} />
               <BoomOrBust week={selectedWeek} rows={weekRows} pregameScores={pregameScores} />
+              <SeasonBoomOrBustMeter rows={seasonBoom} />
             </>
           ) : (
             <p className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 text-center text-sm text-[var(--muted)]">

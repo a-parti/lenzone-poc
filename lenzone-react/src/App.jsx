@@ -34,7 +34,7 @@ import GrabbableFootball from './components/GrabbableFootball';
 import DancingStickmen from './components/DancingStickmen';
 import SettingsMenu, { ModeToggle } from './components/SettingsMenu';
 import TeamMiniLogo from './components/TeamMiniLogo';
-import { weekTeamResults, allPlayLuck, seasonHeat, sitStartAccuracy, teamBoomBust, weeklyBenchPoints, tradeFleece, waiverWire, draftValue } from './lib/funStats';
+import { weekTeamResults, allPlayLuck, seasonHeat, sitStartAccuracy, teamBoomBust, seasonVsProjection, weeklyBenchPoints, tradeFleece, LAST_PROJECTED_WEEK, waiverWire, draftValue } from './lib/funStats';
 import { RosterModalProvider } from './context/RosterModalContext';
 import { MatchupPreviewProvider } from './context/MatchupPreviewContext';
 import MatchupPreviewModal from './components/MatchupPreviewModal';
@@ -265,26 +265,53 @@ function RecentForm({ form }) {
 
 // Season trophy case under a team's name: weekly high-score prizes (wine or cash), then the fun
 // ones from real scores (see computePrizeBadges). Nothing renders for a team with no badges.
+// One list drives the badges, their hover/tap text, the key under the tables and "How it works".
 const PRIZE_BADGES = [
-  ['wine', '🍷', n => `Weekly high score ×${n} (took the wine)`],
-  ['cash', '💰', n => `Weekly high score ×${n} (took the $15)`],
-  ['perfect', '🎯', n => `Perfect lineup ×${n}: started the best possible lineup`],
-  ['heartbreak', '💔', n => `Heartbreak ×${n}: top-25% score league-wide, still lost in-conference`],
-  ['lucky', '🍀', n => `Lucky win ×${n}: bottom-25% score league-wide, still won in-conference`],
-  ['bench', '🪑', n => `Bench blunder ×${n}: most points left on the bench that week`],
-  ['low', '🪦', n => `Lowest score of the week ×${n}`]
+  { key: 'wine', emoji: '🍷', name: 'High score (wine)', short: 'high score (wine)', rule: "Highest score of the week across both conferences; took the bottle of wine." },
+  { key: 'cash', emoji: '💰', name: 'High score ($15)', short: 'high score ($15)', rule: 'Highest score of the week across both conferences; took the $15.' },
+  { key: 'perfect', emoji: '🎯', name: 'Perfect lineup', short: 'perfect lineup', rule: 'Started the best possible lineup from their roster that week.' },
+  { key: 'heartbreak', emoji: '💔', name: 'Heartbreak', short: 'heartbreak loss', rule: "Scored in the league's top 25% that week and still lost the in-conference game." },
+  { key: 'lucky', emoji: '🍀', name: 'Lucky win', short: 'lucky win', rule: "Scored in the league's bottom 25% that week and still won the in-conference game." },
+  { key: 'bench', emoji: '🪑', name: 'Bench blunder', short: 'bench blunder', rule: 'Left the most points on the bench of all 24 teams that week.' },
+  { key: 'low', emoji: '🪦', name: 'Lowest score', short: 'lowest score', rule: 'Lowest score of the week across both conferences. Just for fun, not a prize.' }
 ];
+const badgeText = (b, n) => `${b.name}${n > 1 ? ` ×${n}` : ''}: ${b.rule}`;
+
+// Tapping a badge (phones have no hover) shows its explanation right under the row of badges.
 function PrizeBadges({ prizes, className = '' }) {
-  const shown = prizes ? PRIZE_BADGES.filter(([key]) => prizes[key] > 0) : [];
+  const [open, setOpen] = useState(null);
+  const shown = prizes ? PRIZE_BADGES.filter(b => prizes[b.key] > 0) : [];
   if (shown.length === 0) return null;
+  const openBadge = shown.find(b => b.key === open);
   return (
-    <div className={`flex flex-wrap items-center gap-x-1.5 text-[11px] leading-tight text-[var(--text2)] ${className}`}>
-      {shown.map(([key, emoji, label]) => (
-        <span key={key} title={label(prizes[key])} aria-label={label(prizes[key])} className="whitespace-nowrap">
-          {emoji}{prizes[key] > 1 && <span className="font-bold tabular-nums">×{prizes[key]}</span>}
-        </span>
-      ))}
+    <div className={className}>
+      <div className="flex flex-wrap items-center gap-x-1.5 text-[11px] leading-tight text-[var(--text2)]">
+        {shown.map(b => (
+          <button key={b.key} type="button" title={badgeText(b, prizes[b.key])} aria-label={badgeText(b, prizes[b.key])}
+            aria-expanded={open === b.key}
+            onClick={(e) => { e.stopPropagation(); setOpen(o => (o === b.key ? null : b.key)); }}
+            className={`whitespace-nowrap rounded ${open === b.key ? 'bg-[var(--surface2)] ring-1 ring-[var(--border2)]' : ''}`}>
+            {b.emoji}{prizes[b.key] > 1 && <span className="font-bold tabular-nums">×{prizes[b.key]}</span>}
+          </button>
+        ))}
+      </div>
+      {openBadge && (
+        <p className="mt-0.5 max-w-[16rem] text-[10px] leading-snug font-normal text-[var(--muted)] whitespace-normal">{badgeText(openBadge, prizes[openBadge.key])}</p>
+      )}
     </div>
+  );
+}
+
+// One-line key under the standings tables.
+function BadgeKey() {
+  return (
+    <p className="mt-2 text-[11px] leading-relaxed text-[var(--muted)] px-1">
+      <span className="font-semibold text-[var(--text2)]">Badges: </span>
+      {PRIZE_BADGES.map((b, i) => (
+        <span key={b.key} className="whitespace-nowrap">{i > 0 && ' · '}{b.emoji} {b.short}</span>
+      ))}
+      <span className="whitespace-nowrap"> · tap one for details</span>
+    </p>
   );
 }
 
@@ -463,6 +490,14 @@ function StandingsRules() {
         <li><b className="text-[var(--text)]">6 of 12 teams in each conference make the playoffs.</b> Seeds 1–5 go to the most {STANDINGS_PTS.short} (total points breaks ties). Seed 6, the wild card, goes to whoever has scored the most total points among everyone else.</li>
         <li><b className="text-[var(--text)]">Seeds 1 and 2 get a first-round bye.</b> Everyone outside the top 6 plays in the Toilet Bowl.</li>
         <li><b className="text-[var(--text)]">Playoff odds</b> play out the rest of the season 10,000 times using each team's scoring so far, shown as a percentage with the change since last week. 100% means clinched. On a computer, hover the number to see how it's calculated.</li>
+        <li>
+          <b className="text-[var(--text)]">Badges under team names</b> count how many times each has happened this season (×2 = twice). Tap a badge on a team to see what it means.
+          <ul className="mt-1.5 space-y-1 list-none pl-0">
+            {PRIZE_BADGES.map(b => (
+              <li key={b.key}><span className="mr-1.5">{b.emoji}</span><b className="text-[var(--text)]">{b.name}:</b> {b.rule}</li>
+            ))}
+          </ul>
+        </li>
       </ul>
     </div>
   );
@@ -1189,7 +1224,7 @@ export default function App() {
   // Real per-week fantasy projections (RotoWire, via Sleeper) for the WHOLE season -- powers the
   // matchup/roster views and the player modal's full-season weekly table.
   useEffect(() => {
-    fetchAllWeekProjections(SEASON_YEAR, SEASON_WEEKS).then(setWeekProjectionsByWeek);
+    fetchAllWeekProjections(SEASON_YEAR, LAST_PROJECTED_WEEK).then(setWeekProjectionsByWeek); // through the fantasy playoffs, for trade grades
   }, []);
   // Sleeper can revise projections and live scores throughout the week. Refresh the selected
   // week's projection feed AND both leagues' matchup payloads together so every player/team Proj
@@ -1733,8 +1768,13 @@ export default function App() {
     [latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, afcDraft, nfcDraft, playersDB]
   );
   const funFleece = useMemo(
-    () => tradeFleece(latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, afcTransactions, nfcTransactions, playersDB),
-    [latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, afcTransactions, nfcTransactions, playersDB]
+    () => tradeFleece(latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, afcTransactions, nfcTransactions, playersDB, weekProjectionsByWeek),
+    [latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, afcTransactions, nfcTransactions, playersDB, weekProjectionsByWeek]
+  );
+  // The weekly Boom or Bust card, added up over the season.
+  const funSeasonBoom = useMemo(
+    () => seasonVsProjection(latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, weekProjectionsByWeek),
+    [latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, weekProjectionsByWeek]
   );
 
   const standingsHistory = useMemo(
@@ -2033,6 +2073,7 @@ export default function App() {
                     <StandingsTable conf={null}
                       rows={[...afcStandings, ...nfcStandings].sort((a, b) => b.totalPts - a.totalPts || b.pfAvg - a.pfAvg).map((row, i) => ({ ...row, rank: i + 1 }))}
                       afcData={afcData} nfcData={nfcData} latestCompletedWeek={latestCompletedWeek} prizeBadges={prizeBadges} />
+                    <BadgeKey />
                     </div>
                     <div className="grid gap-4 lg:grid-cols-2">
                       <WildcardRace rows={afcStandings} conf="AFC" latestCompletedWeek={latestCompletedWeek} />
@@ -2056,6 +2097,7 @@ export default function App() {
                         </div>
                       ))}
                     </div>
+                    <BadgeKey />
                     <div className="grid gap-4 lg:grid-cols-2">
                       {["AFC", "NFC"].map(conf => (
                         <div key={conf} className={conf === standingsConf ? "" : "hidden lg:block"}>
@@ -2086,7 +2128,7 @@ export default function App() {
                   <div className="mt-6">
                     <GraphsTab
                       luck={funLuck} heat={funHeat} completedWeeks={completedWeeks}
-                      fleece={funFleece} sitStart={funSitStart} boomBust={funBoomBust} waiver={funWaiver} draft={funDraft} playersLoading={playersLoading}
+                      fleece={funFleece} sitStart={funSitStart} boomBust={funBoomBust} seasonBoom={funSeasonBoom} waiver={funWaiver} draft={funDraft} playersLoading={playersLoading}
                       standingsHistory={standingsHistory} weeklyPfPaHistory={weeklyPfPaHistory}
                       afcManagers={afcManagers} nfcManagers={nfcManagers}
                       hexColorMap={teamHexColorMap} latestCompletedWeek={latestCompletedWeek}
@@ -2326,7 +2368,7 @@ export default function App() {
                 afcStandings={afcStandings} nfcStandings={nfcStandings} logoMap={teamLogoMap}
                 week={selectedWeek} isWeekFinal={isSelectedWeekFinal} weekRows={funWeekRows} pregameScores={pregameScoreByManager}
                 luck={funLuck} heat={funHeat} completedWeeks={completedWeeks}
-                fleece={funFleece} sitStart={funSitStart} boomBust={funBoomBust} waiver={funWaiver} draft={funDraft}
+                fleece={funFleece} sitStart={funSitStart} boomBust={funBoomBust} seasonBoom={funSeasonBoom} waiver={funWaiver} draft={funDraft}
               />
             </Suspense>
           </div>

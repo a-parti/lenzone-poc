@@ -3,7 +3,7 @@ import WeeklyScoresBarChart from './WeeklyScoresBarChart';
 import StandingsBarChart from './StandingsBarChart';
 import {
   LuckOfTheWeek, BoomOrBust, LuckMeter, SeasonHeatMap, FleeceMeter, SitStartMeter,
-  PlayerBoomBustMeter, WaiverWireMeter, DraftValueMeter
+  PlayerBoomBustMeter, SeasonBoomOrBustMeter, WaiverWireMeter, DraftValueMeter
 } from './FunVisuals';
 
 function Section({ title, note, children }) {
@@ -21,7 +21,7 @@ function Section({ title, note, children }) {
 // Every graph worth pasting into the Teams post, each with its own PNG export.
 export default function BroadcastGraphs({
   weeklyScoresProps, afcStandings, nfcStandings, logoMap, week, isWeekFinal, weekRows, pregameScores,
-  luck, heat, completedWeeks, fleece, sitStart, boomBust, waiver, draft
+  luck, heat, completedWeeks, fleece, sitStart, boomBust, seasonBoom, waiver, draft
 }) {
   return (
     <div className="space-y-8">
@@ -42,6 +42,7 @@ export default function BroadcastGraphs({
       <Section title="Season so far" note="Optional extras for the post.">
         <LuckMeter luck={luck} />
         <SitStartMeter rows={sitStart} />
+        <SeasonBoomOrBustMeter rows={seasonBoom} />
         <PlayerBoomBustMeter rows={boomBust} />
         <FleeceMeter data={fleece} />
         <WaiverWireMeter rows={waiver} />

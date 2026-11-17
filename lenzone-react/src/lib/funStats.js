@@ -1,4 +1,4 @@
-import { computeOptimalLineupPoints } from './players';
+import { computeOptimalLineupPoints, projectedPoints, scoringFieldFor } from './players';
 
 // Shared math for the "fun" visuals (Luck of the Week, Boom or Bust, Luck Meter, Season Heat Map,
 // and the trade / waiver / draft / sit-start meters).
@@ -145,6 +145,39 @@ export function weeklyBenchPoints(latestCompletedWeek, afcData, nfcData, afcSeas
   return byWeek;
 }
 
+// Season Boom or Bust: the weekly Boom or Bust card added up over the season. Each completed week,
+// a team's actual score minus its pregame projection (the sum of its starters' Sleeper projections,
+// scored with the league's rules). `total` = season sum; `beat` / `missed` = weeks above / below.
+export function seasonVsProjection(latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, projectionsByWeek) {
+  const rows = [];
+  confEntries(afcData, nfcData, afcSeason, nfcSeason).forEach(({ conf, data, season }) => {
+    const fallback = scoringFieldFor(data?.receptionPoints);
+    (data?.rosters || []).forEach(r => {
+      const t = { manager: r.manager, conf, total: 0, weeks: 0, beat: 0, missed: 0, best: null, worst: null };
+      for (let w = 1; w <= latestCompletedWeek; w++) {
+        const snap = season?.rosterSnapshotByWeek?.[w]?.[r.manager];
+        const actual = season?.scoreByWeek?.[w]?.[r.manager];
+        if (!snap?.starters?.length || !(actual > 0) || !projectionsByWeek?.[w]) continue;
+        let projected = 0, counted = 0;
+        snap.starters.forEach(id => {
+          if (!id || id === '0') return;
+          const p = projectedPoints(projectionsByWeek[w], id, data.scoringSettings, fallback);
+          if (Number.isFinite(p)) { projected += p; counted += 1; }
+        });
+        if (!counted) continue;
+        const delta = actual - projected;
+        t.total += delta;
+        t.weeks += 1;
+        if (delta >= 0) t.beat += 1; else t.missed += 1;
+        if (!t.best || delta > t.best.delta) t.best = { week: w, delta };
+        if (!t.worst || delta < t.worst.delta) t.worst = { week: w, delta };
+      }
+      if (t.weeks > 0) rows.push(t);
+    });
+  });
+  return rows.sort((a, b) => b.total - a.total);
+}
+
 // Team Boom/Bust: a boom week is a top-25% score across the whole league that week (all 24 teams),
 // a bust week a bottom-25% score -- the same "share of weeks above / below a line" idea as
 // FantasyPros' boom/bust rates, applied to teams instead of players. Uses seasonHeat's percentile
@@ -233,76 +266,143 @@ function valueTools(latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason,
   return { entries, position, replacementLevel, nameOf, valueOn };
 }
 
-// Fleece meter: for every completed trade, the points over replacement each side got from the
-// players it received (in the weeks it started them, from the trade week on) minus what the players
-// it gave up produced over replacement for their new team (same rule). Looks backward at what
-// actually happened, not at projections. Redraft league: players only, no picks.
-export function tradeFleece(latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, afcTransactions, nfcTransactions, playersDB) {
-  const { entries, position, nameOf, valueOn } = valueTools(latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, playersDB);
+// Trade grades ("who actually won the trade?"). Few sites grade trades after the fact; the common
+// tools judge a deal up front from rest-of-season values. This does both, in plain fantasy points
+// anyone can check in Sleeper:
+//   Lineup points since the trade -- the points the players you received scored in weeks YOU
+//     STARTED them, vs. the points the players you gave up scored in weeks their new team started
+//     them. Byes, injuries and duds count naturally (0 is 0); a throw-in who sits on your bench adds
+//     nothing, because he didn't help you. This is the headline number and the grade.
+//   Rest-of-season outlook -- Sleeper's projected points through Week 17 (fantasy playoffs
+//     included, scored with your league's rules) for the received players still on your roster.
+//     Shown for context; for a trade under MIN_GRADED_WEEKS old it's the only signal, so the grade
+//     reads "Too early".
+// Grade = the winning side's share of the lineup points both sides got from the trade.
+export const TRADE_GRADES = [
+  { min: 0.8, label: 'Fleece' },
+  { min: 0.65, label: 'Clear win' },
+  { min: 0.55, label: 'Slight edge' },
+  { min: 0, label: 'Even' }
+];
+export const LAST_PROJECTED_WEEK = 17;
+const MIN_GRADED_WEEKS = 3;
+const MIN_GRADED_TRADE_POINTS = 15;
+export function tradeFleece(latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, afcTransactions, nfcTransactions, playersDB, projectionsByWeek = {}) {
+  const entries = confEntries(afcData, nfcData, afcSeason, nfcSeason);
+  const position = (id) => playersDB?.[id]?.position || null;
+  const nameOf = (id) => {
+    const p = playersDB?.[id];
+    return p ? `${p.first_name || ''} ${p.last_name || ''}`.trim() || id : id;
+  };
 
-  // What a FAAB dollar is worth in this league: points over replacement that winning waiver claims
-  // produced (in started weeks), per dollar bid. Never below zero.
-  let claimValue = 0, claimBid = 0;
-  [[entries[0], afcTransactions], [entries[1], nfcTransactions]].forEach(([{ data, season }, transactions]) => {
-    (transactions || []).filter(t => t.type === 'waiver' && t.status === 'complete').forEach(t => {
-      const bid = t.settings?.waiver_bid || 0;
-      if (bid <= 0) return;
-      Object.entries(t.adds || {}).forEach(([id, rid]) => {
-        const manager = data.rosterIdMap?.[rid];
-        if (!manager) return;
-        claimBid += bid;
-        claimValue += valueOn(season, t.leg || 1, id, manager).value;
+  // Points a player scored in the weeks `manager` started him, from startWeek on.
+  const startedPoints = (season, startWeek, id, manager) => {
+    let points = 0, starts = 0;
+    for (let w = startWeek; w <= latestCompletedWeek; w++) {
+      const snap = season?.rosterSnapshotByWeek?.[w]?.[manager];
+      if (!snap?.starters?.includes(id)) continue;
+      const pts = snap.playersPoints?.[id];
+      if (Number.isFinite(pts)) points += pts;
+      starts += 1;
+    }
+    return { points, starts };
+  };
+  // Every completed week's points for a player, whoever had him (null = not on any roster in this
+  // league that week), and who that was -- for the "since the trade" chart.
+  const weeklyLine = (season, id) => {
+    const line = [];
+    for (let w = 1; w <= latestCompletedWeek; w++) {
+      let entry = { week: w, points: null, manager: null, started: false };
+      Object.entries(season?.rosterSnapshotByWeek?.[w] || {}).some(([manager, snap]) => {
+        if (!(id in (snap.playersPoints || {}))) return false;
+        entry = { week: w, points: snap.playersPoints[id] ?? 0, manager, started: (snap.starters || []).includes(id) };
+        return true;
+      });
+      line.push(entry);
+    }
+    return line;
+  };
+  // Projected points for the rest of the season, if he's still on that roster.
+  const projectedFor = (data, id, manager) => {
+    const roster = (data?.rosters || []).find(r => r.manager === manager);
+    if (!roster?.players?.includes(id)) return 0;
+    const fallback = scoringFieldFor(data?.receptionPoints);
+    let total = 0;
+    for (let w = Math.max(1, latestCompletedWeek + 1); w <= LAST_PROJECTED_WEEK; w++) {
+      const proj = projectedPoints(projectionsByWeek?.[w], id, data?.scoringSettings, fallback);
+      if (Number.isFinite(proj)) total += proj;
+    }
+    return total;
+  };
+
+  const trades = [];
+  entries.forEach(({ conf, data, season }, i) => {
+    const transactions = i === 0 ? afcTransactions : nfcTransactions;
+    (transactions || []).filter(t => t.type === 'trade' && t.status === 'complete').forEach(t => {
+      const managerOf = (rid) => data.rosterIdMap?.[rid];
+      const startWeek = t.leg || 1;
+      const sides = (t.roster_ids || []).map(rid => {
+        const manager = managerOf(rid);
+        const got = Object.entries(t.adds || {}).filter(([, to]) => to === rid).map(([id]) => {
+          const { points, starts } = startedPoints(season, startWeek, id, manager);
+          return { id, name: nameOf(id), pos: position(id), points, starts, projected: projectedFor(data, id, manager), line: weeklyLine(season, id) };
+        });
+        const faab = (t.waiver_budget || []).reduce((sum, b) => sum + (b.receiver === rid ? b.amount : b.sender === rid ? -b.amount : 0), 0);
+        return {
+          rosterId: rid, manager, conf, got, faab,
+          points: got.reduce((s, p) => s + p.points, 0),
+          projected: got.reduce((s, p) => s + p.projected, 0)
+        };
+      }).filter(s => s.manager);
+      if (sides.length < 2) return;
+
+      const weeks = Math.max(0, latestCompletedWeek - startWeek + 1);
+      const totalPoints = sides.reduce((s, x) => s + x.points, 0);
+      const totalProjected = sides.reduce((s, x) => s + x.projected, 0);
+      sides.forEach(s => {
+        const others = sides.filter(o => o !== s);
+        const avgOther = (key) => others.reduce((sum, o) => sum + o[key], 0) / others.length;
+        s.net = s.points - avgOther('points');
+        s.projectedNet = s.projected - avgOther('projected');
+        s.share = totalPoints > 0 ? s.points / totalPoints : 1 / sides.length;
+      });
+      const leader = [...sides].sort((a, b) => b.points - a.points)[0];
+      const share = totalPoints > 0 ? leader.points / totalPoints : 0.5;
+      const projLeader = [...sides].sort((a, b) => b.projected - a.projected)[0];
+      const projShare = totalProjected > 0 ? projLeader.projected / totalProjected : 0.5;
+      let grade;
+      if (weeks < MIN_GRADED_WEEKS) grade = 'Too early';
+      else if (totalPoints < MIN_GRADED_TRADE_POINTS) grade = 'Even';
+      else grade = (TRADE_GRADES.find(g => share >= g.min) || TRADE_GRADES[TRADE_GRADES.length - 1]).label;
+      const winner = grade === 'Too early' || grade === 'Even' ? null : leader.manager;
+      trades.push({
+        id: t.transaction_id, week: startWeek, conf, created: t.created || 0, weeks, sides,
+        grade, winner, share, projectedLeader: projShare >= 0.55 ? projLeader.manager : null, projShare
       });
     });
   });
-  const faabRate = claimBid > 0 ? Math.max(0, claimValue / claimBid) : 0;
-  const trades = [];
-  [[entries[0], afcTransactions], [entries[1], nfcTransactions]].forEach(([{ conf, data, season }, transactions]) => {
-    (transactions || []).filter(t => t.type === 'trade' && t.status === 'complete').forEach(t => {
-      const rosterIds = t.roster_ids || [];
-      const managerOf = (rid) => data.rosterIdMap?.[rid];
-      const startWeek = t.leg || 1;
-      const valueOnRoster = (id, manager) => valueOn(season, startWeek, id, manager);
-      const sides = rosterIds.map(rid => {
-        const manager = managerOf(rid);
-        const got = Object.entries(t.adds || {}).filter(([, to]) => to === rid).map(([id]) => ({ id, name: nameOf(id), pos: position(id), ...valueOnRoster(id, manager) }));
-        const gave = Object.entries(t.drops || {}).filter(([, from]) => from === rid).map(([id]) => {
-          const newOwner = managerOf((t.adds || {})[id]);
-          return { id, name: nameOf(id), pos: position(id), ...(newOwner ? valueOnRoster(id, newOwner) : { value: 0, weeks: 0 }) };
-        });
-        const faab = (t.waiver_budget || []).reduce((sum, b) => sum + (b.receiver === rid ? b.amount : b.sender === rid ? -b.amount : 0), 0);
-        const gotValue = got.reduce((s, p) => s + p.value, 0);
-        const gaveValue = gave.reduce((s, p) => s + p.value, 0);
-        const faabValue = faab * faabRate;
-        return { rosterId: rid, manager, conf, got, gave, faab, faabValue, gotValue, gaveValue, net: gotValue - gaveValue + faabValue };
-      }).filter(s => s.manager);
-      if (sides.length < 2) return;
-      const weeks = Math.max(0, ...sides.flatMap(s => [...s.got, ...s.gave].map(p => p.weeks)));
-      trades.push({ id: t.transaction_id, week: startWeek, conf, created: t.created || 0, weeks, sides });
-    });
-  });
 
+  // Meter: net lineup points from trades old enough to grade.
   const byManager = {};
   trades.forEach(tr => tr.sides.forEach(s => {
-    const row = byManager[s.manager] || (byManager[s.manager] = { manager: s.manager, conf: s.conf, net: 0, trades: 0, weeks: 0 });
-    row.net += s.net;
+    const row = byManager[s.manager] || (byManager[s.manager] = { manager: s.manager, conf: s.conf, net: 0, trades: 0, won: 0, lost: 0, early: 0 });
     row.trades += 1;
-    row.weeks += tr.weeks;
+    if (tr.grade === 'Too early') { row.early += 1; return; }
+    row.net += s.net;
+    if (tr.winner === s.manager) row.won += 1;
+    else if (tr.winner) row.lost += 1;
   }));
-  // Points per week since the trade, so an old trade and a recent one can be compared.
-  trades.forEach(tr => tr.sides.forEach(s => { s.perWeek = tr.weeks > 0 ? s.net / tr.weeks : 0; }));
   return {
     byTeam: Object.values(byManager).sort((a, b) => b.net - a.net),
     trades: trades.sort((a, b) => b.created - a.created),
-    faabRate,
-    claimBid,
-    claimValue
+    latestCompletedWeek
   };
 }
 
 // Waiver Wire meter: points over replacement that each team's waiver / free-agent pickups produced
 // in the weeks they were in that team's starting lineup (bench weeks and weeks on another roster
-// don't count), plus FAAB spent.
+// don't count), plus FAAB spent. `perDollar` = value from the pickups you PAID for, per FAAB dollar
+// (free pickups excluded, since they cost nothing); null when no FAAB has been spent.
 export function waiverWire(latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, afcTransactions, nfcTransactions, playersDB) {
   const { entries, position, nameOf, valueOn } = valueTools(latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, playersDB);
   const byManager = {};
@@ -313,22 +413,27 @@ export function waiverWire(latestCompletedWeek, afcData, nfcData, afcSeason, nfc
         const manager = data.rosterIdMap?.[rid];
         if (!manager) return;
         const { value, weeks } = valueOn(season, t.leg || 1, id, manager);
-        const row = byManager[manager] || (byManager[manager] = { manager, conf, net: 0, faab: 0, pickups: 0, best: null });
+        const row = byManager[manager] || (byManager[manager] = { manager, conf, net: 0, faab: 0, paidValue: 0, pickups: 0, best: null });
         row.net += value;
         row.faab += bid;
+        if (bid > 0) row.paidValue += value;
         row.pickups += 1;
-        if (weeks > 0 && (!row.best || value > row.best.value)) row.best = { name: nameOf(id), pos: position(id), value };
+        if (weeks > 0 && (!row.best || value > row.best.value)) row.best = { name: nameOf(id), pos: position(id), value, bid };
       });
     });
   });
-  return Object.values(byManager).sort((a, b) => b.net - a.net);
+  return Object.values(byManager)
+    .map(r => ({ ...r, perDollar: r.faab > 0 ? r.paidValue / r.faab : null }))
+    .sort((a, b) => b.net - a.net);
 }
 
-// Draft Value meter: did each pick beat what its ROUND usually returns? A pick's raw value is its
-// points over replacement in the weeks the drafting team started him (never started = 0). The
-// round's expected value is the average raw value of every pick made in that round across BOTH
-// leagues' drafts (24 picks per round). A pick's score is raw value minus that round average, so a
-// first-rounder who merely plays like a first-rounder scores ~0, and a late-round hit scores high.
+// Draft Value meter: did each pick beat what its DRAFT SLOT usually returns? A pick's raw value is
+// its points over replacement in the weeks the drafting team started him (never started = 0). The
+// slot's expected value is the average raw value of the picks made within DRAFT_SLOT_WINDOW picks
+// of that overall pick number in BOTH leagues' drafts (so pick 3 is judged against picks 1-9, not
+// against the whole first round). A pick's score is raw value minus that expectation: a 3rd overall
+// pick who plays like a 3rd overall pick scores ~0, and a late-round hit scores high.
+const DRAFT_SLOT_WINDOW = 6;
 export function draftValue(latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, afcDraft, nfcDraft, playersDB) {
   const { entries, position, nameOf, valueOn } = valueTools(latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, playersDB);
   const raw = [];
@@ -340,10 +445,11 @@ export function draftValue(latestCompletedWeek, afcData, nfcData, afcSeason, nfc
       raw.push({ manager, conf, round: pk.round, pickNo: pk.pick_no, playerId: pk.player_id, name: nameOf(pk.player_id), pos: position(pk.player_id), raw: value, weeks });
     });
   });
-  const roundTotals = {};
-  raw.forEach(p => { const r = roundTotals[p.round] || (roundTotals[p.round] = { sum: 0, n: 0 }); r.sum += p.raw; r.n += 1; });
-  const roundAvg = Object.fromEntries(Object.entries(roundTotals).map(([round, { sum, n }]) => [round, sum / n]));
-  const picks = raw.map(p => ({ ...p, roundAvg: roundAvg[p.round], value: p.raw - roundAvg[p.round] }));
+  const expectedAt = (pickNo) => {
+    const near = raw.filter(p => Math.abs(p.pickNo - pickNo) <= DRAFT_SLOT_WINDOW);
+    return near.length ? near.reduce((s, p) => s + p.raw, 0) / near.length : 0;
+  };
+  const picks = raw.map(p => { const expected = expectedAt(p.pickNo); return { ...p, expected, value: p.raw - expected }; });
 
   const byManager = {};
   picks.forEach(pick => {

@@ -22,16 +22,27 @@ function opponentIn(pairs, manager) {
   return pair ? (pair[0] === manager ? pair[1] : pair[0]) : null;
 }
 
-function GameChip({ label, opponent, conf, result }) {
+// One of a team's two games: result badge (or IN / X before it's final), opponent, and the
+// opponent's score in the same state as the team's own (final, live so far, or projected). While
+// live, the badge outline and the opponent's score show who's ahead right now.
+function GameChip({ label, opponent, conf, result, myScore, opp }) {
   const { displayName } = useNameDisplay();
   if (!opponent) return <span className="flex-1 min-w-0 text-xs text-[var(--muted)] italic">No {label} game</span>;
+  const oppScore = opp?.score;
+  const comparable = !result && myScore != null && oppScore != null && opp?.state !== 'proj';
+  const lead = comparable ? (myScore > oppScore ? 'ahead' : myScore < oppScore ? 'behind' : 'tied') : null;
+  const leadRing = lead === 'ahead' ? 'border-[var(--pos)] text-[var(--pos)]' : lead === 'behind' ? 'border-[var(--neg)] text-[var(--neg)]' : 'border-[var(--border2)] text-[var(--muted)]';
+  const oppColor = opp?.state === 'proj' ? 'text-[var(--proj)]' : opp?.state === 'live' ? 'text-[var(--live)]' : 'text-[var(--text2)]';
+  const scoreText = oppScore != null ? oppScore.toFixed(opp?.state === 'proj' ? 1 : 2) : null;
   return (
-    <span className="flex-1 min-w-0 flex items-center gap-1.5 text-xs sm:text-[13px] text-[var(--text2)]" title={`${label}: vs ${displayName(opponent, conf)}`}>
-      <span className={`w-5 h-5 shrink-0 grid place-items-center rounded text-[11px] font-black ${result ? BADGE[result] : 'border border-[var(--border2)] text-[var(--muted)]'}`}>
+    <span className="flex-1 min-w-0 flex items-center gap-1.5 text-xs sm:text-[13px] text-[var(--text2)]"
+      title={`${label}: vs ${displayName(opponent, conf)}${scoreText ? ` (${opp.state === 'proj' ? 'projected ' : opp.state === 'live' ? 'so far ' : ''}${scoreText})` : ''}${lead ? ` · ${lead === 'tied' ? 'tied' : `${lead} right now`}` : ''}`}>
+      <span className={`w-5 h-5 shrink-0 grid place-items-center rounded text-[11px] font-black ${result ? BADGE[result] : `border ${leadRing}`}`}>
         {result || (label === 'In-conference' ? 'IN' : 'X')}
       </span>
       <TeamMiniLogo manager={opponent} size={16} />
-      <span className="truncate">{displayName(opponent, conf)}</span>
+      <span className="truncate min-w-0">{displayName(opponent, conf)}</span>
+      {scoreText && <span className={`shrink-0 font-mono text-[11px] sm:text-xs font-bold tabular-nums ${oppColor}`}>{scoreText}</span>}
     </span>
   );
 }
@@ -59,8 +70,8 @@ function TeamRow({ team, rank, isMe, onOpen }) {
         </span>
       </div>
       <div className="flex items-center gap-2 sm:gap-3 mt-1.5 sm:pl-[3.25rem]">
-        <GameChip label="In-conference" opponent={intra.opponent} conf={conf} result={intra.result} />
-        <GameChip label="Cross-conference" opponent={cross.opponent} conf={cross.conf} result={cross.result} />
+        <GameChip label="In-conference" opponent={intra.opponent} conf={conf} result={intra.result} myScore={score} opp={intra.opp} />
+        <GameChip label="Cross-conference" opponent={cross.opponent} conf={cross.conf} result={cross.result} myScore={score} opp={cross.opp} />
         {lp != null && (
           <span className={`shrink-0 text-xs font-extrabold tabular-nums ${lp > 0 ? 'text-[var(--pos)]' : 'text-[var(--muted)]'}`}>+{lp} {STANDINGS_PTS.short}</span>
         )}
@@ -102,8 +113,8 @@ export default function WeekGames({ week, afcSeason, nfcSeason, crossPairs, proj
         : null;
       return {
         manager: m, conf, ...line,
-        intra: { opponent: intraOpp, result: intraResult },
-        cross: { opponent: crossOpp, conf: otherConf, result: crossResult },
+        intra: { opponent: intraOpp, result: intraResult, opp: intraOpp ? scoreOf(intraOpp, conf) : null },
+        cross: { opponent: crossOpp, conf: otherConf, result: crossResult, opp: crossOpp ? scoreOf(crossOpp, otherConf) : null },
         lp
       };
     }).sort((a, b) => (b.score ?? -1) - (a.score ?? -1));

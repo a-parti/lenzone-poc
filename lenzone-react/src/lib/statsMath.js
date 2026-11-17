@@ -704,9 +704,32 @@ export function computeRecentForm(managers, season, latestCompletedWeek, n = 4, 
 //                  "<CONF>:<owner_id>" key, so a team rename doesn't drop its badges)
 //   low         -- weeks with the lowest real score across BOTH conferences (just for fun, not a
 //                  prize), from posted Sleeper scores for completed weeks only; ties all count.
-export function computePrizeBadges(afcManagers, nfcManagers, afcSeason, nfcSeason, afcData, nfcData, latestCompletedWeek, prizeLog) {
+// Optional, from funStats (pass `heat` = seasonHeat(), `benchByWeek` = weeklyBenchPoints()):
+//   heartbreak  -- lost the in-conference game with a top-25% score league-wide that week
+//   lucky       -- won the in-conference game with a bottom-25% score league-wide that week
+//   perfect     -- started the best possible lineup from that week's roster (under 0.05 pts benched)
+//   bench       -- left the most points on the bench of all 24 teams that week; ties all count
+export function computePrizeBadges(afcManagers, nfcManagers, afcSeason, nfcSeason, afcData, nfcData, latestCompletedWeek, prizeLog, { heat = null, benchByWeek = null } = {}) {
   const badges = {};
-  const entry = key => badges[key] || (badges[key] = { wine: 0, cash: 0, low: 0 });
+  const entry = key => badges[key] || (badges[key] = { wine: 0, cash: 0, low: 0, heartbreak: 0, lucky: 0, perfect: 0, bench: 0 });
+
+  Object.values(heat || {}).forEach(t => {
+    Object.entries(t.weeks || {}).forEach(([w, c]) => {
+      if (Number(w) > latestCompletedWeek || c.intraWin == null) return;
+      if (c.intraWin === 0 && c.pct >= 0.75) entry(`${t.conf}:${t.manager}`).heartbreak++;
+      if (c.intraWin === 1 && c.pct <= 0.25) entry(`${t.conf}:${t.manager}`).lucky++;
+    });
+  });
+  Object.entries(benchByWeek || {}).forEach(([w, byKey]) => {
+    if (Number(w) > latestCompletedWeek) return;
+    const values = Object.values(byKey);
+    if (!values.length) return;
+    const most = Math.max(...values);
+    Object.entries(byKey).forEach(([key, left]) => {
+      if (left < 0.05) entry(key).perfect++;
+      if (most > 0 && left === most) entry(key).bench++;
+    });
+  });
   const ownerToKey = {};
   afcManagers.forEach(m => { if (afcData?.ownerIdMap?.[m] != null) ownerToKey[`AFC:${afcData.ownerIdMap[m]}`] = `AFC:${m}`; });
   nfcManagers.forEach(m => { if (nfcData?.ownerIdMap?.[m] != null) ownerToKey[`NFC:${nfcData.ownerIdMap[m]}`] = `NFC:${m}`; });

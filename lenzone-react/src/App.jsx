@@ -34,7 +34,7 @@ import GrabbableFootball from './components/GrabbableFootball';
 import DancingStickmen from './components/DancingStickmen';
 import SettingsMenu, { ModeToggle } from './components/SettingsMenu';
 import TeamMiniLogo from './components/TeamMiniLogo';
-import { weekTeamResults, allPlayLuck, seasonHeat, sitStartAccuracy, playerBoomBust, tradeFleece, waiverWire, draftValue } from './lib/funStats';
+import { weekTeamResults, allPlayLuck, seasonHeat, sitStartAccuracy, teamBoomBust, weeklyBenchPoints, tradeFleece, waiverWire, draftValue } from './lib/funStats';
 import { RosterModalProvider } from './context/RosterModalContext';
 import { MatchupPreviewProvider } from './context/MatchupPreviewContext';
 import MatchupPreviewModal from './components/MatchupPreviewModal';
@@ -263,11 +263,15 @@ function RecentForm({ form }) {
   );
 }
 
-// Season trophy case under a team's name: weekly high-score prizes (wine or cash) and lowest-score
-// weeks. Nothing renders for a team with no badges, so most rows stay clean.
+// Season trophy case under a team's name: weekly high-score prizes (wine or cash), then the fun
+// ones from real scores (see computePrizeBadges). Nothing renders for a team with no badges.
 const PRIZE_BADGES = [
   ['wine', '🍷', n => `Weekly high score ×${n} (took the wine)`],
   ['cash', '💰', n => `Weekly high score ×${n} (took the $15)`],
+  ['perfect', '🎯', n => `Perfect lineup ×${n}: started the best possible lineup`],
+  ['heartbreak', '💔', n => `Heartbreak ×${n}: top-25% score league-wide, still lost in-conference`],
+  ['lucky', '🍀', n => `Lucky win ×${n}: bottom-25% score league-wide, still won in-conference`],
+  ['bench', '🪑', n => `Bench blunder ×${n}: most points left on the bench that week`],
   ['low', '🪦', n => `Lowest score of the week ×${n}`]
 ];
 function PrizeBadges({ prizes, className = '' }) {
@@ -486,7 +490,7 @@ function StandingsScopeToggle({ scope, onChange, target }) {
 
 // `compact` shows the one-line-per-team layout at every width (the side-by-side AFC/NFC view);
 // otherwise desktop gets the full stat table and phones the compact rows.
-function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek, headerExtra = null, compact = false }) {
+function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek, headerExtra = null, compact = false, prizeBadges = null }) {
   const whole = conf == null;
   const exportRef = useRef(null);
   const imageExport = useElementPngExport(exportRef, `lenzone-standings-table-${whole ? 'league' : conf.toLowerCase()}`, { minWidth: compact ? 560 : 1100 });
@@ -569,7 +573,7 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek, hea
                     {whole && <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${style.badge}`}>{item.conf}</span>}
                   </div>
                   {other && <div className="text-[11px] font-normal text-[var(--muted)]">{other}</div>}
-                  <PrizeBadges prizes={item.prizes} className="mt-0.5" />
+                  <PrizeBadges prizes={prizeBadges?.[`${item.conf}:${item.manager}`]} className="mt-0.5" />
                 </td>
                 <td className="py-2 px-2 whitespace-nowrap">
                   <div className={`font-bold ${style.text}`}>{item.totalPts.toFixed(1)}</div>
@@ -613,7 +617,7 @@ function StandingsTable({ conf, rows, afcData, nfcData, latestCompletedWeek, hea
                 <TeamName manager={item.manager} conf={item.conf} className="font-semibold text-[13px]" />
                 {whole && <span className={`shrink-0 text-[9px] font-bold px-1 rounded-full ${style.badge}`}>{item.conf}</span>}
               </div>
-              <PrizeBadges prizes={item.prizes} className="mt-0.5" />
+              <PrizeBadges prizes={prizeBadges?.[`${item.conf}:${item.manager}`]} className="mt-0.5" />
             </div>
             <span className="hidden sm:block text-right tabular-nums font-semibold text-[var(--text2)]">{item.overallRecord}</span>
             <span className={`text-right font-extrabold tabular-nums ${style.text}`}>{item.totalPts.toFixed(1)}</span>
@@ -1510,10 +1514,8 @@ export default function App() {
       ? computeOpponentsForWeek(afcManagers, nfcManagers, afcSeason, nfcSeason, schedule, latestCompletedWeek + 1)
       : {};
     const byeOdds = { ...(afcByeOdds || {}), ...(nfcByeOdds || {}) };
-    const prizeBadges = computePrizeBadges(afcManagers, nfcManagers, afcSeason, nfcSeason, afcData, nfcData, latestCompletedWeek, HIGH_SCORE_PRIZES);
     const decorate = (list, moveCounts, form) => list.map(t => ({
       ...t,
-      prizes: prizeBadges[`${t.conf}:${t.manager}`] || null,
       moves: moveCounts[t.manager] || 0,
       form: form[t.manager] || null,
       byePct: byeOdds[t.manager] ?? null,
@@ -1708,8 +1710,19 @@ export default function App() {
     [latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, playersDB]
   );
   const funBoomBust = useMemo(
-    () => playerBoomBust(latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, weekProjectionsByWeek),
-    [latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, weekProjectionsByWeek]
+    () => teamBoomBust(latestCompletedWeek, afcSeason, nfcSeason, schedule, afcManagers, nfcManagers),
+    [latestCompletedWeek, afcSeason, nfcSeason, schedule, afcManagers, nfcManagers]
+  );
+  // Per-week bench points, for the 🎯 perfect lineup / 🪑 bench blunder badges.
+  const funBenchByWeek = useMemo(
+    () => weeklyBenchPoints(latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, playersDB),
+    [latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, playersDB]
+  );
+  // Standings trophy case, keyed "<CONF>:<manager>" (kept out of the standings memo so player data
+  // loading later doesn't re-run the playoff simulation).
+  const prizeBadges = useMemo(
+    () => computePrizeBadges(afcManagers, nfcManagers, afcSeason, nfcSeason, afcData, nfcData, latestCompletedWeek, HIGH_SCORE_PRIZES, { heat: funHeat, benchByWeek: funBenchByWeek }),
+    [afcManagers, nfcManagers, afcSeason, nfcSeason, afcData, nfcData, latestCompletedWeek, funHeat, funBenchByWeek]
   );
   const funWaiver = useMemo(
     () => waiverWire(latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, afcTransactions, nfcTransactions, playersDB),
@@ -2019,7 +2032,7 @@ export default function App() {
                     <div data-standings-anchor="table" className="scroll-mt-24">
                     <StandingsTable conf={null}
                       rows={[...afcStandings, ...nfcStandings].sort((a, b) => b.totalPts - a.totalPts || b.pfAvg - a.pfAvg).map((row, i) => ({ ...row, rank: i + 1 }))}
-                      afcData={afcData} nfcData={nfcData} latestCompletedWeek={latestCompletedWeek} />
+                      afcData={afcData} nfcData={nfcData} latestCompletedWeek={latestCompletedWeek} prizeBadges={prizeBadges} />
                     </div>
                     <div className="grid gap-4 lg:grid-cols-2">
                       <WildcardRace rows={afcStandings} conf="AFC" latestCompletedWeek={latestCompletedWeek} />
@@ -2039,7 +2052,7 @@ export default function App() {
                       {["AFC", "NFC"].map(conf => (
                         <div key={conf} className={`min-w-0 ${conf === standingsConf ? "" : "hidden lg:block"}`}>
                           <StandingsTable conf={conf} compact={standingsDetail === "compact"} rows={conf === "AFC" ? afcStandings : nfcStandings}
-                            afcData={afcData} nfcData={nfcData} latestCompletedWeek={latestCompletedWeek} />
+                            afcData={afcData} nfcData={nfcData} latestCompletedWeek={latestCompletedWeek} prizeBadges={prizeBadges} />
                         </div>
                       ))}
                     </div>

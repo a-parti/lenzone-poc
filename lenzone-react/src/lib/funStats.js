@@ -1,6 +1,7 @@
-import { computeOptimalLineupPoints, projectedPoints, scoringFieldFor } from './players';
+import { computeOptimalLineupPoints } from './players';
 
-// Shared math for the "fun" visuals (Luck of the Week, Boom or Bust, Luck Meter, Season Heat Map).
+// Shared math for the "fun" visuals (Luck of the Week, Boom or Bust, Luck Meter, Season Heat Map,
+// and the trade / waiver / draft / sit-start meters).
 // Everything comes from real posted Sleeper scores; a team with no posted score that week is left
 // out rather than guessed.
 
@@ -89,12 +90,6 @@ export function seasonHeat(latestCompletedWeek, afcSeason, nfcSeason, schedule, 
   return byManager;
 }
 
-const median = (values) => {
-  if (!values.length) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-};
 
 const confEntries = (afcData, nfcData, afcSeason, nfcSeason) => [
   { conf: 'AFC', data: afcData, season: afcSeason },
@@ -129,80 +124,124 @@ export function sitStartAccuracy(latestCompletedWeek, afcData, nfcData, afcSeaso
 }
 
 
-// Boom/Bust for started players: each started player-week's actual points minus Sleeper's projection
-// (scored with the league's own rules). Boom pts = total points above projection, bust pts = total below.
-export function playerBoomBust(latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, projectionsByWeek) {
-  const rows = [];
+// Points each team left on its bench, per completed week, keyed "<CONF>:<manager>" -- the same
+// best-possible-lineup comparison the Sit/Start meter uses, week by week. Feeds the 🎯 perfect
+// lineup and 🪑 bench blunder badges.
+export function weeklyBenchPoints(latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, playersDB) {
+  const byWeek = {};
+  if (!playersDB || !Object.keys(playersDB).length) return byWeek;
   confEntries(afcData, nfcData, afcSeason, nfcSeason).forEach(({ conf, data, season }) => {
-    const fallback = scoringFieldFor(data?.receptionPoints);
     (data?.rosters || []).forEach(r => {
-      const t = { manager: r.manager, conf, n: 0, sum: 0, boomPts: 0, bustPts: 0 };
       for (let w = 1; w <= latestCompletedWeek; w++) {
         const snap = season?.rosterSnapshotByWeek?.[w]?.[r.manager];
         if (!snap?.playersPoints) continue;
-        (snap.starters || []).forEach(id => {
-          if (!id || id === '0') return;
-          const proj = projectedPoints(projectionsByWeek?.[w], id, data.scoringSettings, fallback);
-          const actual = snap.playersPoints[id];
-          if (proj == null || proj <= 0 || !Number.isFinite(actual)) return;
-          const delta = actual - proj;
-          t.n += 1;
-          t.sum += delta;
-          if (delta > 0) t.boomPts += delta;
-          else t.bustPts += delta;
-        });
+        const actual = (snap.starters || []).reduce((sum, id) => sum + (snap.playersPoints[id] > 0 ? snap.playersPoints[id] : 0), 0);
+        const best = computeOptimalLineupPoints(data.startingSlots, Object.keys(snap.playersPoints), snap.playersPoints, playersDB);
+        if (best <= 0) continue;
+        (byWeek[w] || (byWeek[w] = {}))[`${conf}:${r.manager}`] = Math.max(0, best - actual);
       }
-      if (t.n > 0) rows.push({ ...t, avg: t.sum / t.n });
     });
   });
-  return rows.sort((a, b) => b.avg - a.avg);
+  return byWeek;
 }
 
-// Shared by the trade, waiver and draft meters: points over the weekly position median.
+// Team Boom/Bust: a boom week is a top-25% score across the whole league that week (all 24 teams),
+// a bust week a bottom-25% score -- the same "share of weeks above / below a line" idea as
+// FantasyPros' boom/bust rates, applied to teams instead of players. Uses seasonHeat's percentile
+// (0 = lowest score that week, 1 = highest; ties split).
+export const BOOM_PCT = 0.75;
+export const BUST_PCT = 0.25;
+export function teamBoomBust(latestCompletedWeek, afcSeason, nfcSeason, schedule, afcManagers, nfcManagers) {
+  const heat = seasonHeat(latestCompletedWeek, afcSeason, nfcSeason, schedule, afcManagers, nfcManagers);
+  return Object.values(heat).map(t => {
+    const weeks = Object.entries(t.weeks);
+    const boomWeeks = weeks.filter(([, c]) => c.pct >= BOOM_PCT).map(([w]) => Number(w));
+    const bustWeeks = weeks.filter(([, c]) => c.pct <= BUST_PCT).map(([w]) => Number(w));
+    return { manager: t.manager, conf: t.conf, weeks: weeks.length, boom: boomWeeks.length, bust: bustWeeks.length, boomWeeks, bustWeeks, net: boomWeeks.length - bustWeeks.length };
+  }).filter(t => t.weeks > 0).sort((a, b) => b.net - a.net || b.boom - a.boom);
+}
+
+// Shared by the trade, waiver and draft meters: points over REPLACEMENT LEVEL -- the standard
+// "value over replacement" baseline trade-value tools use, where a player just outside starting
+// range is worth zero. Replacement level for a position, in one conference, in one week = the score
+// of the best rostered player at that position who would NOT make the cut if every team started
+// its top guys: if the conference started N players at the position that week (flex usage
+// included), it's the (N+1)th-best score among all rostered players there. Players who didn't play
+// (0 or no score) are left out of the ranking. A replacement-level player is worth ~0, so an extra
+// body thrown into a trade no longer counts against the team that receives him. Kickers and
+// defenses are the exception (see STREAMED_POSITIONS): measured against that week's average starter.
+const STREAMED_POSITIONS = new Set(['K', 'DEF']);
 function valueTools(latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, playersDB) {
   const entries = confEntries(afcData, nfcData, afcSeason, nfcSeason);
   const position = (id) => playersDB?.[id]?.position || null;
-  const medianCache = {};
-  const positionMedian = (week, pos) => {
-    const key = `${week}|${pos}`;
-    if (key in medianCache) return medianCache[key];
-    const pts = [];
-    entries.forEach(({ season }) => Object.values(season?.rosterSnapshotByWeek?.[week] || {}).forEach(snap => {
-      Object.entries(snap.playersPoints || {}).forEach(([id, p]) => { if (p > 0 && position(id) === pos) pts.push(p); });
-    }));
-    return (medianCache[key] = median(pts));
+  const replacementCache = new Map();
+  const replacementLevel = (season, week, pos) => {
+    let byPos = replacementCache.get(season)?.[week];
+    if (!byPos) {
+      const started = {}, scores = {};
+      Object.values(season?.rosterSnapshotByWeek?.[week] || {}).forEach(snap => {
+        const starters = new Set(snap.starters || []);
+        Object.entries(snap.playersPoints || {}).forEach(([id, p]) => {
+          const ps = position(id);
+          if (!ps) return;
+          if (starters.has(id)) started[ps] = (started[ps] || 0) + 1;
+          if (p > 0) (scores[ps] || (scores[ps] = [])).push(p);
+        });
+      });
+      byPos = {};
+      Object.keys(scores).forEach(ps => {
+        if (STREAMED_POSITIONS.has(ps)) {
+          // Nobody rosters a backup kicker/defense, so there's no (N+1)th to rank; these are
+          // streamed off waivers every week, so an average starter is the freely available level.
+          const startedScores = [];
+          Object.values(season?.rosterSnapshotByWeek?.[week] || {}).forEach(snap => (snap.starters || []).forEach(id => {
+            const p = snap.playersPoints?.[id];
+            if (position(id) === ps && Number.isFinite(p)) startedScores.push(p);
+          }));
+          byPos[ps] = startedScores.length ? startedScores.reduce((a, b) => a + b, 0) / startedScores.length : 0;
+          return;
+        }
+        const sorted = scores[ps].sort((a, b) => b - a);
+        const n = started[ps] || 0;
+        byPos[ps] = sorted.length > n ? sorted[n] : 0;
+      });
+      const forSeason = replacementCache.get(season) || {};
+      forSeason[week] = byPos;
+      replacementCache.set(season, forSeason);
+    }
+    return byPos[pos] ?? 0;
   };
   const nameOf = (id) => {
     const p = playersDB?.[id];
     return p ? `${p.first_name || ''} ${p.last_name || ''}`.trim() || id : id;
   };
 
-  // Points over the position median for one player on one roster across the weeks he was there.
-  const valueOn = (season, startWeek, id, manager, startedOnly = false) => {
+  // Points over replacement for one player on one roster, from startWeek on, counting only the
+  // weeks that team STARTED him (bench points never helped anyone).
+  const valueOn = (season, startWeek, id, manager) => {
     let value = 0, weeks = 0;
     for (let w = startWeek; w <= latestCompletedWeek; w++) {
       const snap = season?.rosterSnapshotByWeek?.[w]?.[manager];
-      if (startedOnly && !snap?.starters?.includes(id)) continue;
+      if (!snap?.starters?.includes(id)) continue;
       const pts = snap?.playersPoints?.[id];
       if (!Number.isFinite(pts)) continue;
-      value += pts - positionMedian(w, position(id));
+      value += pts - replacementLevel(season, w, position(id));
       weeks += 1;
     }
     return { value, weeks };
   };
-  return { entries, position, positionMedian, nameOf, valueOn };
+  return { entries, position, replacementLevel, nameOf, valueOn };
 }
 
-// Fleece meter: for every completed trade, the points each side got from the players it received
-// (while those players sat on its roster, from the trade week on) minus what the players it gave up
-// produced for their new teams, both measured against that week's median score for the player's
-// position among all rostered players. Redraft league: players only, no picks.
+// Fleece meter: for every completed trade, the points over replacement each side got from the
+// players it received (in the weeks it started them, from the trade week on) minus what the players
+// it gave up produced over replacement for their new team (same rule). Looks backward at what
+// actually happened, not at projections. Redraft league: players only, no picks.
 export function tradeFleece(latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, afcTransactions, nfcTransactions, playersDB) {
   const { entries, position, nameOf, valueOn } = valueTools(latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, playersDB);
 
-  // What a FAAB dollar is worth in this league: points over the position median that winning waiver
-  // claims produced, per dollar bid. Never below zero, so FAAB can't count as a gain just because
-  // pickups have so far underperformed the median.
+  // What a FAAB dollar is worth in this league: points over replacement that winning waiver claims
+  // produced (in started weeks), per dollar bid. Never below zero.
   let claimValue = 0, claimBid = 0;
   [[entries[0], afcTransactions], [entries[1], nfcTransactions]].forEach(([{ data, season }, transactions]) => {
     (transactions || []).filter(t => t.type === 'waiver' && t.status === 'complete').forEach(t => {
@@ -250,6 +289,8 @@ export function tradeFleece(latestCompletedWeek, afcData, nfcData, afcSeason, nf
     row.trades += 1;
     row.weeks += tr.weeks;
   }));
+  // Points per week since the trade, so an old trade and a recent one can be compared.
+  trades.forEach(tr => tr.sides.forEach(s => { s.perWeek = tr.weeks > 0 ? s.net / tr.weeks : 0; }));
   return {
     byTeam: Object.values(byManager).sort((a, b) => b.net - a.net),
     trades: trades.sort((a, b) => b.created - a.created),
@@ -259,9 +300,9 @@ export function tradeFleece(latestCompletedWeek, afcData, nfcData, afcSeason, nf
   };
 }
 
-// Waiver Wire meter: points over the position median that each team's waiver / free-agent pickups
-// produced in the weeks they were in that team's starting lineup (bench weeks and weeks on another
-// roster don't count), plus FAAB spent.
+// Waiver Wire meter: points over replacement that each team's waiver / free-agent pickups produced
+// in the weeks they were in that team's starting lineup (bench weeks and weeks on another roster
+// don't count), plus FAAB spent.
 export function waiverWire(latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, afcTransactions, nfcTransactions, playersDB) {
   const { entries, position, nameOf, valueOn } = valueTools(latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, playersDB);
   const byManager = {};
@@ -271,7 +312,7 @@ export function waiverWire(latestCompletedWeek, afcData, nfcData, afcSeason, nfc
       Object.entries(t.adds || {}).forEach(([id, rid]) => {
         const manager = data.rosterIdMap?.[rid];
         if (!manager) return;
-        const { value, weeks } = valueOn(season, t.leg || 1, id, manager, true);
+        const { value, weeks } = valueOn(season, t.leg || 1, id, manager);
         const row = byManager[manager] || (byManager[manager] = { manager, conf, net: 0, faab: 0, pickups: 0, best: null });
         row.net += value;
         row.faab += bid;
@@ -283,38 +324,41 @@ export function waiverWire(latestCompletedWeek, afcData, nfcData, afcSeason, nfc
   return Object.values(byManager).sort((a, b) => b.net - a.net);
 }
 
-// Draft Value meter: each pick's points over the position median in the weeks the drafting team
-// started him (bench weeks and weeks on another roster don't count).
+// Draft Value meter: did each pick beat what its ROUND usually returns? A pick's raw value is its
+// points over replacement in the weeks the drafting team started him (never started = 0). The
+// round's expected value is the average raw value of every pick made in that round across BOTH
+// leagues' drafts (24 picks per round). A pick's score is raw value minus that round average, so a
+// first-rounder who merely plays like a first-rounder scores ~0, and a late-round hit scores high.
 export function draftValue(latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, afcDraft, nfcDraft, playersDB) {
-  const { entries, position, positionMedian, nameOf } = valueTools(latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, playersDB);
-  const byManager = {};
-  const picks = [];
+  const { entries, position, nameOf, valueOn } = valueTools(latestCompletedWeek, afcData, nfcData, afcSeason, nfcSeason, playersDB);
+  const raw = [];
   [[entries[0], afcDraft], [entries[1], nfcDraft]].forEach(([{ conf, data, season }, draft]) => {
     (draft?.picks || []).forEach(pk => {
       const manager = data.rosterIdMap?.[pk.roster_id];
       if (!manager || !pk.player_id) return;
-      let value = 0, weeks = 0;
-      for (let w = 1; w <= latestCompletedWeek; w++) {
-        const snap = season?.rosterSnapshotByWeek?.[w]?.[manager];
-        const pts = snap?.playersPoints?.[pk.player_id];
-        if (!snap?.starters?.includes(pk.player_id) || !Number.isFinite(pts)) continue;
-        value += pts - positionMedian(w, position(pk.player_id));
-        weeks += 1;
-      }
-      if (!weeks) return;
-      const pick = { manager, conf, round: pk.round, pickNo: pk.pick_no, playerId: pk.player_id, name: nameOf(pk.player_id), pos: position(pk.player_id), value };
-      picks.push(pick);
-      const row = byManager[manager] || (byManager[manager] = { manager, conf, net: 0, picks: 0, best: null });
-      row.net += value;
-      row.picks += 1;
-      if (!row.best || value > row.best.value) row.best = pick;
+      const { value, weeks } = valueOn(season, 1, pk.player_id, manager);
+      raw.push({ manager, conf, round: pk.round, pickNo: pk.pick_no, playerId: pk.player_id, name: nameOf(pk.player_id), pos: position(pk.player_id), raw: value, weeks });
     });
   });
-  // The same player can be drafted once in each conference; list him once with every drafter.
+  const roundTotals = {};
+  raw.forEach(p => { const r = roundTotals[p.round] || (roundTotals[p.round] = { sum: 0, n: 0 }); r.sum += p.raw; r.n += 1; });
+  const roundAvg = Object.fromEntries(Object.entries(roundTotals).map(([round, { sum, n }]) => [round, sum / n]));
+  const picks = raw.map(p => ({ ...p, roundAvg: roundAvg[p.round], value: p.raw - roundAvg[p.round] }));
+
+  const byManager = {};
+  picks.forEach(pick => {
+    const row = byManager[pick.manager] || (byManager[pick.manager] = { manager: pick.manager, conf: pick.conf, net: 0, picks: 0, best: null });
+    row.net += pick.value;
+    row.picks += 1;
+    if (!row.best || pick.value > row.best.value) row.best = pick;
+  });
+  // The same player can be drafted once in each conference; list him once with every drafter
+  // (his value is the better of his two picks, since each drafter's result can differ).
   const byPlayer = {};
   picks.forEach(pk => {
-    const row = byPlayer[pk.playerId] || (byPlayer[pk.playerId] = { playerId: pk.playerId, name: pk.name, pos: pk.pos, value: pk.value, drafters: [] });
-    row.drafters.push({ manager: pk.manager, conf: pk.conf, round: pk.round, pickNo: pk.pickNo });
+    const row = byPlayer[pk.playerId] || (byPlayer[pk.playerId] = { playerId: pk.playerId, name: pk.name, pos: pk.pos, value: -Infinity, drafters: [] });
+    row.value = Math.max(row.value, pk.value);
+    row.drafters.push({ manager: pk.manager, conf: pk.conf, round: pk.round, pickNo: pk.pickNo, value: pk.value });
   });
   const sorted = Object.values(byPlayer).sort((a, b) => b.value - a.value);
   return {
